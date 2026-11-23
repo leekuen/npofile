@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# commit 之前擋沒解掉的 git 衝突標記（源專案 v5.39.0）。
+# 選用：這個 clone 跑過 `make hooks`（scripts/setup-hooks.sh）才會生效。
+#
+# 為什麼：源專案合流時解一份文件的衝突，替換指令沒生效就照常 commit，衝突標記進了整合分支。
+# 只看這次 commit 的「新增行」，舊檔本來就有的不會擋。
+# 擋得到：git merge／git cherry-pick 解完衝突後的那次 commit，以及一般 commit。
+# 擋不到：`git rebase --continue`（測試裡有一條專門確認：帶標記的 commit 照樣寫進去）、`git commit --no-verify`、
+# 沒跑 `make hooks` 的 clone——推 stage／prod 時 .githooks/pre-push 會再掃一次推送範圍。
+# 結束碼：檢查回 1 才擋；其他非 0（檢查自己跑不起來、檔案不在）只警告放行，不因工具壞掉擋工作。
+set -uo pipefail
+root="$(git rev-parse --show-toplevel)"
+bash "$root/scripts/conflict-marker-lint.sh" --staged
+rc=$?
+case "$rc" in
+  0) exit 0 ;;
+  1)
+    echo "[pre-commit] ⛔ 這次 commit 被擋下：有沒解掉的衝突標記（上面列出哪個檔、第幾行）。" >&2
+    echo "[pre-commit]    修好再 commit；確定要硬 commit 才用 --no-verify（推 stage／prod 前那一道還是會擋）。" >&2
+    exit 1
+    ;;
+  *) echo "[pre-commit] ⚠️ 衝突標記檢查跑不起來（結束碼 ${rc}），**這次沒有檢查**，commit 照常進行；要補查：bash scripts/conflict-marker-lint.sh（掃整棵）。" >&2; exit 0 ;;
+esac

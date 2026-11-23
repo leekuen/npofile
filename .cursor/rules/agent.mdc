@@ -9,10 +9,13 @@ Always start by reading `AGENTS.md`. It is the normative engineering contract fo
 
 Use these supporting references:
 
-- `docs/SPEC.md`: current user-visible behavior. Update it in the same change when user-visible functionality changes.
+- `docs/SPEC.md`: current user-visible behavior. Read it before starting; write the change into it when the work is merged into `stage` (not on the feature branch, not at ticket time).
 - `docs/PRINCIPLES.md`: production safety checklist for concurrency, idempotency, security, performance, migrations, and background jobs.
-- `tickets/`: feature tickets. No development on product code without an open ticket (status 待開發/開發中).
+- `tickets/`: feature tickets. No development on product code without an open ticket (status 待開發/開發中). Create tickets with `make new-ticket`; never hand-write a ticket file or pick a number yourself.
 - `.agents/skills/`: canonical repo-local skill workflows.
 - `.claude/skills/`: Claude Code adapters only; do not maintain duplicate workflow logic there.
+- `.claude/agents/`: single-file review subagents; paste the file body into a prompt when your tool cannot dispatch them.
+
+Work in your own worktree (`make worktree n=<ticket>`); the main checkout stays on `stage` and is for merging only. Stage files by name (`git add path/to/file`, never `-A`, `.`, a directory, or `git commit -a`), and name a commit hash for reset/revert/rebase instead of `HEAD^`/`HEAD~n`. The Claude Code hooks that enforce these rules do not run in Cursor, so follow them by discipline.
 
 Keep all user-facing interfaces in sync unless the user explicitly scopes the work to one interface. Do not read or commit real env files, backups, or secrets. Do not run destructive restore/reset/deploy operations without explicit confirmation.
