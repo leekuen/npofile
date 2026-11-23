@@ -10,7 +10,12 @@
       "Bash(scripts/new-ticket.sh:*)",
       "Bash(make check)",
       "Bash(make ticket-lint)",
-      "Bash(make new-ticket:*)"
+      "Bash(make new-ticket:*)",
+      "Bash(make worktree-list)",
+      "Bash(make confirm-lint)",
+      "Bash(make walkthrough-lint)",
+      "Bash(make dup-lint)",
+      "Bash(make next-framework-version)"
     ],
     "deny": []
   },
@@ -24,6 +29,18 @@
             "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/ticket-gate-hook.sh",
             "statusMessage": "檢查無票不開發閘門",
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/ui-design-gate-hook.sh",
+            "statusMessage": "檢查動畫面前有沒有先套 ui-design",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/mockup-text-gate-hook.sh",
+            "statusMessage": "檢查示意圖上的文字",
+            "timeout": 15
           }
         ]
       },
@@ -35,13 +52,34 @@
             "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/git-sync-gate-hook.sh",
             "statusMessage": "推分支前檢查遠端同步",
             "timeout": 20
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/git-scope-gate-hook.sh",
+            "statusMessage": "檢查 git 指令的波及範圍",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/check-pipe-gate-hook.sh",
+            "statusMessage": "檢查檢查指令有沒有接管線",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/ui-design-mark-hook.sh",
+            "timeout": 15
           }
         ]
       }
     ],
     "SessionStart": [
       {
-        "matcher": "startup|clear",
         "hooks": [
           {
             "type": "command",

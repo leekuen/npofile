@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>條件確認清單</title>
+<!--
+  條件確認清單範本（源專案 v5.5.0）。用法見 .agents/skills/pm/SKILL.md〈4b〉。
+
+  只改 <script> 開頭四個常數：TICKET（票號）、ALLOW_SKIP（開票時 true；推 stage 前與上 prod 前 false，那時不能再「先略過」）、
+  ALLOW_DEFER（只有推 stage 前那次 true；開票時與上 prod 前 false。true 時，標了 deferrable 的列多一個「等 prod 筆數再答」選項，源專案 v5.41.0）、ITEMS（每條一個物件）。
+  ITEMS 的欄位：
+    title   用白話一句講這條規則（不要寫程式用語）
+    scope   筆數的分母：哪一群資料、共幾筆（例：「prod 已審核的申請單，共 3707 筆」）
+    match   符合這條規則的筆數，寫成「N 筆」；查不到就寫「查不到：<原因>」
+    blocked 被這條規則擋掉／影響到的筆數，同上
+    example 一個真實的例子（用查到的真實資料，不要編）
+    deferrable（選填，只有 ALLOW_DEFER 才有用）true＝這條要先看到 prod 的實際筆數才答得出來、而且筆數現在查不到（match 或 blocked 要是「查不到：<原因>」）；
+            規則本身（誰可以、誰不行、算不算、要不要提醒）不需要筆數，不能標。
+    deferWhy（deferrable 時要寫）用白話一句講「為什麼現在答不了」，會顯示在那條下面
+  所有文字一律用 textContent 放進畫面，票上的字不會被當成 HTML 執行。
+  ⚠️ ITEMS 是 JS 字串：文字裡有半形雙引號 " 要寫成 \" （或改用全形「」），不要出現 </script>，否則整張清單會空白。
+  一批好幾張票一起問：TICKET 填「這一批」，每條 title 開頭加票號。
+
+  兩種用法（畫面一樣）：
+    1) 對話介面能直接顯示互動元件時（例：Claude 桌面 app 的 show_widget）：只取下面「範本開始」到「範本結束」之間的內容。
+       環境有提供 sendPrompt 時，按「送出答案」會直接把答案送回對話。
+    2) 其他環境：存成 cache/discussions/條件確認-<票號>.html（cache/ 不進版控），請對方用瀏覽器開。按「送出答案」會複製答案，貼回對話即可。
+  答案的格式固定（agent 逐行解析）：
+    條件確認 <票號>
+    1｜<條件前 20 字>｜同意
+    2｜<條件前 20 字>｜不同意：<對方想怎麼改>
+    3｜<條件前 20 字>｜先略過
+    4｜<條件前 20 字>｜我看不懂
+    5｜<條件前 20 字>｜等 prod 筆數再答      （只有推 stage 前那次、只有標了 deferrable 的列；答這個要把狀態改「待 prod 資料」＋回答日）
+-->
+</head>
+<body>
+<!-- 範本開始 -->
+<style>
+  .cc { --cc-text: var(--text-primary, #1f2328); --cc-muted: var(--text-secondary, #59636e);
+        --cc-bg: var(--surface-2, #ffffff); --cc-card: var(--surface-1, #f6f8fa);
+        --cc-line: var(--border, #d1d9e0); --cc-accent: #0969da; --cc-warn: #9a6700;
+        color: var(--cc-text); font: 15px/1.6 system-ui, -apple-system, "PingFang TC", "Noto Sans TC", sans-serif;
+        max-width: 720px; margin: 0 auto; padding: 16px; box-sizing: border-box; }
+  @media (prefers-color-scheme: dark) {
+    .cc { --cc-text: var(--text-primary, #e6edf3); --cc-muted: var(--text-secondary, #9198a1);
+          --cc-bg: var(--surface-2, #0d1117); --cc-card: var(--surface-1, #161b22);
+          --cc-line: var(--border, #30363d); --cc-accent: #4493f8; --cc-warn: #d29922; }
+  }
+  .cc * { box-sizing: border-box; }
+  .cc h1 { font-size: 18px; margin: 0 0 4px; }
+  .cc .cc-lead { color: var(--cc-muted); margin: 0 0 16px; }
+  .cc fieldset { border: 1px solid var(--cc-line); background: var(--cc-card); border-radius: 8px; margin: 0 0 12px; padding: 12px 14px; min-width: 0; }
+  .cc legend { padding: 0 6px; font-weight: 600; max-width: 100%; }
+  .cc .cc-nums { margin: 0 0 4px; font-variant-numeric: tabular-nums; }
+  .cc .cc-nums b { font-weight: 600; }
+  .cc .cc-blocked { color: var(--cc-warn); }
+  .cc .cc-meta { color: var(--cc-muted); font-size: 13px; margin: 0 0 8px; overflow-wrap: anywhere; }
+  .cc .cc-opts { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; }
+  .cc label.cc-opt { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; min-height: 32px; }
+  .cc textarea { width: 100%; margin-top: 8px; padding: 8px; font: inherit; color: inherit; background: var(--cc-bg);
+                 border: 1px solid var(--cc-line); border-radius: 6px; resize: vertical; }
+  .cc .cc-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 16px; }
+  .cc button { font: inherit; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--cc-line);
+               background: var(--cc-card); color: inherit; cursor: pointer; }
+  .cc button.cc-primary { background: var(--cc-accent); border-color: var(--cc-accent); color: #fff; }
+  .cc button:disabled { opacity: .5; cursor: not-allowed; }
+  .cc .cc-status { color: var(--cc-muted); }
+  .cc .cc-out { display: none; margin-top: 12px; }
+  .cc .cc-out.on { display: block; }
+</style>
+
+<div class="cc" id="cc">
+  <h1 id="cc-title"></h1>
+  <p class="cc-lead" id="cc-lead"></p>
+  <div id="cc-list"></div>
+  <div class="cc-bar">
+    <button type="button" id="cc-all">全部同意</button>
+    <button type="button" class="cc-primary" id="cc-send" disabled>送出答案</button>
+    <span class="cc-status" id="cc-status" role="status"></span>
+  </div>
+  <div class="cc-out" id="cc-out">
+    <p class="cc-meta">答案已複製。如果貼不出來，請整段複製下面的文字貼回對話：</p>
+    <textarea id="cc-out-text" rows="6" readonly></textarea>
+  </div>
+</div>
+
+<script>
+(function () {
+  // ── 只改這四個 ─────────────────────────────────────────────
+  var TICKET = "AMY-00";
+  var ALLOW_SKIP = true;
+  var ALLOW_DEFER = false;   // 只有推 stage 前那次 true
+  var ITEMS = [
+    { title: "（例）已審核的申請單，附件區至少有一份附件才會出現確認勾選",
+      scope: "prod 已審核的申請單，共 3707 筆",
+      match: "10 筆", blocked: "3697 筆",
+      example: "（例）某張已審核的申請單附件區沒有附件，勾選格就不會出現" }
+    // 推 stage 前那次才會用到的寫法（ALLOW_DEFER = true）：
+    // , { title: "…", scope: "…", match: "查不到：…", blocked: "查不到：…", example: "…",
+    //     deferrable: true, deferWhy: "要先看到 prod 上有幾筆這種資料，才知道這條規則擋掉的人多不多" }
+  ];
+  // ───────────────────────────────────────────────────────────
+
+  var OPTS = [["同意", "同意"], ["不同意", "不同意（我想改）"]];
+  if (ALLOW_SKIP) OPTS.push(["先略過", "先略過（你先照預設做，之後再問我）"]);
+  OPTS.push(["我看不懂", "我看不懂（請用更白話的方式再說明）"]);
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  var root = document.getElementById("cc");
+  var list = document.getElementById("cc-list");
+  var sendBtn = document.getElementById("cc-send");
+  var status = document.getElementById("cc-status");
+  document.getElementById("cc-title").textContent = "條件確認　" + TICKET;
+  document.getElementById("cc-lead").textContent =
+    "這張票有 " + ITEMS.length + " 條是我自己加的規則，會影響到真實資料。每條都附了現在正式環境的筆數，勾完按一次送出就好。";
+
+  var groups = [];
+  ITEMS.forEach(function (it, i) {
+    var fs = el("fieldset");
+    fs.appendChild(el("legend", null, (i + 1) + ". " + it.title));
+    var nums = el("p", "cc-nums");
+    nums.appendChild(document.createTextNode("符合 "));
+    nums.appendChild(el("b", null, it.match));
+    nums.appendChild(document.createTextNode("　／　擋掉或影響 "));
+    nums.appendChild(el("b", "cc-blocked", it.blocked));
+    fs.appendChild(nums);
+    fs.appendChild(el("p", "cc-meta", "筆數範圍：" + it.scope));
+    if (it.example) fs.appendChild(el("p", "cc-meta", "例子：" + it.example));
+    var opts = el("div", "cc-opts");
+    var ta = el("textarea");
+    ta.rows = 2; ta.placeholder = "你想怎麼改？（可以不填，我會再問你）"; ta.style.display = "none";
+    ta.setAttribute("aria-label", "第 " + (i + 1) + " 條想怎麼改");
+    var itemOpts = OPTS.slice();
+    if (ALLOW_DEFER && it.deferrable) itemOpts.splice(itemOpts.length - 1, 0, ["等 prod 筆數再答", "等 prod 筆數再答（推 prod 前我再查筆數問你）"]);
+    itemOpts.forEach(function (o) {
+      var lab = el("label", "cc-opt");
+      var r = document.createElement("input");
+      r.type = "radio"; r.name = "cc-" + i; r.value = o[0];
+      r.addEventListener("change", function () { ta.style.display = o[0] === "不同意" && r.checked ? "" : "none"; refresh(); });
+      lab.appendChild(r); lab.appendChild(document.createTextNode(o[1]));
+      opts.appendChild(lab);
+    });
+    fs.appendChild(opts); fs.appendChild(ta);
+    if (ALLOW_DEFER && it.deferrable)   // 「全部同意」也會點到這一列，所以在列旁提醒還有延後這條路
+      fs.appendChild(el("p", "cc-meta", "這條也可以選「等 prod 筆數再答」。現在答不了的原因：" + (it.deferWhy || "要先看到 prod 的實際筆數")));
+    list.appendChild(fs);
+    groups.push({ item: it, name: "cc-" + i, ta: ta });
+  });
+
+  function chosen(g) {
+    var r = root.querySelector('input[name="' + g.name + '"]:checked');
+    return r ? r.value : "";
+  }
+  function refresh() {
+    var n = groups.filter(function (g) { return chosen(g); }).length;
+    sendBtn.disabled = n < groups.length;
+    status.textContent = "已選 " + n + " ／ " + groups.length;
+  }
+  document.getElementById("cc-all").addEventListener("click", function () {
+    groups.forEach(function (g) { root.querySelector('input[name="' + g.name + '"][value="同意"]').click(); });
+  });
+
+  function answer() {
+    var lines = ["條件確認 " + TICKET];
+    groups.forEach(function (g, i) {
+      var v = chosen(g), t = g.item.title.replace(/\s+/g, " ").slice(0, 20);
+      if (v === "不同意" && g.ta.value.trim()) v += "：" + g.ta.value.trim().replace(/\s+/g, " ");
+      lines.push((i + 1) + "｜" + t + "｜" + v);
+    });
+    return lines.join("\n");
+  }
+  sendBtn.addEventListener("click", function () {
+    var text = answer();
+    if (typeof sendPrompt === "function") {         // 對話框 widget：直接送回對話
+      sendPrompt(text);
+      sendBtn.disabled = true; status.textContent = "已送出，謝謝";
+      return;
+    }
+    var out = document.getElementById("cc-out"), box = document.getElementById("cc-out-text");
+    box.value = text; out.className = "cc-out on";
+    try { navigator.clipboard.writeText(text).catch(function () {}); } catch (e) {}
+    box.focus(); box.select();
+    status.textContent = "已複製，請貼回對話";
+  });
+  refresh();
+})();
+</script>
+<!-- 範本結束 -->
+</body>
+</html>

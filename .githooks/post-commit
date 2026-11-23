@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# 開發分支一有 commit 就自動推到遠端（源專案 v4.8.0）。
+# 選用：這個 clone 跑過 `make hooks`（scripts/setup-hooks.sh）才會生效。
+#
+# 為什麼：多個 session／多人平行開發時，別人**看不到還沒推上去的分支**——
+# 源專案的票號就是這樣撞的（一天內撞了兩次）。把還在做的分支推上去，
+# 取票號、取框架版號的腳本掃遠端時才看得到，撞號才防得住。
+#
+# **絕不自動推 stage／prod（main／master 也一樣）**：進整合分支、正式分支是對外動作
+# （很多專案一推就觸發部署），必須由人明確決定，不能被一個 commit 順手帶出去。
+#
+# 不推的情況：受保護分支、不在任何分支上（detached HEAD）、rebase／merge／cherry-pick／revert 進行中、
+# 沒有叫 origin 的遠端。推不上去只提示，結束碼一律 0，不讓 commit 看起來沒成功。
+# 會漏推的情況（源專案行為照舊）：`git cherry-pick` 自己產生的 commit（進行中的標記還在）、
+# 沒有衝突的 `git merge`（git 不會叫這支 hook）——都等下一次一般 commit 一起推上去，急著讓別人看到就自己推一次。
+set -uo pipefail
+
+branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+
+# detached HEAD（rebase／bisect 中）不推
+[ -n "${branch}" ] || exit 0
+
+case "${branch}" in
+  stage|prod|main|master)
+    echo "[post-commit] ${branch} 是受保護分支，不自動推送（要推請自己明確下指令）"
+    exit 0
+    ;;
+esac
+
+# rebase／merge／cherry-pick／revert 進行中：中間狀態不該推出去
+git_dir="$(git rev-parse --git-dir)"
+for marker in rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD; do
+  if [ -e "${git_dir}/${marker}" ]; then
+    exit 0
+  fi
+done
+
+# 沒有 origin 就不用試（還沒設遠端／單機）
+git remote get-url origin >/dev/null 2>&1 || exit 0
+
+# 推不上去不能讓 commit 看起來沒成功——離線、沒權限、遠端拒絕都只提示。
+# --set-upstream：工作區開的分支沒有上游（scripts/new-worktree.sh 用 --no-track），第一次推順便設好。
+# GIT_TERMINAL_PROMPT=0（模板內補的）：遠端要輸入帳號密碼時直接當成推不上去，不讓 commit 停在那裡等輸入。
+if GIT_TERMINAL_PROMPT=0 git push --quiet --set-upstream origin "${branch}" 2>/dev/null; then
+  echo "[post-commit] 已推送 ${branch} 到 origin（別條 session 取號時掃得到）"
+else
+  echo "[post-commit][warn] ${branch} 沒推上去（離線、沒權限，或遠端比較新要先 pull --rebase）——記得自己補推，否則別人看不到這條分支上的票號" >&2
+fi
+
+exit 0

@@ -7,7 +7,7 @@
 | 類型 | 文件 | 性質 |
 |------|------|------|
 | **規範（normative）** | [AGENTS.md](../AGENTS.md)、[PRINCIPLES.md](PRINCIPLES.md) | 「你必須怎麼做」。衝突時**以這些為準**。 |
-| **規格（spec）** | [SPEC.md](SPEC.md) | 「系統現在做什麼」。隨功能同步維護的單一事實來源。 |
+| **規格（spec）** | [SPEC.md](SPEC.md) | 「系統現在做什麼」。隨功能同步維護的單一事實來源（寫點在合流 `stage`）。 |
 | **說明（informative）** | 其餘文件 | 協助理解，不可與規範牴觸；發現牴觸以規範為準並回報。 |
 
 ## 給非工程師
@@ -20,7 +20,9 @@
 - [../AGENTS.md](../AGENTS.md) — ★ 工程契約（唯一規範來源），任何 agent 動工前先讀。
 - [../.agents/skills](../.agents/skills) — Claude / Codex / Cursor 共用的 canonical workflow skills。
 - [../CLAUDE.md](../CLAUDE.md) — Claude Code 專屬入口（`.claude/skills/` 只是 adapter）。
-- [SPEC.md](SPEC.md) — ★ 功能規格書：動工前先讀對焦既有行為，功能改完主動更新。
+- [../.claude/agents](../.claude/agents) — 自訂審查 subagent（規格、測試計畫、畫面與文案、框架提案、skill 校對）；
+  一個檔就是全部，不分 canonical／adapter。
+- [SPEC.md](SPEC.md) — ★ 功能規格書：動工前先讀對焦既有行為；功能的變更在合流 `stage` 的那一次寫回。
 - [PRINCIPLES.md](PRINCIPLES.md) — ★ 生產原則鐵則（每加功能必讀）。
 - [harness/dispatch.md](harness/dispatch.md) — 派 subagent 的門檻、派工表、驗證判準（附案例來歷）。
 - [../.cursor/rules](../.cursor/rules) — Cursor always-apply rules，指回 AGENTS 與 `.agents/skills/`。
@@ -31,7 +33,9 @@
 - [harness/](harness/) — agent 派工制度：`dispatch.md`（主檔）、`templates/`（派工模板）、
   `sensors-backlog.md`（可機制化清單）、`maintenance.md`（維護協議）、`archive/`（完整論述與前史）。
 - [../CONTRIBUTING.md](../CONTRIBUTING.md) — 分支模型（分支即環境）、commit 規範、PR 流程。
-- [../tickets/README.md](../tickets/README.md) — 功能票格式與狀態流。
+- [../tickets/README.md](../tickets/README.md) — 功能票格式與狀態流（含相依的票、條件確認、走查紀錄）。
+- [../scripts/framework-config.sh](../scripts/framework-config.sh) — 專案差異設定（閘門守哪些目錄、哪些是畫面檔、
+  開工作區要複製哪些本機檔案、哪些檢查指令不准接管線）。
 
 ## 專案技術文件
 

@@ -11,6 +11,7 @@ Start with `AGENTS.md`; it is the normative engineering contract. The files here
 ## Tool-specific adapters
 
 - Claude Code reads `.claude/`; each `.claude/skills/*/SKILL.md` is a thin adapter that points back to the canonical `.agents/skills/*/SKILL.md`.
+- Custom review subagents live in `.claude/agents/*.md`. Each is a single file (no canonical/adapter split). Tools without Claude Code's Agent support can paste the file body into a dispatch prompt.
 - Codex should read `AGENTS.md` first and can use this `.agents/skills/` directory as the repo-local skill catalog.
 - Cursor reads `.cursor/rules/`; those rules point back to `AGENTS.md` and this directory.
 

@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# 推 stage／prod 之前先跑通用關卡。
+# 選用：這個 clone 跑過 `make hooks`（scripts/setup-hooks.sh）才會生效。
+#
+# 只在推 refs/heads/stage、refs/heads/prod 時動作；其他分支（含 .githooks/post-commit 的自動推）直接放行，不拖慢。
+# 刪遠端分支沒有東西要查，直接放行；第一次推（遠端還沒有這條分支）照查。
+#
+# 查什麼——每一道都來自源專案一次真的出事：
+#   ・衝突標記（stage、prod 都查；源專案 v5.39.0）：推送範圍內新增的行不能有沒解掉的 git 衝突標記
+#     （scripts/conflict-marker-lint.sh --range）。為什麼：合流解衝突時標記進了整合分支；.githooks/pre-commit
+#     擋得到 merge／cherry-pick 解衝突後的 commit，但 `git rebase --continue` 擋不到（而解衝突的標準流程
+#     就是 pull --rebase），所以推送時再掃一次。標記常出在只改文件的推送，所以不看這次改的是哪一類檔案。
+#   ・走查交代（只查推 stage；源專案 v5.30.0）：推送範圍內改到的票，〈這次可能會弄壞什麼〉的每個 W 編號
+#     都要在〈開發備註〉或〈走查〉節交代走過或沒走（scripts/walkthrough_record_lint.py）。
+#     為什麼：有票的走查項目一頁沒走就合進整合分支；ticket-lint 只管計畫、不管結果。
+#   ・條件確認（只查推 stage；源專案 v5.41.0）：推送範圍內改到、被推那一版狀態是開發中／完成的票，
+#     〈條件確認〉〈數字口徑〉每一列都要「已確認」（scripts/unconfirmed-conditions.sh --stage-range）。
+#     為什麼：agent 自己加的條件以「未確認」進了整合分支，到要上正式環境時案主才第一次看到；
+#     「推 stage 時順便問」只有文字、擋不住。讀的是被推的 commit 裡的票檔。
+#   ・bash 3.2 變數寫法（源專案 v5.12.0）：scripts/bash32-var-lint.sh，幾秒；量的是目前工作樹，不是被推的 commit。
+#     為什麼：`$變數` 後面直接接全形字，macOS 內建的 bash 3.2 會讀錯變數名。
+# 走查交代、條件確認不查推 prod：票都先經過 stage。
+#
+# 每一道的結束碼都是同一套：0 過｜1 擋下這次推送｜其他非 0（檢查自己跑不起來、檔案不在）只印
+# 「這次沒有檢查」的警告後放行——不因工具壞掉擋工作，但也不把沒查到說成查過。
+#
+# 專案自己的推送前檢查（格式、型別、測試、schema 文件有沒有跟上…）接在檔尾「專案自己的推送前檢查」那一段。
+#
+# 繞得過去的：`git push --no-verify`、沒跑 `make hooks` 的 clone。這支 hook 只是讓問題提早被看到；
+# 真正把關的還是推之前自己跑的 `make check`、合流前的 `make walkthrough-lint`／`make confirm-lint`，以及專案自己接的 CI。
+set -uo pipefail
+
+ZERO=0000000000000000000000000000000000000000
+# 每一組是「<遠端現況 sha>:<要推的 sha>」；git 從 stdin 一行給一條要推的 ref
+cm_pairs=""  # 衝突標記：stage／prod 都查
+wt_pairs=""  # 走查交代：只查推 stage
+cf_pairs=""  # 條件確認：只查推 stage
+while read -r _local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/stage|refs/heads/prod) ;;
+    *) continue ;;
+  esac
+  [ "$local_sha" = "$ZERO" ] && continue  # 刪遠端分支，沒有東西要檢查
+  cm_pairs="$cm_pairs $remote_sha:$local_sha"
+  if [ "$remote_ref" = "refs/heads/stage" ]; then
+    wt_pairs="$wt_pairs $remote_sha:$local_sha"
+    cf_pairs="$cf_pairs $remote_sha:$local_sha"
+  fi
+done
+
+# 這次沒有要推 stage／prod（或只是刪掉遠端那條分支）→ 什麼都不跑
+[ -n "$cm_pairs" ] || exit 0
+
+root="$(git rev-parse --show-toplevel)"
+
+# 衝突標記：推送範圍內新增的行不能有 <<<<<<<／>>>>>>>
+for pair in $cm_pairs; do
+  bash "$root/scripts/conflict-marker-lint.sh" --range "${pair%%:*}" "${pair##*:}"
+  rc=$?
+  case "$rc" in
+    0) ;;
+    1)
+      echo "[pre-push] ⛔ 推送範圍內有沒解掉的衝突標記，這次推送被擋下（上面列出哪個檔、第幾行）。" >&2
+      echo "[pre-push]    修好、commit 後再推；確定要硬推才用 --no-verify。" >&2
+      exit 1
+      ;;
+    *) echo "[pre-push] ⚠️ 衝突標記檢查跑不起來（結束碼 ${rc}），**這次沒有檢查**；要補查：bash scripts/conflict-marker-lint.sh（掃整棵）。" >&2 ;;
+  esac
+done
+
+# 走查交代：推 stage 範圍內改到的票，每個 W 編號都要寫走過或沒走
+for pair in $wt_pairs; do
+  python3 "$root/scripts/walkthrough_record_lint.py" "${pair%%:*}" "${pair##*:}"
+  rc=$?
+  case "$rc" in
+    0) ;;
+    1)
+      echo "[pre-push] ⛔ 有票的 W 編號沒交代走查，這次推送被擋下（上面列出哪幾張、怎麼補）。" >&2
+      exit 1
+      ;;
+    *) echo "[pre-push] ⚠️ 走查交代檢查跑不起來（結束碼 ${rc}），**這次沒有檢查**；要補查：make walkthrough-lint。" >&2 ;;
+  esac
+done
+
+# 條件確認：推 stage 範圍內改到的票，〈條件確認〉〈數字口徑〉每一列都要已確認
+for pair in $cf_pairs; do
+  bash "$root/scripts/unconfirmed-conditions.sh" --stage-range "${pair%%:*}" "${pair##*:}"
+  rc=$?
+  case "$rc" in
+    0) ;;
+    1)
+      echo "[pre-push] ⛔ 有票的〈條件確認〉或〈數字口徑〉還沒經案主確認，這次推送被擋下（上面列出哪張票、哪一列、怎麼辦）。" >&2
+      exit 1
+      ;;
+    *) echo "[pre-push] ⚠️ 條件確認檢查跑不起來（結束碼 ${rc}），**這次沒有檢查**；要補查：make confirm-lint。" >&2 ;;
+  esac
+done
+
+# bash 3.2 變數寫法（幾秒；量的是目前工作樹）
+bash "$root/scripts/bash32-var-lint.sh"
+rc=$?
+case "$rc" in
+  0) ;;
+  1)
+    echo "[pre-push] ⛔ bash32-var-lint 沒過，這次推送被擋下；把上面列的 \$變數 改成 \${變數}。" >&2
+    exit 1
+    ;;
+  *) echo "[pre-push] ⚠️ bash 3.2 變數檢查跑不起來（結束碼 ${rc}），**這次沒有檢查**；要補查：bash scripts/bash32-var-lint.sh。" >&2 ;;
+esac
+
+# ── 專案自己的推送前檢查接在這裡（格式、型別、測試、schema 文件有沒有跟上…）──
+# 照上面同一套寫：結束碼 1 → 講清楚被哪一道擋、怎麼補，然後 exit 1；其他非 0 → 印「這次沒有檢查」放行。
+# 要量「被推的那個 commit」而不是目前工作樹的檢查，範圍在 $cm_pairs 裡（每一組是 <遠端現況 sha>:<要推的 sha>）。
+
+exit 0
