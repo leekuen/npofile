@@ -11,6 +11,8 @@ export interface OrgSummary {
   penalty_count_5y: number;
   public_raised_5y: number;
   tags: CategoryTag[];
+  /** 近 5 年內有總收入的最近一年（LK-17）；列表 API 才有，沒有財務數字是 null */
+  latest_revenue?: { year: number; total_revenue: number } | null;
 }
 
 export interface Page<T> {
@@ -115,6 +117,40 @@ export interface ScoreBreakdown {
   total: number;
 }
 
+/** 一個會計年度的財務摘要（LK-17，參照 Candid Financials）；金額單位元，報告沒列的是 null */
+export interface FinancialYear {
+  year: number;
+  total_revenue: number | null;
+  contributions: number | null;
+  government_grants: number | null;
+  program_service_revenue: number | null;
+  investment_income: number | null;
+  other_revenue: number | null;
+  total_expenses: number | null;
+  program_expenses: number | null;
+  admin_expenses: number | null;
+  fundraising_expenses: number | null;
+  surplus: number | null;
+  total_assets: number | null;
+  total_liabilities: number | null;
+  net_assets: number | null;
+  program_expense_ratio: number | null;
+  audited: boolean | null;
+  method: "ai" | "manual";
+  document_url: string;
+  document_title: string;
+}
+
+export interface OrgDocument {
+  id: number;
+  year: number;
+  kind: "financial" | "annual" | "work";
+  kind_label: string;
+  title: string;
+  url: string;
+  found_on: string;
+}
+
 /** 近 5 年公開募款（LK-20）：勸募申報＋群眾集資；勸募已申報的年度不再加當年集資 */
 export interface PublicRaised {
   total: number;
@@ -150,6 +186,8 @@ export interface OrgDetail extends Omit<OrgSummary, "public_raised_5y"> {
   source_links: SourceLink[];
   score: ScoreBreakdown;
   annual_records: Annual[];
+  financials: FinancialYear[];
+  documents: OrgDocument[];
   projects: Project[];
   penalties: Penalty[];
   /** 政府補助（LK-19），近 5 年，金額大的在前 */

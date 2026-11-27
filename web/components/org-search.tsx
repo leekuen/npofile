@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { type ReactNode, Suspense } from "react";
 
-import { formatMoney, formatNumber } from "@/lib/format";
+import { formatCompact, formatMoney, formatNumber } from "@/lib/format";
 import { ApiUnavailableError, getFilters, getTaxonomy, listOrgs, type OrgQuery } from "@/lib/server-api";
 
 import { CategoryBrowser, CategoryChip } from "./categories";
@@ -235,6 +235,11 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
                       {org.org_type && <span>{org.org_type}</span>}
                       {org.public_raised_5y > 0 && (
                         <span className="tabular-nums sm:hidden">近 5 年公開募款 {formatMoney(org.public_raised_5y)}</span>
+                      )}
+                      {org.latest_revenue && (
+                        <span className="tabular-nums">
+                          總收入 {formatCompact(org.latest_revenue.total_revenue)}（{org.latest_revenue.year} 年度）
+                        </span>
                       )}
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 md:hidden">
                         <StatusBadge status={org.status} label={org.status_label} />

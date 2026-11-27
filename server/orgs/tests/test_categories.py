@@ -182,7 +182,7 @@ class CategoryApiTests(TestCase):
                          f"categories-{i}-code": c.code})
         data.update({f"categories-{len(existing)}-code": "environment.forest",
                      f"categories-{len(existing)}-organization": str(org.pk)})
-        for prefix in ("annual_records", "donations", "projects", "penalties"):
+        for prefix in ("annual_records", "financials", "documents", "donations", "projects", "penalties"):
             data.update({f"{prefix}-TOTAL_FORMS": "0", f"{prefix}-INITIAL_FORMS": "0"})
         r = client.post(f"/admin/orgs/organization/{org.pk}/change/", data)
         self.assertEqual(r.status_code, 302, r.content[:3000])
