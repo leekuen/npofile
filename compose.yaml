@@ -124,7 +124,7 @@ services:
     restart: unless-stopped
     command: ["tunnel", "--no-autoupdate", "run"]
     environment:
-      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?請在 .env 設 CLOUDFLARE_TUNNEL_TOKEN，或拿掉 COMPOSE_PROFILES 裡的 tunnel}
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}  # 啟用 tunnel profile 時必填（.env）
     depends_on:
       - nginx
     logging: *logging
