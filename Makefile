@@ -5,7 +5,7 @@
 .PHONY: help check ticket-lint dup-lint new-ticket next-framework-version \
         worktree worktree-list worktree-clean ticket-handoff \
         walkthrough-lint confirm-lint confirm-lint-prod hooks \
-        setup-dev test-server test-crawler lint-web build-web
+        setup-dev test-server test-crawler test-deploy lint-web build-web
 
 # 後端 Python：Windows 的 venv 在 Scripts/，其他平台在 bin/
 PY := $(abspath $(firstword $(wildcard server/.venv/Scripts/python.exe server/.venv/bin/python)))
@@ -14,7 +14,7 @@ export PYTHONIOENCODING := utf-8
 help: ## 列出所有指令
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-24s %s\n", $$1, $$2}'
 
-check: ticket-lint dup-lint test-crawler test-server lint-web ## 跑所有檢查（= CI）。輸出不要接管線
+check: ticket-lint dup-lint test-crawler test-server test-deploy lint-web ## 跑所有檢查（= CI）。輸出不要接管線
 	@echo "[check] OK"
 
 # ── 專案（NPOFile）────────────────────────────────────────────────────
@@ -35,6 +35,9 @@ test-server: ## 後端測試（組織、爬蟲匯入與審核、捐款人與留�
 
 lint-web: ## 前台型別檢查與 lint
 	cd web && npx tsc --noEmit && npm run lint
+
+test-deploy: ## 排程外殼與資料庫備份腳本的測試（假的通知服務與 pg_dump，不連網）
+	bash deploy/jobs-test.sh
 
 build-web: ## 前台正式建置（會抓 Next.js 的預先算繪錯誤）
 	cd web && npm run build
