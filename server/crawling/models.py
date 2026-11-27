@@ -59,6 +59,7 @@ class CrawlRecord(models.Model):
         ANNUAL = "annual", "年度募款"
         PROJECT = "project", "捐款專案"
         PENALTY = "penalty", "受裁罰紀錄"
+        GRANT = "grant", "政府補助"
 
     class Status(models.TextChoices):
         PENDING = "pending", "待審核"

@@ -38,6 +38,10 @@ def project_q(prefix: str = "") -> Q:
     return Q(**{f"{prefix}period_year__gte": since_roc_year()}) | Q(**{f"{prefix}period_year__isnull": True})
 
 
+def grant_q(prefix: str = "") -> Q:
+    return Q(**{f"{prefix}year__gte": since_roc_year()})
+
+
 def donation_q(prefix: str = "") -> Q:
     """有專案的看專案年度；手動輸入、沒掛專案的看捐款日期（沒日期算在內）。"""
     p = prefix

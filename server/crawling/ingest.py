@@ -23,6 +23,7 @@ from orgs.models import (
     Donation,
     Donor,
     DonorListSummary,
+    Grant,
     Organization,
     Penalty,
     Project,
@@ -37,7 +38,7 @@ log = logging.getLogger(__name__)
 
 BATCH = 500
 STORE_EVERY = 60  # 秒
-KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4}
+KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4, "grant": 5}
 PROJECT_FIELDS = (
     "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
     "result_filed_on", "closed_filed_on", "description", "channel", "monthly_raised", "backers",
@@ -99,6 +100,8 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
                               "plan": plan}
                     if "revisit" in src.options:
                         values["revisit"] = revisit_ids(source)
+                    if "orgs" in src.options:  # 名稱對統編的名冊（約十萬筆，逐筆讀，不一次載入物件）
+                        values["orgs"] = Organization.objects.values_list("ubn", "name").iterator(chunk_size=5000)
                     items = src.fetch(client, limit, **{k: values[k] for k in src.options})
                 org_ubns = None
                 if source.key in SOURCES and SOURCES[source.key].known_orgs_only:
@@ -330,6 +333,17 @@ def _apply_child(rec: CrawlRecord, org: Organization, source_name: str) -> None:
             if "violationDetails" in rec.source_url:
                 penalty.source_url = rec.source_url
             penalty.save()
+    elif rec.kind == "grant":
+        Grant.objects.update_or_create(
+            source_name=source_name, external_id=rec.external_id,
+            defaults={
+                "organization": org, "source_url": rec.source_url, "year": d["year"], "quarter": d.get("quarter") or 4,
+                "agency": (d.get("agency") or "")[:100], "county": (d.get("county") or "")[:20],
+                "recipient": (d.get("recipient") or "")[:300], "facility": (d.get("facility") or "")[:200],
+                "purpose": (d.get("purpose") or "")[:500], "approved_on": _date(d.get("approved_on")),
+                "amount": d.get("amount") or 0,
+            },
+        )
     elif rec.kind == "donor_list":
         _apply_donor_list(rec, org, source_name)
 

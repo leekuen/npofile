@@ -47,7 +47,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
           <footer className="border-t border-ink-200 bg-white">
             <div className="mx-auto max-w-5xl px-4 py-5 text-xs text-ink-600">
-              資料來源：衛生福利部公益勸募管理系統（含捐贈人清冊）、財政部非營利事業機關團體資料集、經濟部商工登記公示資料（政府資料開放授權）。資料以各來源公告為準。
+              資料來源：衛生福利部公益勸募管理系統（含捐贈人清冊）、衛生福利部對民間團體及個人補(捐)助經費彙總表、財政部非營利事業機關團體資料集、經濟部商工登記公示資料（政府資料開放授權）；挖貝 WaBay 群眾集資專案頁。資料以各來源公告為準。
             </div>
           </footer>
         </AuthProvider>
