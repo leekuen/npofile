@@ -69,4 +69,4 @@ updated: 2026-11-27
 
 - 部署檔只放 `deploy/`，不動產品程式行為；唯一的產品目錄變更是 `server/requirements.txt` 多一行 gunicorn。
 - 伺服器上的路徑寫死為 `/home/npofile/app`（使用者帳號 `npofile`），四個檔案一致。
-- 走查（本機，2026-11-27）W1 新建的 venv 跑 `pip install -r server/requirements.txt` 成功（gunicorn 27.0.1、Django 6.1.3），`manage.py test` 64 個全過；`DJANGO_DEBUG=false` 下 `check --deploy --fail-level ERROR` 通過（只剩 HSTS、SSL redirect 兩個警告，由 nginx＋certbot `--redirect` 處理）；`bash -n deploy/deploy.sh` 通過。伺服器上的兩條驗收還沒做（要等使用者的 Droplet）。
+- 走查（HTTP 腳本）W1 本機 2026-11-27 用指令跑（沒有畫面可看）：新建的 venv 跑 `pip install -r server/requirements.txt` 成功（gunicorn 27.0.1、Django 6.1.3），`manage.py test` 64 個全過；`DJANGO_DEBUG=false` 下 `check --deploy --fail-level ERROR` 通過（只剩 HSTS、SSL redirect 兩個警告，由 nginx＋certbot `--redirect` 處理）；`bash -n deploy/deploy.sh` 通過。伺服器上的兩條驗收還沒做（要等使用者的 Droplet）。
