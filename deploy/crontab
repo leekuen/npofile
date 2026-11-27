@@ -1,0 +1,9 @@
+# npofile 帳號的排程：crontab -u npofile deploy/crontab（會整個取代該帳號原本的 crontab）
+# 時間是伺服器時區；先跑 timedatectl set-timezone Asia/Taipei
+SHELL=/bin/bash
+APP=/home/npofile/app/server
+
+# 每天 02:30 跑所有啟用中的爬蟲來源（每次抓幾筆照管理後台的設定）
+30 2 * * * cd $APP && .venv/bin/python manage.py crawl all >> /home/npofile/logs/crawl.log 2>&1
+# 每天 05:30 清掉近 5 年以外的資料、重算揭露指數（「近五年」隨日期移動）
+30 5 * * * cd $APP && (.venv/bin/python manage.py prune_old_records && .venv/bin/python manage.py recompute_scores) >> /home/npofile/logs/scores.log 2>&1
