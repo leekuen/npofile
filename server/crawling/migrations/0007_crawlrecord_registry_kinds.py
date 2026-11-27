@@ -6,13 +6,13 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('crawling', '0005_orgsitecheck_alter_crawlrecord_kind'),
+        ('crawling', '0006_crawlrecord_kind_court_reg'),
     ]
 
     operations = [
         migrations.AlterField(
             model_name='crawlrecord',
             name='kind',
-            field=models.CharField(choices=[('org', '組織基本資料'), ('annual', '年度募款'), ('project', '捐款專案'), ('penalty', '受裁罰紀錄'), ('grant', '政府補助'), ('donor_list', '捐贈人清冊'), ('document', '官網報告文件'), ('financial', '年度財務'), ('registry', '主管機關名冊'), ('einvoice', '發票捐贈碼')], max_length=10, verbose_name='資料類型'),
+            field=models.CharField(choices=[('org', '組織基本資料'), ('annual', '年度募款'), ('project', '捐款專案'), ('penalty', '受裁罰紀錄'), ('grant', '政府補助'), ('donor_list', '捐贈人清冊'), ('document', '官網報告文件'), ('financial', '年度財務'), ('court_reg', '法院登記公告'), ('registry', '主管機關名冊'), ('einvoice', '發票捐贈碼')], max_length=10, verbose_name='資料類型'),
         ),
     ]

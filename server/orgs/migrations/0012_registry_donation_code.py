@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('orgs', '0010_financialyear_orgdocument'),
+        ('orgs', '0011_courtregistration'),
     ]
 
     operations = [
