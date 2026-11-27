@@ -1095,6 +1095,8 @@ function GrantsTab({ grants }: { grants: Grant[] }) {
   );
 }
 
+const PENALTY_CATEGORY = { labor: "勞動法令", fundraising: "公益勸募" } as const;
+
 function PenaltiesTab({ org }: { org: OrgDetail }) {
   if (org.penalties.length === 0) {
     return (
@@ -1108,8 +1110,13 @@ function PenaltiesTab({ org }: { org: OrgDetail }) {
       {org.penalties.map((p) => (
         <li key={p.id}>
           <Card className="border-l-4 border-l-red-600">
-            <p className="text-sm font-semibold tabular-nums text-red-900">
-              處分日期 {formatRocDate(p.decided_on)}
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="inline-flex items-center rounded-full bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-800 ring-1 ring-inset ring-ink-500/30">
+                {PENALTY_CATEGORY[p.category]}
+              </span>
+              <span className="text-sm font-semibold tabular-nums text-red-900">
+                處分日期 {formatRocDate(p.decided_on)}
+              </span>
             </p>
             <p className="mt-2 break-words text-ink-900">{p.content}</p>
             {p.fine_text && (

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
-from . import fia, grants, mohw, orgsite, violations, wabay
+from . import fia, grants, labor, mohw, orgsite, violations, wabay
 from .http import PoliteClient
 from .items import Item
 
@@ -61,6 +61,14 @@ SOURCES = {
                "政府公開資料：勞動部就業安定基金（多元就業開發方案、職業訓練、身障就業等）每季公開的補(捐)助核定案件；"
                "近 5 年每年取最新一季的累計表，對組織的規則同衛福部補助",
                options=("since_roc", "orgs")),
+        *(
+            Source(spec.key, spec.source_name, labor.DATASET_PAGE.format(id=spec.dataset), True, labor.fetcher(spec),
+                   f"政府公開資料：{spec.county}依勞動基準法第 80-1 條公布的違反事業單位（每月更新的總表）；"
+                   "只收名稱像非營利組織或對得上站上組織的處分，負責人姓名不存；"
+                   "名稱像非營利組織但對不上的，進審核清單（統編空白）等管理員指定組織或退回",
+                   options=("orgs",))
+            for spec in labor.SPECS
+        ),
         Source("orgsite", "組織官網（年報與財務報告）", "", False, orgsite.fetch,
                "組織自己官網公開的近 5 年財務報告、年報、工作／成果報告；設了 ANTHROPIC_API_KEY 才會讀出報告裡的數字"
                "（會產生 API 費用）。「每次最多抓幾筆」算的是組織數",
