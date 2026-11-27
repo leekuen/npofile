@@ -105,6 +105,7 @@ class ActivityProgress(models.Model):
     roc_year = models.PositiveSmallIntegerField("勸募年度", db_index=True)
     end_date = models.DateField("活動結束", null=True, blank=True)
     listed_raised = models.BigIntegerField("列表上的實募金額", null=True, blank=True)
+    listed_at = models.DateTimeField("最近在列表上看到", null=True, blank=True)
     checked_raised = models.BigIntegerField("上次檢查時的實募金額", null=True, blank=True)
     donors_raised = models.BigIntegerField("清冊抓到時的實募金額", null=True, blank=True)
     has_donor_link = models.BooleanField("活動頁有清冊", default=False)

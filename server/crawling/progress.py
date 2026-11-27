@@ -5,7 +5,7 @@
 2. 列表上的實募金額跟上次檢查時不同 → 重抓（金額變了，清冊多半也更新了）。
 3. 還沒有清冊：活動頁有清冊連結（上次下載失敗），或活動結束未滿 12 個月（或還沒結束）→ 每 7 天再看一次。
 4. 對不到團體的：每 30 天再試一次（團體可能後來才建）。
-其餘不再開頁面。活動要等資料真的寫進資料庫（flush）才記成已檢查，中途停下的下次會重抓。
+其餘不再開頁面。活動列表：今年與明年每次都翻（新活動在這裡），過去的年度 7 天翻一次（看實募金額變了沒）。活動要等資料真的寫進資料庫（flush）才記成已檢查，中途停下的下次會重抓。
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections import Counter
 from datetime import date, timedelta
 
-from django.db.models import Q
+from django.db.models import Max, Q
 from django.utils import timezone
 from npofile_crawler.mohw import ActivityCard, ActivityPlan
 
@@ -25,6 +25,7 @@ from .models import ActivityProgress, CrawlRecord
 RECHECK_EVERY = timedelta(days=7)
 WAIT_FOR_LIST = timedelta(days=365)
 RETRY_UNMATCHED = timedelta(days=30)
+RELIST_PAST_YEARS = timedelta(days=7)
 GROUP_SOURCES = ("mohw", "mohw_activities", "mohw_violations")
 UPDATE_FIELDS = (
     "ubn", "end_date", "checked_raised", "donors_raised", "has_donor_link", "has_donor_list", "unmatched_reason",
@@ -68,11 +69,26 @@ class DbActivityPlan(ActivityPlan):
     def __init__(self):
         self.rows: dict[str, ActivityProgress] = {}
         self.dirty: set[str] = set()
-        self.groups: dict[str, str] = {}
+        self.groups: dict[str, str] | None = None
+        self.this_roc = timezone.localdate().year - 1911
 
-    def select(self, cards: list[ActivityCard]) -> list[ActivityCard]:
-        self._sync_listing(cards)
-        self.groups = known_group_ubns()
+    def should_list(self, year: int) -> bool:
+        """今年、明年每次都翻（新活動在這裡出現）；過去的年度 7 天翻一次，看實募金額有沒有變。"""
+        if year >= self.this_roc:
+            return True
+        last = ActivityProgress.objects.filter(roc_year=year).aggregate(m=Max("listed_at"))["m"]
+        return last is None or timezone.now() - last >= RELIST_PAST_YEARS
+
+    def stored_cards(self, year: int) -> list[ActivityCard]:
+        return [
+            ActivityCard(aid=r.activity_id, name=r.name, org_name=r.org_name, raised=r.listed_raised, year=r.roc_year)
+            for r in ActivityProgress.objects.filter(roc_year=year).order_by("activity_id")
+        ]
+
+    def select(self, cards: list[ActivityCard], listed: bool = True) -> list[ActivityCard]:
+        self._sync_listing(cards, listed)
+        if self.groups is None:
+            self.groups = known_group_ubns()
         now, today = timezone.now(), timezone.localdate()
         ranked = []
         for order, card in enumerate(cards):
@@ -81,22 +97,27 @@ class DbActivityPlan(ActivityPlan):
                 ranked.append((p, order, card))
         return [card for _, _, card in sorted(ranked, key=lambda t: t[:2])]
 
-    def _sync_listing(self, cards: list[ActivityCard]) -> None:
+    def _sync_listing(self, cards: list[ActivityCard], listed: bool) -> None:
         ids = [c.aid for c in cards]
         for i in range(0, len(ids), 900):
             self.rows.update(ActivityProgress.objects.in_bulk(ids[i : i + 900], field_name="activity_id"))
+        if not listed:
+            return  # 卡片是上次記下的，不用回寫
+        now = timezone.now()
         new, changed = [], []
         for c in cards:
             row = self.rows.get(c.aid)
-            values = {"name": c.name[:300], "org_name": c.org_name[:200], "roc_year": c.year, "listed_raised": c.raised}
+            values = {"name": c.name[:300], "org_name": c.org_name[:200], "roc_year": c.year, "listed_raised": c.raised,
+                      "listed_at": now}
             if row is None:
                 new.append(ActivityProgress(activity_id=c.aid, **values))
-            elif any(getattr(row, k) != v for k, v in values.items()):
+            else:
                 for k, v in values.items():
                     setattr(row, k, v)
                 changed.append(row)
         ActivityProgress.objects.bulk_create(new, batch_size=500, ignore_conflicts=True)
-        ActivityProgress.objects.bulk_update(changed, ["name", "org_name", "roc_year", "listed_raised"], batch_size=500)
+        ActivityProgress.objects.bulk_update(changed, ["name", "org_name", "roc_year", "listed_raised", "listed_at"],
+                                             batch_size=500)
         if new:
             for i in range(0, len(ids), 900):
                 self.rows.update(ActivityProgress.objects.in_bulk(ids[i : i + 900], field_name="activity_id"))

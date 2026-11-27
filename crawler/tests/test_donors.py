@@ -261,7 +261,7 @@ class FetchByYearTests(unittest.TestCase):
         class Plan(mohw.ActivityPlan):
             done_calls = []
 
-            def select(self, cards):
+            def select(self, cards, listed=True):
                 return cards[:2]
 
             def ubn_for(self, name):

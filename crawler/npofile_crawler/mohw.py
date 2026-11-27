@@ -336,7 +336,14 @@ class ActivityPlan:
     """決定這次要抓哪些活動、記住抓到哪裡。預設（爬蟲單獨跑）：全部都抓、什麼都不記。
     後端換成記在資料庫的版本（crawling/progress.py），才能每晚接著抓、只抓新的與有變的。"""
 
-    def select(self, cards: list[ActivityCard]) -> list[ActivityCard]:
+    def should_list(self, year: int) -> bool:
+        """這個年度要不要重新翻活動列表（不翻就用上次記下的卡片）。"""
+        return True
+
+    def stored_cards(self, year: int) -> list[ActivityCard]:
+        return []
+
+    def select(self, cards: list[ActivityCard], listed: bool = True) -> list[ActivityCard]:
         return cards
 
     def ubn_for(self, org_name: str) -> str | None:
@@ -355,46 +362,50 @@ class ActivityPlan:
 def fetch_activities(client: PoliteClient, limit: int | None = None,
                      threshold: int = donors.DEFAULT_INDIVIDUAL_THRESHOLD, since_roc: int | None = None,
                      plan: ActivityPlan | None = None, this_roc: int | None = None) -> Iterator[Item]:
-    """依勸募年度列出近 5 年（since_roc 起到明年）的活動 → plan 挑出要抓的 → 活動頁＋需要的話下載清冊。
-    limit 算的是活動數。第一次遇到的申請單位：用名稱查團體、抓一次團體頁（組織才建得起來）。"""
+    """依勸募年度（去年 → since_roc，再今年、明年）一年一年處理：列出活動 → plan 挑出要抓的 → 活動頁＋需要的話下載清冊。
+    列完一年就先抓那一年，時間上限短也抓得到東西。limit 算的是活動數。
+    第一次遇到的申請單位：用名稱查團體、抓一次團體頁（組織才建得起來）。"""
     plan = plan or ActivityPlan()
     this_roc = this_roc or date.today().year - 1911
-    cards: list[ActivityCard] = []
-    for year in range(this_roc + 1, (since_roc or this_roc) - 1, -1):
-        known = {c.aid for c in cards}
-        cards.extend(c for c in list_activity_cards(client, year) if c.aid not in known)
-
     groups: dict[str, tuple[str | None, str]] = {}  # 申請單位 → (統編, 對不到的原因)；同一次執行同名只查一次
+    seen: set[str] = set()
     count = 0
-    for card in plan.select(cards):
-        if limit and count >= limit:
-            return
-        if card.org_name not in groups:
-            ubn = plan.ubn_for(card.org_name)
-            reason = ""
-            if ubn is None:
-                ubn, reason, group_items = _find_group(client, card.org_name, since_roc)
-                yield from group_items
-            groups[card.org_name] = (ubn, reason)
-        ubn, reason = groups[card.org_name]
-        if not ubn:
-            plan.unmatched(card, reason)
-            continue
-        count += 1
-        url = ACTIVITY_URL.format(aid=card.aid)
-        project, donors_url = parse_activity(client.get(url).text, url, ubn)
-        if project is None:
-            plan.unmatched(card, "活動頁讀不到")
-            continue
-        yield project
-        fetched = False
-        if donors_url and plan.need_donors(card):
-            item = _donor_list(client, donors_url, project, ubn, url, threshold)
-            if item is not None:
-                yield item
-                fetched = True
-        plan.done(card, ubn, end_date=project.data.get("end_date"), has_donor_link=bool(donors_url),
-                  donors_fetched=fetched)
+    # 去年 → 往前到 since_roc，再今年、明年：清冊在活動結束後才有，已結束的年度先抓，不讓進行中的活動佔掉時間上限
+    # （補齊之後過去的年度 7 天才翻一次，平常很快就輪到今年）
+    first = since_roc if since_roc and since_roc < this_roc else this_roc
+    for year in [*range(this_roc - 1, first - 1, -1), this_roc, this_roc + 1]:
+        listed = plan.should_list(year)
+        cards = [c for c in (list_activity_cards(client, year) if listed else plan.stored_cards(year)) if c.aid not in seen]
+        seen.update(c.aid for c in cards)
+        for card in plan.select(cards, listed):
+            if limit and count >= limit:
+                return
+            if card.org_name not in groups:
+                ubn = plan.ubn_for(card.org_name)
+                reason = ""
+                if ubn is None:
+                    ubn, reason, group_items = _find_group(client, card.org_name, since_roc)
+                    yield from group_items
+                groups[card.org_name] = (ubn, reason)
+            ubn, reason = groups[card.org_name]
+            if not ubn:
+                plan.unmatched(card, reason)
+                continue
+            count += 1
+            url = ACTIVITY_URL.format(aid=card.aid)
+            project, donors_url = parse_activity(client.get(url).text, url, ubn)
+            if project is None:
+                plan.unmatched(card, "活動頁讀不到")
+                continue
+            yield project
+            fetched = False
+            if donors_url and plan.need_donors(card):
+                item = _donor_list(client, donors_url, project, ubn, url, threshold)
+                if item is not None:
+                    yield item
+                    fetched = True
+            plan.done(card, ubn, end_date=project.data.get("end_date"), has_donor_link=bool(donors_url),
+                      donors_fetched=fetched)
 
 
 def _find_group(client: PoliteClient, name: str, since_roc: int | None) -> tuple[str | None, str, list[Item]]:

@@ -103,6 +103,8 @@ class RunTests(TestCase):
         c2 = FakeMohw()
         self.run_once(c2)
         self.assertEqual((c2.count("fundactivityDetails"), c2.count("downloadDonors"), c2.count("qdisplayName")), (0, 0, 0))
+        # 過去的年度（114）7 天內不重翻列表；今年、明年照翻
+        self.assertEqual((c2.count("qyyy=114"), c2.count("qyyy=115") > 0, c2.count("qyyy=116") > 0), (0, True, True))
 
         row = ActivityProgress.objects.first()
         ActivityProgress.objects.filter(pk=row.pk).update(checked_raised=1, donors_raised=1)  # 列表上的金額跟上次不同
@@ -112,6 +114,33 @@ class RunTests(TestCase):
         self.assertEqual(DonorListSummary.objects.count(), 6)  # 重抓不重複
         row.refresh_from_db()
         self.assertEqual(row.checked_raised, row.listed_raised)
+
+    def test_past_year_relisted_after_a_week(self):
+        self.run_once(FakeMohw())
+        ActivityProgress.objects.update(listed_at=timezone.now() - timedelta(days=8))
+        c = FakeMohw()
+        self.run_once(c)
+        self.assertGreater(c.count("qyyy=114"), 0)
+        self.assertEqual(c.count("fundactivityDetails"), 0)  # 金額沒變：只翻列表，不開活動頁
+
+    def test_short_time_limit_still_fetches_first_year(self):
+        # 列完一年就先抓那一年：上限很短，也不會整段時間都花在翻列表。
+        # 假網站：列表一頁 25 秒、其他 1 秒；上限 60 秒。先翻完 6 個年度（7 頁＝175 秒）再抓的話一個都抓不到。
+        self.source.max_minutes = 1
+        self.source.save()
+        site = FakeMohw()
+        site.clock = 0
+        original = site.get
+
+        def timed_get(url, **kw):
+            site.clock += 25 if "fundactivityIndex" in url else 1
+            return original(url, **kw)
+
+        site.get = timed_get
+        with mock.patch("crawling.ingest.time.monotonic", side_effect=lambda: site.clock):
+            run = self.run_once(site)
+        self.assertIn("上限先停", run.note)
+        self.assertTrue(0 < progress.summary()["done"] < 6)
 
     def test_known_group_name_needs_no_search(self):
         mohw_source = CrawlerSource.objects.get(key="mohw")

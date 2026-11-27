@@ -27,6 +27,7 @@ class Migration(migrations.Migration):
                 ('roc_year', models.PositiveSmallIntegerField(db_index=True, verbose_name='勸募年度')),
                 ('end_date', models.DateField(blank=True, null=True, verbose_name='活動結束')),
                 ('listed_raised', models.BigIntegerField(blank=True, null=True, verbose_name='列表上的實募金額')),
+                ('listed_at', models.DateTimeField(blank=True, null=True, verbose_name='最近在列表上看到')),
                 ('checked_raised', models.BigIntegerField(blank=True, null=True, verbose_name='上次檢查時的實募金額')),
                 ('donors_raised', models.BigIntegerField(blank=True, null=True, verbose_name='清冊抓到時的實募金額')),
                 ('has_donor_link', models.BooleanField(default=False, verbose_name='活動頁有清冊')),
