@@ -1,9 +1,10 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { formatNumber } from "@/lib/format";
 import { ApiUnavailableError, getFilters, listOrgs, type OrgQuery } from "@/lib/server-api";
 
-import { Card, EmptyState, ErrorBox, PenaltyBadge, ScoreBadge, Skeleton, StatusBadge } from "./ui";
+import { EmptyState, ErrorBox, PenaltyBadge, ScoreBadge, Skeleton, StatusBadge } from "./ui";
 
 const PAGE_SIZE = 20;
 const ORDERINGS = [
@@ -32,7 +33,7 @@ function href(query: OrgQuery, patch: Partial<OrgQuery>) {
 const selectCls =
   "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-teal-600 focus:outline-none";
 
-export async function OrgSearch({ searchParams }: { searchParams: Promise<Search> }) {
+export async function OrgSearch({ searchParams, stats }: { searchParams: Promise<Search>; stats?: ReactNode }) {
   const sp = await searchParams;
   const query: OrgQuery = {
     q: pick(sp, "q"),
@@ -63,61 +64,71 @@ export async function OrgSearch({ searchParams }: { searchParams: Promise<Search
   const lastPage = Math.max(1, Math.ceil(page.count / PAGE_SIZE));
 
   return (
-    <section aria-labelledby="org-list-title" className="space-y-4">
-      <h2 id="org-list-title" className="sr-only">
-        組織列表
-      </h2>
-      <Card>
-        <form action="/" method="get" className="grid gap-3 sm:grid-cols-[2fr_1fr_1fr_1fr_auto] sm:items-end">
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-700">組織名稱或統一編號</span>
+    <div className="space-y-8">
+      <section aria-labelledby="search-title" className="space-y-5 border-b border-slate-200 pb-8">
+        <h1 id="search-title" className="max-w-2xl text-3xl font-bold tracking-tight text-balance text-slate-900 sm:text-4xl">
+          查一個非營利組織的募款與裁罰紀錄
+        </h1>
+        <form key={`${query.q}|${query.city}|${query.status}|${query.ordering}`} action="/" method="get" className="max-w-3xl space-y-3">
+          <div className="flex">
+            <label htmlFor="org-q" className="sr-only">
+              組織名稱或統一編號
+            </label>
             <input
+              id="org-q"
               type="search"
               name="q"
               defaultValue={query.q}
-              placeholder="例：紅十字、00570309"
-              className={selectCls}
+              placeholder="組織名稱或統一編號"
+              className="min-w-0 flex-1 rounded-l-lg border-2 border-r-0 border-slate-800 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-500 focus:border-teal-700 focus:outline-none"
             />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-700">縣市</span>
-            <select name="city" defaultValue={query.city} className={selectCls}>
-              <option value="">全部縣市</option>
-              {filters.cities.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-700">營運狀態</span>
-            <select name="status" defaultValue={query.status} className={selectCls}>
-              <option value="">全部狀態</option>
-              {filters.statuses.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-700">排序</span>
-            <select name="ordering" defaultValue={query.ordering} className={selectCls}>
-              {ORDERINGS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="submit"
-            className="h-10 rounded-md bg-teal-700 px-5 text-sm font-semibold text-white hover:bg-teal-800"
-          >
-            查詢
-          </button>
+            <button
+              type="submit"
+              className="shrink-0 rounded-r-lg bg-teal-700 px-6 text-base font-semibold text-white hover:bg-teal-800"
+            >
+              搜尋
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+            <label className="text-sm">
+              <span className="sr-only">縣市</span>
+              <select name="city" defaultValue={query.city} className={selectCls}>
+                <option value="">全部縣市</option>
+                {filters.cities.map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm">
+              <span className="sr-only">營運狀態</span>
+              <select name="status" defaultValue={query.status} className={selectCls}>
+                <option value="">全部營運狀態</option>
+                {filters.statuses.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="col-span-2 flex items-center gap-2 text-sm sm:col-span-1">
+              <span className="shrink-0 text-slate-600">排序</span>
+              <select name="ordering" defaultValue={query.ordering} className={selectCls}>
+                {ORDERINGS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </form>
-      </Card>
+        {stats}
+      </section>
 
+      <section aria-labelledby="org-list-title" className="space-y-4">
+      <h2 id="org-list-title" className="sr-only">
+        組織列表
+      </h2>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-slate-700">
           共 <strong className="tabular-nums">{formatNumber(page.count)}</strong> 個組織
@@ -187,20 +198,23 @@ export async function OrgSearch({ searchParams }: { searchParams: Promise<Search
           )}
         </nav>
       )}
-    </section>
+      </section>
+    </div>
   );
 }
 
 export function OrgSearchSkeleton() {
   return (
-    <div className="space-y-4">
-      <Card>
-        <Skeleton className="h-10 w-full" />
-      </Card>
+    <div className="space-y-8">
+      <div className="space-y-5 border-b border-slate-200 pb-8">
+        <Skeleton className="h-10 w-2/3" />
+        <Skeleton className="h-12 w-full max-w-3xl" />
+        <Skeleton className="h-9 w-full max-w-xl" />
+      </div>
       <div className="space-y-px overflow-hidden rounded-lg border border-slate-200 bg-white">
         {Array.from({ length: 6 }, (_, i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3">
-            <Skeleton className="h-11 w-11 rounded-full" />
+            <Skeleton className="h-12 w-12 rounded-full" />
             <div className="flex-1 space-y-2">
               <Skeleton className="h-4 w-1/2" />
               <Skeleton className="h-3 w-1/3" />

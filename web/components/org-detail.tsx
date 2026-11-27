@@ -7,7 +7,7 @@ import { ApiUnavailableError, getOrg } from "@/lib/server-api";
 import type { OrgDetail, ScoreBreakdown } from "@/lib/types";
 
 import { Comments } from "./comments";
-import { Card, EmptyState, ErrorBox, PenaltyBadge, ScoreBadge, Skeleton, SourceNote, StatusBadge, TextLink } from "./ui";
+import { Card, EmptyState, ErrorBox, ScoreBadge, Skeleton, SourceNote, StatusBadge, TextLink } from "./ui";
 
 const TABS = [
   { key: "basic", label: "基本資料" },
@@ -53,15 +53,18 @@ export async function OrgDetailView({
         <TextLink href="/">‹ 組織列表</TextLink>
       </nav>
 
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold break-words text-slate-900 sm:text-3xl">{org.name}</h1>
-          <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-600">
-            <span className="tabular-nums">統一編號 {org.ubn}</span>
-            {org.org_type && <span>{org.org_type}</span>}
-            <StatusBadge status={org.status} label={org.status_label} />
-            <PenaltyBadge count={org.penalty_count_5y} />
-          </p>
+      <header className="space-y-4">
+        <div className="space-y-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-balance break-words text-slate-900 sm:text-3xl">{org.name}</h1>
+            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-600">
+              <span className="tabular-nums">統一編號 {org.ubn}</span>
+              {org.city && <span>{org.city}</span>}
+              {org.org_type && <span>{org.org_type}</span>}
+              <StatusBadge status={org.status} label={org.status_label} />
+            </p>
+          </div>
+          <OrgSummary org={org} />
         </div>
         <ScorePanel score={org.score} />
       </header>
@@ -94,6 +97,11 @@ export async function OrgDetailView({
           </ul>
         </nav>
         <div className="pt-5">
+          {tab !== "basic" && (
+            <p className="mb-4 text-sm text-slate-600">
+              {tab === "penalties" ? "所有年度" : `近 5 年（民國 ${org.since_roc_year} 年起）`}
+            </p>
+          )}
           {tab === "basic" && <BasicTab org={org} />}
           {tab === "donations" && <DonationsTab org={org} />}
           {tab === "projects" && <ProjectsTab org={org} />}
@@ -103,6 +111,55 @@ export async function OrgDetailView({
 
       <Comments ubn={org.ubn} />
     </div>
+  );
+}
+
+/** 頁首摘要：裁罰、近 5 年實募、專案數，點了跳到對應分頁 */
+function OrgSummary({ org }: { org: OrgDetail }) {
+  const years = fundedYears(org);
+  const raised = years.reduce((sum, a) => sum + a.raised, 0);
+  const penalized = org.penalty_count_5y > 0;
+  const items = [
+    {
+      tab: "penalties",
+      label: "受裁罰",
+      value: penalized ? `近五年 ${org.penalty_count_5y} 次` : "近五年無紀錄",
+      tone: penalized ? "border-red-300 bg-red-50 text-red-900" : "border-slate-200 bg-white text-slate-900",
+      icon: penalized ? "⚠" : "✓",
+    },
+    {
+      tab: "donations",
+      label: "近 5 年實募",
+      value: years.length ? formatMoney(raised) : "沒有紀錄",
+      tone: "border-slate-200 bg-white text-slate-900",
+      icon: null,
+    },
+    {
+      tab: "projects",
+      label: "捐款專案",
+      value: org.projects.length ? `${formatNumber(org.projects.length)} 個` : "沒有紀錄",
+      tone: "border-slate-200 bg-white text-slate-900",
+      icon: null,
+    },
+  ];
+  return (
+    <ul className="grid grid-cols-3 gap-2">
+      {items.map((it) => (
+        <li key={it.tab}>
+          <Link
+            href={`/orgs/${org.ubn}?tab=${it.tab}`}
+            scroll={false}
+            className={`flex h-full flex-col rounded-lg border px-2.5 py-2 hover:border-teal-600 sm:px-3 sm:py-2.5 ${it.tone}`}
+          >
+            <span className="text-xs text-slate-600">{it.label}</span>
+            <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-sm font-bold break-all tabular-nums sm:text-base">
+              {it.icon && <span aria-hidden>{it.icon}</span>}
+              {it.value}
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -134,33 +191,36 @@ function ScorePanel({ score }: { score: ScoreBreakdown }) {
   ];
 
   return (
-    <Card className="w-full shrink-0 sm:w-80">
-      <div className="flex items-center gap-4">
+    <Card className="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-8">
+      <div className="flex shrink-0 items-center gap-4 sm:w-56">
         <ScoreBadge score={score.total} size="lg" />
         <div>
           <p className="font-semibold text-slate-900">揭露指數</p>
           <p className="text-xs text-slate-600">資料公開得越完整分數越高</p>
         </div>
       </div>
-      <details className="mt-3 text-sm">
-        <summary className="cursor-pointer text-teal-800 underline underline-offset-2">怎麼算</summary>
-        <table className="mt-2 w-full">
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.label} className="border-t border-slate-100 align-top">
-                <th scope="row" className="py-1.5 pr-2 text-left font-medium text-slate-700">
-                  {r.label}
-                  <span className="block text-xs font-normal text-slate-500">{r.note}</span>
-                </th>
-                <td className="py-1.5 text-right tabular-nums text-slate-900">
-                  {r.got} / {r.max}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="mt-2 text-xs text-slate-500">受裁罰紀錄不影響揭露指數，另外標示。</p>
-      </details>
+      <div className="min-w-0 flex-1">
+      <ul className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
+        {rows.map((r) => (
+          <li key={r.label}>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-medium text-slate-800">{r.label}</span>
+              <span className="tabular-nums text-slate-900">
+                {r.got} / {r.max}
+              </span>
+            </div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100" aria-hidden>
+              <div
+                className="h-full rounded-full bg-teal-600"
+                style={{ width: `${r.max ? (r.got / r.max) * 100 : 0}%` }}
+              />
+            </div>
+            <p className="mt-0.5 text-xs text-slate-500">{r.note}</p>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-xs text-slate-500">受裁罰紀錄不影響揭露指數，另外標示。</p>
+      </div>
     </Card>
   );
 }
@@ -217,18 +277,22 @@ function fundedYears(org: OrgDetail) {
 
 function DonationsTab({ org }: { org: OrgDetail }) {
   const years = fundedYears(org);
+  const maxRaised = Math.max(0, ...years.map((a) => a.raised));
   return (
     <div className="space-y-6">
       <section>
-        <SectionTitle>歷年募款</SectionTitle>
+        <SectionTitle>年度募款</SectionTitle>
         {years.length === 0 ? (
-          <EmptyState title="目前沒有收錄到歷年募款紀錄">這個組織可能沒有向主管機關申請公益勸募。</EmptyState>
+          <EmptyState title="近 5 年沒有收錄到募款紀錄">這個組織可能近年沒有向主管機關申請公益勸募。</EmptyState>
         ) : (
           <Card className="overflow-x-auto p-0 sm:p-0">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-700">
                 <tr>
                   <th scope="col" className="px-3 py-2 text-left font-medium">年度（民國）</th>
+                  <th scope="col" className="w-2/5 px-3 py-2 text-left font-medium">
+                    <span className="sr-only">實募金額比較</span>
+                  </th>
                   <th scope="col" className="px-3 py-2 text-right font-medium">實募金額</th>
                   <th scope="col" className="px-3 py-2 text-right font-medium">預募金額</th>
                   <th scope="col" className="px-3 py-2 text-right font-medium">勸募達成率</th>
@@ -238,6 +302,9 @@ function DonationsTab({ org }: { org: OrgDetail }) {
                 {years.map((a) => (
                   <tr key={`${a.year}-${a.source_name}`}>
                     <td className="px-3 py-2">{a.year}</td>
+                    <td className="px-3 py-2" aria-hidden>
+                      <div className="h-3 rounded-sm bg-teal-600" style={{ width: `${maxRaised ? (a.raised / maxRaised) * 100 : 0}%` }} />
+                    </td>
                     <td className="px-3 py-2 text-right">{formatMoney(a.raised)}</td>
                     <td className="px-3 py-2 text-right">{formatMoney(a.target)}</td>
                     <td className="px-3 py-2 text-right">{a.achievement_rate === null ? "—" : `${a.achievement_rate}%`}</td>
@@ -380,7 +447,7 @@ function DonorRankings({ org }: { org: OrgDetail }) {
 
 function ProjectsTab({ org }: { org: OrgDetail }) {
   if (org.projects.length === 0) {
-    return <EmptyState title="目前沒有收錄到捐款專案">這個組織可能沒有經許可的勸募活動，或專案資料尚未整理上架。</EmptyState>;
+    return <EmptyState title="近 5 年沒有收錄到捐款專案">這個組織可能近年沒有經許可的勸募活動，或專案資料尚未整理上架。</EmptyState>;
   }
   return (
     <ul className="space-y-3">
@@ -454,7 +521,19 @@ function PenaltiesTab({ org }: { org: OrgDetail }) {
             <p className="text-sm font-semibold tabular-nums text-red-900">處分日期 {formatRocDate(p.decided_on)}</p>
             <p className="mt-2 break-words text-slate-900">{p.content}</p>
             {p.fine_text && <p className="mt-2 text-sm font-medium text-slate-800">{p.fine_text}</p>}
-            {p.authority && <p className="mt-2 text-xs text-slate-600">處分機關：{p.authority}</p>}
+            {(p.authority || p.document_no) && (
+              <p className="mt-2 text-xs break-words text-slate-600">
+                {p.authority && <>處分機關：{p.authority}</>}
+                {p.authority && p.document_no && "　"}
+                {p.document_no && <>文號：{p.document_no}</>}
+              </p>
+            )}
+            {p.reason && (
+              <details className="mt-2 text-sm">
+                <summary className="cursor-pointer text-teal-800 underline underline-offset-2">處分理由</summary>
+                <p className="mt-1 whitespace-pre-line text-slate-800">{p.reason}</p>
+              </details>
+            )}
             <p className="mt-3">
               <SourceNote name={p.source_name} url={p.source_url} />
             </p>
@@ -469,12 +548,11 @@ export function OrgDetailSkeleton() {
   return (
     <div className="space-y-6" aria-busy>
       <Skeleton className="h-4 w-24" />
-      <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
-        <div className="flex-1 space-y-3">
-          <Skeleton className="h-8 w-2/3" />
-          <Skeleton className="h-4 w-1/2" />
-        </div>
-        <Skeleton className="h-32 w-full sm:w-80" />
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-2/3" />
+        <Skeleton className="h-4 w-1/2" />
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-32 w-full" />
       </div>
       <Skeleton className="h-10 w-full" />
       <Skeleton className="h-64 w-full" />
