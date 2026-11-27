@@ -10,12 +10,14 @@ DONOR_DETAIL_DONATIONS = 200
 class OrganizationListSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source="get_status_display")
     penalty_count_5y = serializers.IntegerField()
+    raised_5y = serializers.IntegerField()
     tags = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
         fields = (
-            "ubn", "name", "org_type", "city", "status", "status_label", "disclosure_score", "penalty_count_5y", "tags",
+            "ubn", "name", "org_type", "city", "status", "status_label", "disclosure_score", "penalty_count_5y",
+            "raised_5y", "tags",
         )
 
     def get_tags(self, obj):

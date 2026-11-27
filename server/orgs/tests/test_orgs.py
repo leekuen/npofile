@@ -193,3 +193,38 @@ class SettingsTests(SimpleTestCase):
                            encoding="utf-8", errors="replace", cwd=Path(__file__).resolve().parents[2])
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("DJANGO_SECRET_KEY", r.stderr)
+
+
+class OrgListRaisedOrderingTests(TestCase):
+    """LK-20：首頁預設依近 5 年實募排序；沒有實募的依揭露指數、名稱。"""
+
+    def setUp(self):
+        this_year = period.since_roc_year() + period.YEARS - 1
+        self.big = make_org("10000001", name="甲")
+        self.small = make_org("10000002", name="乙")
+        self.old_only = make_org("10000003", name="丙")
+        self.none_high = make_org("10000004", name="丁", website="https://d.tw")
+        AnnualFundraising.objects.create(organization=self.big, year=this_year, raised=500)
+        AnnualFundraising.objects.create(organization=self.big, year=this_year - 1, raised=300)
+        AnnualFundraising.objects.create(organization=self.small, year=this_year, raised=100)
+        # 早於近 5 年的不算
+        AnnualFundraising.objects.create(organization=self.old_only, year=period.since_roc_year() - 1, raised=9999)
+        # 有裁罰也不能讓實募被 join 放大
+        Penalty.objects.create(organization=self.big, decided_on=date.today(), content="a")
+        Penalty.objects.create(organization=self.big, decided_on=date.today(), content="b")
+        for o in Organization.objects.all():
+            scoring.breakdown(o)
+
+    def test_default_ordering_is_raised_5y(self):
+        r = self.client.get("/api/orgs").json()["results"]
+        self.assertEqual([o["ubn"] for o in r[:2]], ["10000001", "10000002"])
+        self.assertEqual([o["raised_5y"] for o in r[:2]], [800, 100])
+        rest = r[2:]
+        self.assertTrue(all(o["raised_5y"] == 0 for o in rest))
+        scores = [o["disclosure_score"] for o in rest]
+        self.assertEqual(scores, sorted(scores, reverse=True))
+
+    def test_score_ordering_still_available(self):
+        r = self.client.get("/api/orgs?ordering=score").json()["results"]
+        scores = [o["disclosure_score"] for o in r]
+        self.assertEqual(scores, sorted(scores, reverse=True))

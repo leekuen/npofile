@@ -9,6 +9,7 @@ export interface OrgSummary {
   status_label: string;
   disclosure_score: number;
   penalty_count_5y: number;
+  raised_5y: number;
   tags: CategoryTag[];
 }
 
@@ -110,7 +111,7 @@ export interface ScoreBreakdown {
   total: number;
 }
 
-export interface OrgDetail extends OrgSummary {
+export interface OrgDetail extends Omit<OrgSummary, "raised_5y"> {
   representative: string;
   registered_address: string;
   contact_address: string;

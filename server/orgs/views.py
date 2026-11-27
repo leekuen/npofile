@@ -1,6 +1,7 @@
 import re
 
-from django.db.models import Prefetch, Q
+from django.db.models import OuterRef, Prefetch, Q, Subquery, Sum, Value
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.generics import ListAPIView
@@ -15,7 +16,25 @@ from .serializers import (
     OrganizationListSerializer,
 )
 
-ORDERINGS = {"score": ("-disclosure_score", "name"), "name": ("name",)}
+# 預設「近 5 年實募」：同組織頁摘要的數字（口徑見 tickets/LK-08、LK-20）；沒有實募的組織排在後面，依揭露指數、名稱
+ORDERINGS = {
+    "raised": ("-raised_5y", "-disclosure_score", "name"),
+    "score": ("-disclosure_score", "name"),
+    "name": ("name",),
+}
+DEFAULT_ORDERING = "raised"
+
+
+def with_raised_5y(qs):
+    """近 5 年年度募款的實募合計；用子查詢，避免跟裁罰次數的 join 互相放大。"""
+    total = (
+        AnnualFundraising.objects.filter(period.annual_q(), organization=OuterRef("pk"))
+        .order_by()
+        .values("organization")
+        .annotate(s=Sum("raised"))
+        .values("s")
+    )
+    return qs.annotate(raised_5y=Coalesce(Subquery(total), Value(0)))
 
 
 class OrganizationList(ListAPIView):
@@ -35,8 +54,9 @@ class OrganizationList(ListAPIView):
         if status := params.get("status", "").strip():
             qs = qs.filter(status=status)
         qs = category_api.filter_orgs(qs, params)
-        ordering = ORDERINGS.get(params.get("ordering", "score"), ORDERINGS["score"])
-        return scoring.with_penalty_count(qs).prefetch_related("categories").order_by(*ordering)
+        ordering = ORDERINGS.get(params.get("ordering", DEFAULT_ORDERING), ORDERINGS[DEFAULT_ORDERING])
+        qs = with_raised_5y(scoring.with_penalty_count(qs))
+        return qs.prefetch_related("categories").order_by(*ordering)
 
 
 @api_view(["GET"])
