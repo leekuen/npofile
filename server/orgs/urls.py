@@ -11,4 +11,6 @@ urlpatterns = [
     path("taxonomy", category_api.taxonomy_tree, name="taxonomy"),
     path("categories/<str:code>", category_api.category_overview, name="category-overview"),
     path("donors/<int:pk>", views.donor_detail, name="donor-detail"),
+    path("donor-groups", views.GroupList.as_view(), name="group-list"),
+    path("donor-groups/<int:pk>", views.group_detail, name="group-detail"),
 ]

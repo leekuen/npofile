@@ -126,7 +126,12 @@ def category_overview(request, code):
 
 def donor_field_breakdown(donor: Donor) -> list[dict]:
     """企業捐給哪些領域：依受捐組織的大類加總；組織屬多個大類時各算全額（口徑見 LK-09）。"""
-    donations = donor.donations.filter(period.donation_q())
+    return field_breakdown(donor.donations.all())
+
+
+def field_breakdown(donations) -> list[dict]:
+    """一批捐款捐給哪些領域（企業頁、集團頁共用，LK-23）。"""
+    donations = donations.filter(period.donation_q())
     org_totals = {r["organization"]: r["total"] for r in donations.values("organization").annotate(total=Sum("amount"))}
     if not org_totals:
         return []

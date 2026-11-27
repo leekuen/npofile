@@ -35,6 +35,11 @@ export async function DonorDetailView({ params }: { params: Promise<{ id: string
             <span className="rounded bg-ink-100 px-1.5 text-ink-700">{donor.kind_label}</span>
             {donor.ubn && <span className="tabular-nums">統一編號 {donor.ubn}</span>}
           </p>
+          {donor.group && (
+            <p className="mt-2 text-sm text-ink-700">
+              所屬集團：<TextLink href={`/donors/groups/${donor.group.id}`}>{donor.group.label}</TextLink>
+            </p>
+          )}
         </div>
         <Card className="w-full shrink-0 sm:w-72">
           <p className="text-sm text-ink-600">近 5 年清冊上的捐款總額</p>
@@ -122,7 +127,7 @@ export async function DonorDetailView({ params }: { params: Promise<{ id: string
 }
 
 /** 依受捐組織的大類加總；組織屬於多個大類時各算全額，所以不畫成加起來 100% 的圓餅。 */
-function FieldBreakdown({ rows }: { rows: DonorDetail["fields_breakdown"] }) {
+export function FieldBreakdown({ rows }: { rows: DonorDetail["fields_breakdown"] }) {
   const max = Math.max(...rows.map((r) => r.total), 1);
   return (
     <section>

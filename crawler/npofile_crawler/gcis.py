@@ -39,3 +39,30 @@ def lookup(client: PoliteClient, name: str) -> dict | None:
     if "公司" not in name:
         return None
     return pick_exact(name, client.get(query_url(name)).text)
+
+
+# 公司登記董監事資料集（LK-23）：依統編列出每位董監事與其代表的法人。
+DIRECTORS_API = "https://data.gcis.nat.gov.tw/od/data/api/4E5F7653-1B91-4DDC-99D5-468530FAE396"
+
+
+def directors_url(ubn: str) -> str:
+    flt = quote(f"Business_Accounting_NO eq {ubn}")
+    return f"{DIRECTORS_API}?$format=json&$filter={flt}&$skip=0&$top=500"
+
+
+def parse_juristic_directors(body: str) -> list[str]:
+    """董監事裡代表法人出任的那些法人名稱（去重、照出現順序）。個人姓名不留：只用法人關係歸戶。"""
+    try:
+        rows = json.loads(body) if body.strip() else []
+    except json.JSONDecodeError:
+        return []
+    names: list[str] = []
+    for row in rows if isinstance(rows, list) else []:
+        name = (row.get("Juristic_Person_Name") or "").strip()
+        if name and name not in names:
+            names.append(name)
+    return names
+
+
+def juristic_directors(client: PoliteClient, ubn: str) -> list[str]:
+    return parse_juristic_directors(client.get(directors_url(ubn)).text)

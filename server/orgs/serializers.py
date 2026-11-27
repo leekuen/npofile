@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
-from . import category_api, donor_rules, period, scoring
-from .models import AnnualFundraising, Donation, Donor, Grant, Organization, Penalty, Project
+from . import category_api, donor_rules, groups, period, scoring
+from .models import AnnualFundraising, CompanyGroup, Donation, Donor, Grant, Organization, Penalty, Project
 
 RECENT_DONATIONS = 50
 DONOR_DETAIL_DONATIONS = 200
@@ -156,14 +156,19 @@ class DonorDetailSerializer(DonorListSerializer):
     organizations = serializers.SerializerMethodField()
     donations = serializers.SerializerMethodField()
     fields_breakdown = serializers.SerializerMethodField()
+    group = serializers.SerializerMethodField()
 
     class Meta(DonorListSerializer.Meta):
         fields = DonorListSerializer.Meta.fields + (
             "registered_name", "representative", "capital", "address", "organizations", "donations", "fields_breakdown",
+            "group",
         )
 
     def get_fields_breakdown(self, obj):
         return category_api.donor_field_breakdown(obj)
+
+    def get_group(self, obj):
+        return groups.donor_group(obj)
 
     def get_organizations(self, obj):
         return donor_rules.donor_by_org(obj)
@@ -172,3 +177,46 @@ class DonorDetailSerializer(DonorListSerializer):
         qs = obj.donations.filter(period.donation_q()).select_related("organization", "project")
         qs = qs.order_by("-donated_on", "-amount")
         return DonorDonationSerializer(qs[:DONOR_DETAIL_DONATIONS], many=True).data
+
+
+class GroupListSerializer(serializers.ModelSerializer):
+    """集團（LK-23）：合計＝旗下公開企業近 5 年捐款相加。"""
+
+    label = serializers.SerializerMethodField()
+    short_name = serializers.SerializerMethodField()
+    total = serializers.IntegerField()
+    member_count = serializers.IntegerField()
+    org_count = serializers.IntegerField()
+    donation_count = serializers.IntegerField()
+
+    class Meta:
+        model = CompanyGroup
+        fields = ("id", "name", "short_name", "label", "total", "member_count", "org_count", "donation_count")
+
+    def get_label(self, obj):
+        return groups.group_label(obj.name, obj.member_count)
+
+    def get_short_name(self, obj):
+        return groups.short_name(obj.name)
+
+
+class GroupDetailSerializer(GroupListSerializer):
+    members = serializers.SerializerMethodField()
+    organizations = serializers.SerializerMethodField()
+    fields_breakdown = serializers.SerializerMethodField()
+
+    class Meta(GroupListSerializer.Meta):
+        fields = GroupListSerializer.Meta.fields + ("members", "organizations", "fields_breakdown")
+
+    def _donations(self, obj):
+        member_ids = [m.pk for m in groups.group_members(obj)]
+        return Donation.objects.filter(donor_id__in=member_ids)
+
+    def get_members(self, obj):
+        return DonorListSerializer(groups.group_members(obj), many=True).data
+
+    def get_organizations(self, obj):
+        return donor_rules.donations_by_org(self._donations(obj))
+
+    def get_fields_breakdown(self, obj):
+        return category_api.field_breakdown(self._donations(obj))

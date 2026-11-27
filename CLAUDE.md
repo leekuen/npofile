@@ -110,7 +110,8 @@ server/.venv/Scripts/python server/manage.py crawl fia               # 匯入財
 server/.venv/Scripts/python server/manage.py crawl mohw --limit 50   # 抓公益勸募團體（每秒一個請求）
 server/.venv/Scripts/python server/manage.py crawl mohw_activities --limit 20          # 近 5 年勸募活動＋捐贈人清冊：接著上次進度、只抓新的與有變的（--limit 算活動數；後台「每次最多跑幾分鐘」預設 120）
 server/.venv/Scripts/python server/manage.py crawl mohw_activities --group 7210       # 只抓指定團體（網址 fundgroupDetails/ 後的數字）
-server/.venv/Scripts/python server/manage.py match_companies --limit 200   # 企業捐款人對商工登記統編（名稱完全相同才連）
+server/.venv/Scripts/python server/manage.py match_companies --limit 200   # 企業捐款人對商工登記統編（名稱完全相同才連；捐得多的先查）
+server/.venv/Scripts/python server/manage.py group_companies --limit 500    # 集團歸戶：查董監事（每家每月一次、捐得多的先查）再依法人董事重新歸戶（--limit 0 只重新歸戶）
 server/.venv/Scripts/python server/manage.py reclassify_donors             # 分類規則改了之後重新分類（管理員指定過的不動）
 server/.venv/Scripts/python server/manage.py merge_donors                  # 捐款人名稱規則改了之後：同一位的不同寫法（台／臺、空白、(股)）合成一筆（migrate 時也會跑）
 server/.venv/Scripts/python server/manage.py classify_orgs                 # 依 orgs/taxonomy.py 重算組織的領域與服務對象（管理員修正的不動）

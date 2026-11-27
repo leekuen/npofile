@@ -3,6 +3,8 @@ import "server-only";
 import type {
   CategoryOverview,
   DonorDetail,
+  DonorGroupDetail,
+  DonorGroupRow,
   DonorSummaryRow,
   Filters,
   OrgDetail,
@@ -76,6 +78,18 @@ export async function listDonors(query: DonorQuery) {
 export async function getDonor(id: string) {
   if (!/^\d+$/.test(id)) return null;
   return get<DonorDetail>(`/api/donors/${id}`);
+}
+
+export async function listDonorGroups(query: { q?: string; page?: string }) {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(query)) if (v) params.set(k, v);
+  const page = await get<Page<DonorGroupRow>>(`/api/donor-groups?${params}`);
+  return page ?? { count: 0, next: null, previous: null, results: [] };
+}
+
+export async function getDonorGroup(id: string) {
+  if (!/^\d+$/.test(id)) return null;
+  return get<DonorGroupDetail>(`/api/donor-groups/${id}`);
 }
 
 export async function getTaxonomy() {

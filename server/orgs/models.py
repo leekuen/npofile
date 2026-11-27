@@ -83,6 +83,26 @@ class AnnualFundraising(SourceMixin):
         return f"{self.year} 年"
 
 
+class CompanyGroup(models.Model):
+    """集團（LK-23）：用商工登記的法人董事把捐款企業連成一群。只說「有法人董事關係」，不推論股權或控制。
+
+    自動歸戶的集團以 anchor（群裡被最多公司共用的法人）認同一個；管理員自己建的 manual 集團，重算時不動。"""
+
+    name = models.CharField("集團名稱", max_length=200, help_text="自動歸戶時＝群裡被最多公司共用的法人董事。")
+    anchor = models.CharField("代表法人", max_length=200, blank=True, db_index=True, editable=False)
+    manual = models.BooleanField("管理員建立", default=False, help_text="管理員建的集團，重新歸戶時不會被拿掉或改名。")
+    created_at = models.DateTimeField("建立時間", auto_now_add=True)
+    updated_at = models.DateTimeField("更新時間", auto_now=True)
+
+    class Meta:
+        verbose_name = "集團"
+        verbose_name_plural = "集團"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
 class Donor(models.Model):
     """清冊上的捐款人（企業、團體、大額個人）。小額個人與匿名不建捐款人，只進專案的清冊摘要。"""
 
@@ -109,6 +129,16 @@ class Donor(models.Model):
     capital = models.BigIntegerField("實收資本額", null=True, blank=True)
     address = models.CharField("登記地址", max_length=300, blank=True)
     registry_checked_at = models.DateTimeField("查過商工登記", null=True, blank=True)
+    # 集團歸戶（LK-23）：只存代表法人出任董監事的「法人名稱」，個人董監事姓名不存
+    juristic_directors = models.JSONField("法人董監事", default=list, blank=True, editable=False)
+    directors_checked_at = models.DateTimeField("查過董監事", null=True, blank=True, editable=False)
+    group = models.ForeignKey(
+        CompanyGroup, on_delete=models.SET_NULL, null=True, blank=True, related_name="members", verbose_name="所屬集團"
+    )
+    group_manual = models.BooleanField(
+        "集團由管理員指定", default=False,
+        help_text="勾起後重新歸戶不會改這家公司的集團；所屬集團留空＝移出集團。",
+    )
 
     class Meta:
         verbose_name = "捐款人"

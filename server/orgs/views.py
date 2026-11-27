@@ -8,11 +8,13 @@ from rest_framework.generics import ListAPIView
 from npofile_crawler.donors import identity_key
 from rest_framework.response import Response
 
-from . import category_api, donor_rules, period, scoring
-from .models import AnnualFundraising, Donor, Grant, Organization, Project
+from . import category_api, donor_rules, groups, period, scoring
+from .models import AnnualFundraising, CompanyGroup, Donor, Grant, Organization, Project
 from .serializers import (
     DonorDetailSerializer,
     DonorListSerializer,
+    GroupDetailSerializer,
+    GroupListSerializer,
     OrganizationDetailSerializer,
     OrganizationListSerializer,
 )
@@ -120,3 +122,28 @@ class DonorList(ListAPIView):
 def donor_detail(request, pk):
     donor = get_object_or_404(donor_rules.public_donors(), pk=pk)
     return Response(DonorDetailSerializer(donor).data)
+
+
+class GroupList(ListAPIView):
+    """依集團的捐款企業排行（LK-23）：關鍵字比對集團名稱或旗下公司名稱、統編。"""
+
+    serializer_class = GroupListSerializer
+
+    def get_queryset(self):
+        qs = groups.public_groups()
+        q = self.request.query_params.get("q", "").strip()
+        if q:
+            cond = (
+                Q(name__icontains=q) | Q(members__name__icontains=q) | Q(members__registered_name__icontains=q)
+                | Q(members__name_key__contains=identity_key(q))
+            )
+            if re.fullmatch(r"\d{8}", q):
+                cond |= Q(members__ubn=q)
+            qs = qs.filter(pk__in=CompanyGroup.objects.filter(cond).values("pk"))
+        return qs.order_by("-total", "name")
+
+
+@api_view(["GET"])
+def group_detail(request, pk):
+    group = get_object_or_404(groups.public_groups(), pk=pk)
+    return Response(GroupDetailSerializer(group).data)

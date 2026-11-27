@@ -8,3 +8,5 @@
 30 2 * * * /app/deploy/run-job.sh crawl python manage.py crawl all
 # 每天 05:30 清掉近 5 年以外的資料、重算揭露指數（「近五年」隨日期移動）
 30 5 * * * /app/deploy/run-job.sh scores bash -c "python manage.py prune_old_records && python manage.py recompute_scores"
+# 每天 06:00 集團歸戶（LK-23）：先補企業捐款人的統編、再查董監事（每家每月重查一次，捐得多的先查，每秒一個請求，各最多 1000 家≈各 17 分鐘）
+0 6 * * * /app/deploy/run-job.sh groups bash -c "python manage.py match_companies --limit 1000 && python manage.py group_companies --limit 1000"

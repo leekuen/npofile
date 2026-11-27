@@ -156,6 +156,14 @@ class GcisTests(unittest.TestCase):
         self.assertIsNone(gcis.pick_exact("x", ""))
         self.assertIsNone(gcis.pick_exact("x", "<html>"))
 
+    def test_juristic_directors_only_keep_juristic_names(self):
+        # 個人姓名不留、去重、去空白（LK-23）
+        names = gcis.parse_juristic_directors(read("gcis_directors.json"))
+        self.assertEqual(names, ["國泰金融控股股份有限公司", "行政院國家發展基金管理會"])
+        self.assertEqual(gcis.parse_juristic_directors(""), [])
+        self.assertEqual(gcis.parse_juristic_directors("<html>"), [])
+        self.assertIn("Business_Accounting_NO%20eq%2003374707", gcis.directors_url("03374707"))
+
     def test_query_url_uses_percent_20(self):
         url = gcis.query_url("台灣積體電路製造股份有限公司")
         self.assertIn("%20like%20", url)

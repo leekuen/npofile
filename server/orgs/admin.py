@@ -7,6 +7,7 @@ from . import taxonomy
 from .models import (
     CRAWLABLE_FIELDS,
     AnnualFundraising,
+    CompanyGroup,
     Donation,
     Grant,
     Donor,
@@ -187,12 +188,19 @@ class DonorAdmin(admin.ModelAdmin):
     list_editable = ("kind", "hidden")
     list_filter = ("kind", "hidden", "kind_manual")
     search_fields = ("name", "ubn", "registered_name")
-    readonly_fields = ("registered_name", "representative", "capital", "address", "registry_checked_at")
-    actions = ["hide", "unhide"]
+    readonly_fields = (
+        "registered_name", "representative", "capital", "address", "registry_checked_at",
+        "juristic_directors", "directors_checked_at",
+    )
+    autocomplete_fields = ("group",)
+    actions = ["hide", "unhide", "release_group"]
 
     def save_model(self, request, obj, form, change):
         if "kind" in form.changed_data:
             obj.kind_manual = True
+        # 管理員改過所屬集團（含清空＝移出集團）就鎖住，重新歸戶不會改回去（LK-23）
+        if "group" in form.changed_data:
+            obj.group_manual = True
         super().save_model(request, obj, form, change)
 
     def get_queryset(self, request):
@@ -212,6 +220,47 @@ class DonorAdmin(admin.ModelAdmin):
     def hide(self, request, queryset):
         self.message_user(request, f"已隱藏 {queryset.update(hidden=True)} 位捐款人", messages.SUCCESS)
 
+    @admin.action(description="集團交回自動歸戶（取消管理員指定）")
+    def release_group(self, request, queryset):
+        n = queryset.update(group_manual=False)
+        self.message_user(request, f"已交回 {n} 家；下次執行 group_companies 會重新歸戶", messages.SUCCESS)
+
     @admin.action(description="取消隱藏")
     def unhide(self, request, queryset):
         self.message_user(request, f"已取消隱藏 {queryset.update(hidden=False)} 位捐款人", messages.SUCCESS)
+
+
+class GroupMemberInline(admin.TabularInline):
+    model = Donor
+    fk_name = "group"
+    fields = ("name", "ubn", "group_manual")
+    readonly_fields = ("name", "ubn", "group_manual")
+    extra = 0
+    can_delete = False
+    show_change_link = True
+    verbose_name = "旗下公司"
+    verbose_name_plural = "旗下公司（要移出或加入，到該公司的捐款人頁改「所屬集團」）"
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(CompanyGroup)
+class CompanyGroupAdmin(admin.ModelAdmin):
+    list_display = ("name", "manual", "members_count", "updated_at")
+    list_filter = ("manual",)
+    search_fields = ("name", "anchor", "members__name")
+    readonly_fields = ("anchor", "created_at", "updated_at")
+    inlines = [GroupMemberInline]
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(_members=Count("members"))
+
+    @admin.display(description="旗下公司數", ordering="_members")
+    def members_count(self, obj):
+        return obj._members
+
+    def save_model(self, request, obj, form, change):
+        if not change:  # 管理員自己建的集團（例：關係企業沒有法人董事），重新歸戶時不動
+            obj.manual = True
+        super().save_model(request, obj, form, change)

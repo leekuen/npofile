@@ -97,8 +97,13 @@ def public_donors() -> QuerySet[Donor]:
 
 
 def donor_by_org(donor: Donor) -> list[dict]:
+    return donations_by_org(donor.donations.all())
+
+
+def donations_by_org(donations: QuerySet[Donation]) -> list[dict]:
+    """依受捐組織加總（企業頁、集團頁共用）。"""
     rows = (
-        donor.donations.filter(period.donation_q())
+        donations.filter(period.donation_q())
         .values("organization__ubn", "organization__name")
         .annotate(total=Sum("amount"), count=Count("id"))
         .order_by("-total")

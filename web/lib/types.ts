@@ -214,7 +214,33 @@ export interface DonorSummaryRow {
   donation_count: number;
 }
 
+export interface DonorGroupRef {
+  id: number;
+  name: string;
+  label: string;
+  member_count: number;
+}
+
+/** 集團（LK-23）：用商工登記的法人董事把企業連成一群；合計＝旗下公開企業近 5 年捐款相加。 */
+export interface DonorGroupRow {
+  id: number;
+  name: string;
+  short_name: string;
+  label: string;
+  total: number;
+  member_count: number;
+  org_count: number;
+  donation_count: number;
+}
+
+export interface DonorGroupDetail extends DonorGroupRow {
+  members: DonorSummaryRow[];
+  organizations: { ubn: string; name: string; total: number; count: number }[];
+  fields_breakdown: { code: string; label: string; total: number }[];
+}
+
 export interface DonorDetail extends DonorSummaryRow {
+  group: DonorGroupRef | null;
   registered_name: string;
   representative: string;
   capital: number | null;
