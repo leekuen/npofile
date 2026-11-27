@@ -3,13 +3,13 @@ from django.db import transaction
 
 from crawling.models import ActivityProgress, CrawlRecord
 from orgs import period
-from orgs.models import AnnualFundraising, Donation, Organization, Project
+from orgs.models import AnnualFundraising, Donation, FinancialYear, OrgDocument, Organization, Project
 from orgs.signals import suspend_scoring
 from orgs.scoring import recompute
 
 
 class Command(BaseCommand):
-    help = "刪掉近 5 年以前的年度募款、專案（連同捐款與清冊摘要）與手動捐款；裁罰一律不刪"
+    help = "刪掉近 5 年以前的年度募款、專案（連同捐款與清冊摘要）、手動捐款、官網財報與報告；裁罰一律不刪"
 
     def add_arguments(self, parser):
         parser.add_argument("--dry-run", action="store_true", help="只算會刪幾筆，不刪")
@@ -23,12 +23,16 @@ class Command(BaseCommand):
         old_ids = list(projects.values_list("external_id", flat=True))
         records = CrawlRecord.objects.filter(kind="donor_list", external_id__in=old_ids) if old_ids else CrawlRecord.objects.none()
         progress = ActivityProgress.objects.filter(roc_year__lt=since)  # 舊活動的抓取進度（LK-13）
+        financials = FinancialYear.objects.exclude(period.annual_q())  # 官網財報（LK-17）
+        documents = OrgDocument.objects.exclude(period.annual_q())
         counts = {
             "年度募款": annual.count(),
             "專案": projects.count(),
             "捐款紀錄": donations.count(),
             "清冊原始紀錄": records.count(),
             "活動抓取進度": progress.count(),
+            "年度財務": financials.count(),
+            "官網報告": documents.count(),
         }
         summary = "、".join(f"{k} {v} 筆" for k, v in counts.items())
         if dry_run:
@@ -41,5 +45,7 @@ class Command(BaseCommand):
             annual.delete()
             records.delete()
             progress.delete()
+            financials.delete()
+            documents.delete()
         recompute(Organization.objects.filter(pk__in=touched))
         self.stdout.write(f"已刪除民國 {since} 年以前：{summary}；裁罰紀錄不動")

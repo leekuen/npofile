@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from . import category_api, donor_rules, period, scoring
-from .models import AnnualFundraising, Donation, Donor, Organization, Penalty, Project
+from .models import AnnualFundraising, Donation, Donor, FinancialYear, OrgDocument, Organization, Penalty, Project
 
 RECENT_DONATIONS = 50
 DONOR_DETAIL_DONATIONS = 200
@@ -33,6 +33,27 @@ class AnnualSerializer(serializers.ModelSerializer):
         if not obj.target:
             return None
         return round(obj.raised * 100 / obj.target, 1)
+
+
+class FinancialYearSerializer(serializers.ModelSerializer):
+    program_expense_ratio = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = FinancialYear
+        fields = (
+            "year", "total_revenue", "contributions", "government_grants", "program_service_revenue",
+            "investment_income", "other_revenue", "total_expenses", "program_expenses", "admin_expenses",
+            "fundraising_expenses", "surplus", "total_assets", "total_liabilities", "net_assets",
+            "program_expense_ratio", "audited", "method", "document_url", "document_title",
+        )
+
+
+class OrgDocumentSerializer(serializers.ModelSerializer):
+    kind_label = serializers.CharField(source="get_kind_display")
+
+    class Meta:
+        model = OrgDocument
+        fields = ("id", "year", "kind", "kind_label", "title", "url", "found_on")
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -73,6 +94,8 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     penalty_count_5y = serializers.IntegerField()
     score = serializers.SerializerMethodField()
     annual_records = AnnualSerializer(many=True)
+    financials = FinancialYearSerializer(many=True)
+    documents = OrgDocumentSerializer(many=True)
     projects = ProjectSerializer(many=True)
     penalties = PenaltySerializer(many=True)
     donations = serializers.SerializerMethodField()
@@ -87,7 +110,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
         fields = (
             "ubn", "name", "org_type", "representative", "registered_address", "contact_address", "phone",
             "website", "city", "purposes", "status", "status_label", "source_links", "disclosure_score",
-            "penalty_count_5y", "score", "annual_records", "projects", "penalties", "donations",
+            "penalty_count_5y", "score", "annual_records", "financials", "documents", "projects", "penalties", "donations",
             "corporate_donors", "individual_donors", "donor_summary", "since_roc_year", "categories",
             "updated_at",
         )

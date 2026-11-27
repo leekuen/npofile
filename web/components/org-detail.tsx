@@ -8,11 +8,13 @@ import type { OrgDetail, ScoreBreakdown } from "@/lib/types";
 
 import { OrgCategoryTags } from "./categories";
 import { Comments } from "./comments";
+import { FinancialChart } from "./financial-chart";
 import { Card, EmptyState, ErrorBox, ScoreBadge, Skeleton, SourceNote, StatusBadge, TextLink } from "./ui";
 
 // 基本資料改放右側欄（LK-11），分頁只留資料；舊連結 ?tab=basic 會落到預設分頁
 const TABS = [
   { key: "donations", label: "募款與捐款人" },
+  { key: "finance", label: "財務與年報" },
   { key: "projects", label: "捐款專案" },
   { key: "penalties", label: "受裁罰紀錄" },
 ] as const;
@@ -44,6 +46,7 @@ export async function OrgDetailView({
   // 只有裁罰需要一眼看到筆數；其他分頁的數字不會改變點不點進去
   const counts: Record<TabKey, number | null> = {
     donations: null,
+    finance: null,
     projects: null,
     penalties: org.penalties.length || null,
   };
@@ -108,6 +111,7 @@ export async function OrgDetailView({
               {tab === "penalties" ? "所有年度" : `近 5 年（民國 ${org.since_roc_year} 年起）`}
             </p>
             {tab === "donations" && <DonationsTab org={org} />}
+            {tab === "finance" && <FinanceTab org={org} />}
             {tab === "projects" && <ProjectsTab org={org} />}
             {tab === "penalties" && <PenaltiesTab org={org} />}
           </div>
@@ -486,6 +490,106 @@ function DonorRankings({ org }: { org: OrgDetail }) {
         </section>
       )}
     </>
+  );
+}
+
+const FIN_COLUMNS = [
+  { key: "total_revenue", label: "總收入" },
+  { key: "contributions", label: "捐款收入" },
+  { key: "government_grants", label: "政府補助" },
+  { key: "total_expenses", label: "總支出" },
+  { key: "program_expense_ratio", label: "業務支出占比" },
+  { key: "net_assets", label: "年底淨資產" },
+] as const;
+
+/** 財務與年報（LK-17）：組織官網公開的報告，數字經管理員審核後才上架 */
+function FinanceTab({ org }: { org: OrgDetail }) {
+  const years = [...org.financials].sort((a, b) => b.year - a.year);
+  const docYears = [...new Set(org.documents.map((d) => d.year))].sort((a, b) => b - a);
+
+  if (years.length === 0 && org.documents.length === 0) {
+    return (
+      <EmptyState title="還沒有收錄到這個組織官網公開的財務報告">
+        {org.website ? "我們會定期到組織官網找年報與財務報告。" : "這個組織沒有登記官網，目前無法自動收錄。"}
+      </EmptyState>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <section>
+        <SectionTitle>收入、支出與淨資產</SectionTitle>
+        {years.length === 0 ? (
+          <EmptyState title="報告裡的數字還沒整理上架">下方可以先看組織公開的原始報告。</EmptyState>
+        ) : (
+          <div className="space-y-3">
+            {years.length >= 2 && (
+              <Card>
+                <FinancialChart
+                  rows={years.map((f) => ({ year: f.year, revenue: f.total_revenue, expenses: f.total_expenses, netAssets: f.net_assets }))}
+                />
+              </Card>
+            )}
+            <Card className="overflow-x-auto p-0 sm:p-0">
+              <table className="w-full text-sm">
+                <thead className="bg-ink-50 text-ink-700">
+                  <tr>
+                    <th scope="col" className="px-3 py-2 text-left font-medium whitespace-nowrap">年度（民國）</th>
+                    {FIN_COLUMNS.map((c) => (
+                      <th key={c.key} scope="col" className="px-3 py-2 text-right font-medium whitespace-nowrap">{c.label}</th>
+                    ))}
+                    <th scope="col" className="px-3 py-2 text-left font-medium whitespace-nowrap">出處</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink-100 tabular-nums">
+                  {years.map((f) => (
+                    <tr key={f.year}>
+                      <td className="px-3 py-2">{f.year}</td>
+                      {FIN_COLUMNS.map((c) => (
+                        <td key={c.key} className="px-3 py-2 text-right whitespace-nowrap">
+                          {c.key === "program_expense_ratio"
+                            ? f.program_expense_ratio === null ? "—" : `${f.program_expense_ratio}%`
+                            : formatMoney(f[c.key])}
+                        </td>
+                      ))}
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {f.document_url ? <TextLink href={f.document_url}>{f.audited ? "會計師查核報告" : "原始報告"}</TextLink> : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+            <p className="text-xs text-ink-600">業務支出占比＝業務（服務）支出 ÷ 總支出。報告沒有列的項目顯示「—」。</p>
+          </div>
+        )}
+      </section>
+
+      {org.documents.length > 0 && (
+        <section>
+          <SectionTitle>官網公開的報告</SectionTitle>
+          <Card className="p-0 sm:p-0">
+            <ul className="divide-y divide-ink-100">
+              {docYears.map((y) => (
+                <li key={y} className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:gap-4">
+                  <span className="w-16 shrink-0 font-semibold tabular-nums text-ink-700">{y} 年</span>
+                  <ul className="min-w-0 flex-1 space-y-1">
+                    {org.documents
+                      .filter((d) => d.year === y)
+                      .map((d) => (
+                        <li key={d.id} className="flex flex-wrap items-baseline gap-x-2 break-words">
+                          <span className="rounded bg-ink-100 px-1.5 text-xs text-ink-700">{d.kind_label}</span>
+                          <TextLink href={d.url}>{d.title}</TextLink>
+                        </li>
+                      ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </section>
+      )}
+    </div>
   );
 }
 

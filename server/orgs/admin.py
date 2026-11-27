@@ -10,7 +10,9 @@ from .models import (
     Donation,
     Donor,
     DonorListSummary,
+    FinancialYear,
     OrgCategory,
+    OrgDocument,
     Organization,
     Penalty,
     Project,
@@ -61,6 +63,45 @@ class PenaltyInline(admin.StackedInline):
     )
 
 
+FINANCIAL_ADMIN_FIELDS = (
+    "year",
+    ("total_revenue", "contributions", "government_grants"),
+    ("program_service_revenue", "investment_income", "other_revenue"),
+    ("total_expenses", "program_expenses", "admin_expenses", "fundraising_expenses"),
+    ("surplus", "total_assets", "total_liabilities", "net_assets"),
+    ("audited", "method", "locked"),
+    ("document_title", "document_url"),
+    "notes",
+)
+
+
+class FinancialYearInline(admin.StackedInline):
+    model = FinancialYear
+    extra = 0
+    fields = FINANCIAL_ADMIN_FIELDS
+    readonly_fields = ("method",)
+    verbose_name_plural = "年度財務（金額單位：元；改過的年度會自動勾「管理員改過」，爬蟲不再覆蓋）"
+
+
+class OrgDocumentInline(admin.TabularInline):
+    model = OrgDocument
+    extra = 0
+    fields = ("year", "kind", "title", "url", "found_on")
+    verbose_name_plural = "官網報告文件"
+
+
+def _lock_financials(formset) -> None:
+    """管理員新增或改過的年度財務：標成管理員輸入、鎖住不讓爬蟲覆蓋。"""
+    changed = formset.save(commit=False)
+    for obj in formset.deleted_objects:
+        obj.delete()
+    for row in changed:
+        row.organization = formset.instance
+        row.locked = True
+        row.method = FinancialYear.Method.MANUAL
+        row.save()
+
+
 def _category_choices():
     choices = []
     for f in taxonomy.FIELDS:
@@ -93,7 +134,8 @@ class OrganizationAdmin(admin.ModelAdmin):
     list_filter = ("status", "city", "org_type")
     search_fields = ("ubn", "name")
     readonly_fields = ("disclosure_score", "created_at", "updated_at")
-    inlines = [OrgCategoryInline, AnnualInline, DonationInline, ProjectInline, PenaltyInline]
+    inlines = [OrgCategoryInline, AnnualInline, FinancialYearInline, OrgDocumentInline, DonationInline, ProjectInline,
+               PenaltyInline]
     actions = ["unlock_fields"]
     fieldsets = (
         (None, {"fields": ("ubn", "name", "status", "disclosure_score")}),
@@ -110,6 +152,8 @@ class OrganizationAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
     def save_formset(self, request, form, formset, change):
+        if formset.model is FinancialYear:
+            return _lock_financials(formset)
         if formset.model is not OrgCategory:
             return super().save_formset(request, form, formset, change)
         changed = formset.save(commit=False)  # 只含新增與改過的列；也讓後台的變更紀錄拿得到資料
@@ -129,6 +173,29 @@ class OrganizationAdmin(admin.ModelAdmin):
     def unlock_fields(self, request, queryset):
         n = queryset.update(locked_fields=[])
         self.message_user(request, f"已解除 {n} 個組織的手動鎖定。", messages.SUCCESS)
+
+
+@admin.register(FinancialYear)
+class FinancialYearAdmin(admin.ModelAdmin):
+    list_display = ("organization", "year", "total_revenue", "total_expenses", "net_assets", "method", "locked")
+    list_filter = ("year", "method", "locked")
+    search_fields = ("organization__name", "organization__ubn")
+    autocomplete_fields = ("organization",)
+    fields = ("organization", *FINANCIAL_ADMIN_FIELDS)
+    readonly_fields = ("method",)
+
+    def save_model(self, request, obj, form, change):
+        obj.locked = True
+        obj.method = FinancialYear.Method.MANUAL
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(OrgDocument)
+class OrgDocumentAdmin(admin.ModelAdmin):
+    list_display = ("organization", "year", "kind", "title")
+    list_filter = ("kind", "year")
+    search_fields = ("organization__name", "organization__ubn", "title")
+    autocomplete_fields = ("organization",)
 
 
 @admin.register(Penalty)

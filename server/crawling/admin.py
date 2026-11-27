@@ -7,7 +7,7 @@ from django.utils.html import format_html
 
 from . import progress
 from .ingest import apply_records, recompute_ubns, run_source
-from .models import ActivityProgress, CrawlerSource, CrawlRecord, CrawlRun
+from .models import ActivityProgress, CrawlerSource, CrawlRecord, CrawlRun, OrgSiteCheck
 
 TRIAL_LIMIT = 5
 
@@ -134,7 +134,10 @@ class CrawlRecordAdmin(admin.ModelAdmin):
     @admin.display(description="內容摘要")
     def summary(self, obj):
         p = obj.payload
-        return str(p.get("name") or p.get("content") or p.get("year") or "")[:40]
+        if obj.kind == CrawlRecord.Kind.FINANCIAL:
+            total = p.get("total_revenue")
+            return f"{p.get('year')} 年 總收入 {total:,}" if isinstance(total, int) else f"{p.get('year')} 年"
+        return str(p.get("name") or p.get("content") or p.get("title") or p.get("year") or "")[:40]
 
     @admin.display(description="內容")
     def pretty_payload(self, obj):
@@ -158,3 +161,13 @@ class CrawlRecordAdmin(admin.ModelAdmin):
             status=CrawlRecord.Status.REJECTED, reviewed_at=timezone.now(), reviewed_by=request.user
         )
         self.message_user(request, f"已退回 {n} 筆", messages.SUCCESS)
+
+
+@admin.register(OrgSiteCheck)
+class OrgSiteCheckAdmin(admin.ModelAdmin):
+    list_display = ("ubn", "website", "checked_at")
+    search_fields = ("ubn", "website")
+    readonly_fields = ("ubn", "website", "checked_at")
+
+    def has_add_permission(self, request):
+        return False

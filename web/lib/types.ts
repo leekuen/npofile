@@ -103,6 +103,40 @@ export interface ScoreBreakdown {
   total: number;
 }
 
+/** 一個會計年度的財務摘要（LK-17，參照 Candid Financials）；金額單位元，報告沒列的是 null */
+export interface FinancialYear {
+  year: number;
+  total_revenue: number | null;
+  contributions: number | null;
+  government_grants: number | null;
+  program_service_revenue: number | null;
+  investment_income: number | null;
+  other_revenue: number | null;
+  total_expenses: number | null;
+  program_expenses: number | null;
+  admin_expenses: number | null;
+  fundraising_expenses: number | null;
+  surplus: number | null;
+  total_assets: number | null;
+  total_liabilities: number | null;
+  net_assets: number | null;
+  program_expense_ratio: number | null;
+  audited: boolean | null;
+  method: "ai" | "manual";
+  document_url: string;
+  document_title: string;
+}
+
+export interface OrgDocument {
+  id: number;
+  year: number;
+  kind: "financial" | "annual" | "work";
+  kind_label: string;
+  title: string;
+  url: string;
+  found_on: string;
+}
+
 export interface OrgDetail extends OrgSummary {
   representative: string;
   registered_address: string;
@@ -113,6 +147,8 @@ export interface OrgDetail extends OrgSummary {
   source_links: SourceLink[];
   score: ScoreBreakdown;
   annual_records: Annual[];
+  financials: FinancialYear[];
+  documents: OrgDocument[];
   projects: Project[];
   penalties: Penalty[];
   donations: DonationRow[];

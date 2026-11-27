@@ -22,20 +22,22 @@ from orgs.models import (
     Donation,
     Donor,
     DonorListSummary,
+    FinancialYear,
+    OrgDocument,
     Organization,
     Penalty,
     Project,
 )
 from orgs.signals import suspend_scoring
 
-from . import progress
+from . import orgsite_targets, progress
 from .models import CrawlerSource, CrawlRecord, CrawlRun
 from .progress import DbActivityPlan
 
 log = logging.getLogger(__name__)
 
 BATCH = 500
-KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4}
+KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4, "document": 5, "financial": 6}
 PROJECT_FIELDS = (
     "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
     "result_filed_on", "closed_filed_on", "description",
@@ -90,6 +92,8 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
                         plan = DbActivityPlan()
                     values = {"threshold": settings.DONOR_INDIVIDUAL_THRESHOLD, "since_roc": period.since_roc_year(),
                               "plan": plan}
+                    if source.key == "orgsite":
+                        values.update(orgsite_targets.options(source))
                     items = src.fetch(client, limit, **{k: values[k] for k in src.options})
                 for item in items:
                     run.fetched += 1
@@ -278,6 +282,37 @@ def _apply_child(rec: CrawlRecord, org: Organization, source_name: str) -> None:
             penalty.save()
     elif rec.kind == "donor_list":
         _apply_donor_list(rec, org, source_name)
+    elif rec.kind == "document":
+        OrgDocument.objects.update_or_create(
+            organization=org, url=d["url"][:1000],
+            defaults={"year": d["year"], "kind": d["doc_kind"], "title": (d.get("title") or "")[:200],
+                      "found_on": (d.get("found_on") or "")[:1000], "source_name": source_name},
+        )
+    elif rec.kind == "financial":
+        _apply_financial(rec, org, source_name)
+
+
+FINANCIAL_FIELDS = (
+    "total_revenue", "contributions", "government_grants", "program_service_revenue", "investment_income",
+    "other_revenue", "total_expenses", "program_expenses", "admin_expenses", "fundraising_expenses",
+    "surplus", "total_assets", "total_liabilities", "net_assets", "audited",
+)
+
+
+def _apply_financial(rec: CrawlRecord, org: Organization, source_name: str) -> None:
+    """同一年整列取代；管理員改過（locked）的那一年不動。"""
+    d = rec.payload
+    existing = FinancialYear.objects.filter(organization=org, year=d["year"]).first()
+    if existing and existing.locked:
+        rec.review_note = "這一年的財務數字管理員改過，沒有覆蓋"
+        return
+    values = {f: d.get(f) for f in FINANCIAL_FIELDS}
+    values.update(
+        document_url=(d.get("document_url") or "")[:1000], document_title=(d.get("document_title") or "")[:200],
+        method=FinancialYear.Method.AI if d.get("method") == "ai" else FinancialYear.Method.MANUAL,
+        notes=(d.get("notes") or "")[:300], source_name=source_name,
+    )
+    FinancialYear.objects.update_or_create(organization=org, year=d["year"], defaults=values)
 
 
 def _apply_donor_list(rec: CrawlRecord, org: Organization, source_name: str) -> None:

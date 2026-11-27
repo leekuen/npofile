@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
-from . import fia, mohw, violations
+from . import fia, mohw, orgsite, violations
 from .http import PoliteClient
 from .items import Item
 
@@ -21,7 +21,8 @@ class Source:
     # 寫進資料時掛的來源名稱；同一個網站的不同抓法共用一個，才不會把同一個專案存成兩份
     data_name: str = ""
     # fetch 另外收哪些參數（後端依設定給值）：threshold＝清冊個人門檻、since_roc＝只收這個民國年度起、
-    # plan＝記住抓到哪裡的 mohw.ActivityPlan（後端用資料庫版本）
+    # plan＝記住抓到哪裡的 mohw.ActivityPlan（後端用資料庫版本）、targets＝要爬的（統編, 官網）、
+    # extractor＝讀報告數字的 financials.ClaudeExtractor（沒設金鑰是 None）、seen_docs＝已讀過數字的檔案網址
     options: tuple[str, ...] = ()
 
     @property
@@ -44,5 +45,9 @@ SOURCES = {
                True, violations.fetch,
                "政府公開資料：所有年度的裁處（團體頁只列近五年）；「每次最多抓幾筆」算的是公告筆數",
                data_name=mohw.SOURCE_NAME, options=("since_roc",)),
+        Source("orgsite", "組織官網（年報與財務報告）", "", False, orgsite.fetch,
+               "組織自己官網公開的近 5 年財務報告、年報、工作／成果報告；設了 ANTHROPIC_API_KEY 才會讀出報告裡的數字"
+               "（會產生 API 費用）。「每次最多抓幾筆」算的是組織數",
+               data_name=orgsite.SOURCE_NAME, options=("since_roc", "targets", "extractor", "seen_docs")),
     )
 }

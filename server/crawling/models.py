@@ -59,6 +59,9 @@ class CrawlRecord(models.Model):
         ANNUAL = "annual", "年度募款"
         PROJECT = "project", "捐款專案"
         PENALTY = "penalty", "受裁罰紀錄"
+        DONOR_LIST = "donor_list", "捐贈人清冊"
+        DOCUMENT = "document", "官網報告文件"
+        FINANCIAL = "financial", "年度財務"
 
     class Status(models.TextChoices):
         PENDING = "pending", "待審核"
@@ -120,3 +123,19 @@ class ActivityProgress(models.Model):
 
     def __str__(self):
         return f"{self.activity_id} {self.name}"
+
+
+class OrgSiteCheck(models.Model):
+    """組織官網最近一次被爬的時間（LK-17）：每次從最久沒爬（或從沒爬過）的組織開始。"""
+
+    ubn = models.CharField("統一編號", max_length=8, unique=True)
+    website = models.URLField("官網", max_length=500, blank=True)
+    checked_at = models.DateTimeField("最近爬取", db_index=True)
+
+    class Meta:
+        verbose_name = "組織官網爬取進度"
+        verbose_name_plural = "組織官網爬取進度"
+        ordering = ["-checked_at"]
+
+    def __str__(self):
+        return f"{self.ubn} {self.checked_at:%Y-%m-%d}"
