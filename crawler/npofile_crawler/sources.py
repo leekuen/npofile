@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
-from . import fia, mohw, violations, wabay
+from . import fia, grants, mohw, violations, wabay
 from .http import PoliteClient
 from .items import Item
 
@@ -21,7 +21,7 @@ class Source:
     # 寫進資料時掛的來源名稱；同一個網站的不同抓法共用一個，才不會把同一個專案存成兩份
     data_name: str = ""
     # fetch 另外收哪些參數（後端依設定給值）：threshold＝清冊個人門檻、since_roc＝只收這個民國年度起、
-    # plan＝記住抓到哪裡的 mohw.ActivityPlan（後端用資料庫版本）、revisit＝要回頭再看的專案編號
+    # plan＝記住抓到哪裡的 mohw.ActivityPlan（後端用資料庫版本）、revisit＝要回頭再看的專案編號、orgs＝（統編, 名稱）名冊
     options: tuple[str, ...] = ()
     # 統編不在組織資料庫的資料不存（例：挖貝上公司提的商品集資），不進審核清單
     known_orgs_only: bool = False
@@ -52,5 +52,9 @@ SOURCES = {
                "群眾集資平台：非營利組織在挖貝提的集資專案（依提案者統編對組織；只收收錄的組織）；"
                "每天抓進行中的專案，結束後 14 天內再回頭看；不影響揭露指數",
                options=("revisit",), known_orgs_only=True, update_approved=True),
+        Source("mohw_grants", grants.SOURCE_NAME, grants.DATASET_PAGE.format(id=grants.DATASET_ID), True, grants.fetch,
+               "政府公開資料：衛福部（含社家署、健保署、疾管署等）每季公開的補(捐)助核定案件；"
+               "近 5 年每年取最新一季的累計表，受補助對象名稱跟組織名稱完全相同才收（「某某附設某某」算給上層法人）",
+               options=("since_roc", "orgs")),
     )
 }

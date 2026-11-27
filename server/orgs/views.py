@@ -8,7 +8,7 @@ from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 
 from . import category_api, donor_rules, period, scoring
-from .models import AnnualFundraising, Donor, Organization, Project
+from .models import AnnualFundraising, Donor, Grant, Organization, Project
 from .serializers import (
     DonorDetailSerializer,
     DonorListSerializer,
@@ -47,6 +47,7 @@ def organization_detail(request, ubn):
             Prefetch("annual_records", queryset=AnnualFundraising.objects.filter(period.annual_q())),
             Prefetch("projects", queryset=Project.objects.filter(period.project_q())),
             "penalties",
+            Prefetch("grants", queryset=Grant.objects.filter(period.grant_q())),
             "categories",
         )
     )

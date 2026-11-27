@@ -112,6 +112,22 @@ export interface ScoreBreakdown {
   total: number;
 }
 
+/** 政府對民間團體的補(捐)助（LK-19）：金額是核定金額（含累積） */
+export interface Grant {
+  id: number;
+  year: number;
+  quarter: number;
+  agency: string;
+  county: string;
+  recipient: string;
+  facility: string;
+  purpose: string;
+  approved_on: string | null;
+  amount: number;
+  source_name: string;
+  source_url: string;
+}
+
 export interface OrgDetail extends OrgSummary {
   representative: string;
   registered_address: string;
@@ -124,6 +140,8 @@ export interface OrgDetail extends OrgSummary {
   annual_records: Annual[];
   projects: Project[];
   penalties: Penalty[];
+  /** 政府補助（LK-19），近 5 年，金額大的在前 */
+  grants: Grant[];
   donations: DonationRow[];
   corporate_donors: CorporateDonorRank[];
   individual_donors: { name: string; total: number; count: number }[];
