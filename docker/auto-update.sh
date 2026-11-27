@@ -15,7 +15,7 @@ git config --global --add safe.directory '*'
 
 update_once() {
   if ! git fetch -q origin "$BRANCH"; then
-    log "抓不到 origin/$BRANCH（網路？），下次再試"
+    log "抓不到 origin/${BRANCH}（網路？），下次再試"
     return 0
   fi
   local_sha=$(git rev-parse HEAD)
@@ -51,7 +51,7 @@ if [ "${1:-}" = "--once" ]; then
   exit $?
 fi
 
-log "開始：每 ${INTERVAL} 秒檢查 origin/$BRANCH（目前 $(git log -1 --format='%h %s')）"
+log "開始：每 ${INTERVAL} 秒檢查 origin/${BRANCH}（目前 $(git log -1 --format='%h %s')）"
 while true; do
   update_once || true
   sleep "$INTERVAL"
