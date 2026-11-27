@@ -231,6 +231,7 @@ export interface DonorGroupRow {
   member_count: number;
   org_count: number;
   donation_count: number;
+  member_names: string[];
 }
 
 export interface DonorGroupDetail extends DonorGroupRow {

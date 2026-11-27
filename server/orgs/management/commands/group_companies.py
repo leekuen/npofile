@@ -4,6 +4,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db.models import F, Q, Sum
 from django.utils import timezone
+import httpx
 from npofile_crawler import gcis
 from npofile_crawler.http import PoliteClient
 
@@ -31,17 +32,28 @@ class Command(BaseCommand):
             .annotate(given=Sum("donations__amount"))
             .order_by(F("given").desc(nulls_last=True), "pk")
         )
-        checked = 0
+        checked = failed = streak = 0
         if limit:
             with PoliteClient(min_interval=settings.CRAWLER_MIN_INTERVAL) as client:
                 for donor in qs[:limit]:
-                    donor.juristic_directors = gcis.juristic_directors(client, donor.ubn)
+                    try:
+                        donor.juristic_directors = gcis.juristic_directors(client, donor.ubn)
+                    except httpx.HTTPError as exc:
+                        # 商工登記偶爾逾時（504）：這家下次再查，不擋其他家；連續 20 家都失敗就先停
+                        failed += 1
+                        streak += 1
+                        self.stderr.write(f"查不到 {donor.name}（{donor.ubn}）：{exc}")
+                        if streak >= 20:
+                            self.stderr.write("連續 20 家查不到，商工登記可能暫時連不上，先停")
+                            break
+                        continue
+                    streak = 0
                     donor.directors_checked_at = timezone.now()
                     donor.save(update_fields=["juristic_directors", "directors_checked_at"])
                     checked += 1
         stats = groups.recompute()
         self.stdout.write(
-            f"這次查了 {checked} 家的董監事。已查過 {stats['checked']} 家：有法人董監事 {stats['with_juristic_any']} 家，"
+            (f"有 {failed} 家這次查不到，下次再查。" if failed else "") + f"這次查了 {checked} 家的董監事。已查過 {stats['checked']} 家：有法人董監事 {stats['with_juristic_any']} 家，"
             f"其中 {stats['excluded_only']} 家只有政府、基金、信託這類法人（不拿來歸戶）；"
             f"歸成 {stats['groups']} 個集團、共 {stats['grouped']} 家，拿掉 {stats['removed_groups']} 個已不成立的集團"
         )

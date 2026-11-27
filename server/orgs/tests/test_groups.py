@@ -14,27 +14,56 @@ from orgs.models import CompanyGroup, Donation, Donor, Organization, Project
 FUBON = "富邦金融控股股份有限公司"
 
 
+def J(name, seats=1, shares=0):
+    return {"name": name, "seats": seats, "shares": shares}
+
+
 class RuleTests(TestCase):
-    def test_shared_juristic_director_makes_one_group(self):
+    def test_same_parent_makes_one_group(self):
         clusters = build_clusters([
-            Company(1, ("富邦人壽保險股份有限公司", ""), (FUBON,)),
-            Company(2, ("台北富邦商業銀行股份有限公司", ""), (FUBON,)),
-            Company(3, ("富邦綜合證券股份有限公司", ""), (FUBON, "富邦人壽保險股份有限公司")),
-            Company(4, ("富邦產物保險股份有限公司", ""), (FUBON,)),
+            Company(1, ("富邦人壽保險股份有限公司", ""), (J(FUBON, 9),)),
+            Company(2, ("台北富邦商業銀行股份有限公司", ""), (J(FUBON, 9),)),
+            Company(3, ("富邦綜合證券股份有限公司", ""), (J(FUBON, 7), J("富邦人壽保險股份有限公司", 1))),
+            Company(4, ("富邦產物保險股份有限公司", ""), (J(FUBON, 8),)),
             Company(5, ("無關的公司股份有限公司", ""), ()),
         ])
-        self.assertEqual(len(clusters), 1)
-        self.assertEqual(clusters[0].members, [1, 2, 3, 4])
-        self.assertEqual(clusters[0].anchor, FUBON)  # 被最多公司共用的法人
+        self.assertEqual([(c.anchor, c.members) for c in clusters], [(FUBON, [1, 2, 3, 4])])
 
-    def test_juristic_director_is_another_donor(self):
-        # 國泰人壽的法人董事是國泰金控，國泰金控自己也是捐款公司（臺／台寫法不同也認得）
+    def test_joint_venture_does_not_chain_groups(self):
+        # 2026-11-27 本機實測：合資公司的董事來自好幾家，不能把各集團串成一群
         clusters = build_clusters([
-            Company(1, ("國泰人壽保險股份有限公司", ""), ("國泰金融控股股份有限公司",)),
-            Company(2, ("國泰金融控股股份有限公司", ""), ()),
+            Company(1, ("富邦人壽保險股份有限公司", ""), (J(FUBON, 9),)),
+            Company(2, ("台北富邦商業銀行股份有限公司", ""), (J(FUBON, 9),)),
+            Company(3, ("悠遊卡股份有限公司", ""), (J("悠遊卡投資控股股份有限公司", 5), J("台北富邦商業銀行股份有限公司", 1))),
+            Company(4, ("台北金融大樓股份有限公司", ""), (J("臺灣證券交易所股份有限公司", 3), J("中華電信股份有限公司", 2))),
+            Company(5, ("中華電信股份有限公司", ""), ()),
+            Company(6, ("臺灣證券交易所股份有限公司", ""), ()),
         ])
-        self.assertEqual([c.members for c in clusters], [[1, 2]])
-        self.assertEqual(clusters[0].anchor, "國泰金融控股股份有限公司")
+        self.assertIn((FUBON, [1, 2]), [(c.anchor, c.members) for c in clusters])
+        self.assertIn(("臺灣證券交易所股份有限公司", [4, 6]), [(c.anchor, c.members) for c in clusters])
+        self.assertFalse(any(5 in c.members or 3 in c.members for c in clusters))
+
+    def test_chain_goes_up_to_the_top(self):
+        # 國泰世華的上層是國泰金控（也是捐款公司）；台灣名稱寫法不同也認得
+        clusters = build_clusters([
+            Company(1, ("國泰世華商業銀行股份有限公司", ""), (J("國泰金融控股股份有限公司", 9),)),
+            Company(2, ("國泰金融控股股份有限公司", ""), ()),
+            Company(3, ("某某保險經紀人股份有限公司", ""), (J("國泰世華商業銀行股份有限公司", 3),)),
+        ])
+        self.assertEqual([(c.anchor, c.members) for c in clusters], [("國泰金融控股股份有限公司", [1, 2, 3])])
+
+    def test_tie_is_not_linked_and_cycle_stops(self):
+        tie = (J("甲投資股份有限公司", 2, 100), J("乙投資股份有限公司", 2, 100))
+        self.assertEqual(build_clusters([Company(1, ("丙股份有限公司", ""), tie), Company(2, ("丁股份有限公司", ""), tie)]), [])
+        more_shares = (J("甲投資股份有限公司", 2, 100), J("乙投資股份有限公司", 2, 900))
+        clusters = build_clusters([Company(1, ("丙股份有限公司", ""), more_shares), Company(2, ("丁股份有限公司", ""), more_shares)])
+        self.assertEqual(clusters[0].anchor, "乙投資股份有限公司")
+        # 互相持股：甲的上層是乙、乙的上層是甲，不會無限迴圈
+        loop = build_clusters([
+            Company(1, ("甲股份有限公司", ""), (J("乙股份有限公司"),)),
+            Company(2, ("乙股份有限公司", ""), (J("甲股份有限公司"),)),
+        ])
+        self.assertEqual([c.members for c in loop], [[1, 2]])
 
     def test_government_funds_and_trusts_do_not_link(self):
         for juristic in (
@@ -46,11 +75,11 @@ class RuleTests(TestCase):
         ):
             with self.subTest(juristic=juristic):
                 self.assertFalse(groups.eligible(juristic))
-                clusters = build_clusters([Company(1, ("甲股份有限公司", ""), (juristic,)), Company(2, ("乙股份有限公司", ""), (juristic,))])
+                clusters = build_clusters([Company(1, ("甲股份有限公司", ""), (J(juristic, 5),)), Company(2, ("乙股份有限公司", ""), (J(juristic, 5),))])
                 self.assertEqual(clusters, [])
 
     def test_single_company_with_parent_is_not_a_group(self):
-        self.assertEqual(build_clusters([Company(1, ("甲股份有限公司", ""), ("母公司股份有限公司",))]), [])
+        self.assertEqual(build_clusters([Company(1, ("甲股份有限公司", ""), (J("母公司股份有限公司"),))]), [])
 
     def test_short_name_and_label(self):
         self.assertEqual(groups.group_label(FUBON, 4), "富邦金融控股 等 4 家")
@@ -59,7 +88,7 @@ class RuleTests(TestCase):
 
 def company(name, juristic=(), **kw):
     return Donor.objects.create(
-        name=name, kind="company", ubn=kw.pop("ubn", ""), juristic_directors=list(juristic),
+        name=name, kind="company", ubn=kw.pop("ubn", ""), juristic_directors=[J(j, 5) for j in juristic],
         directors_checked_at=timezone.now(), **kw,
     )
 
@@ -96,6 +125,22 @@ class RecomputeTests(TestCase):
         self.assertEqual(stats["removed_groups"], 1)
         self.assertTrue(CompanyGroup.objects.filter(pk=mg.pk).exists())
 
+    def test_registry_timeout_skips_company_and_still_regroups(self):
+        import httpx
+
+        a = Donor.objects.create(name="富邦人壽保險股份有限公司", kind="company", ubn="11111111")
+        company("台北富邦商業銀行股份有限公司", [FUBON])
+        company("富邦產物保險股份有限公司", [FUBON])
+        boom = httpx.HTTPStatusError("server error 504", request=None, response=None)
+        with mock.patch("orgs.management.commands.group_companies.gcis.juristic_directors", side_effect=boom):
+            call_command("group_companies", stdout=mock.MagicMock(), stderr=mock.MagicMock())
+        a.refresh_from_db()
+        self.assertIsNone(a.directors_checked_at)  # 下次再查
+        self.assertEqual(CompanyGroup.objects.get(anchor=FUBON).members.count(), 2)
+
+    def test_old_string_format_still_works(self):
+        self.assertEqual(groups.parent_of([FUBON]), FUBON)
+
     def test_same_representative_alone_does_not_link(self):
         company("甲股份有限公司", representative="王大明")
         company("乙股份有限公司", representative="王大明")
@@ -105,12 +150,12 @@ class RecomputeTests(TestCase):
         due = Donor.objects.create(name="富邦人壽保險股份有限公司", kind="company", ubn="11111111")
         Donor.objects.create(name="沒有統編股份有限公司", kind="company")
         fresh = company("台北富邦商業銀行股份有限公司", [FUBON], ubn="22222222")
-        with mock.patch("orgs.management.commands.group_companies.gcis.juristic_directors", return_value=[FUBON]) as fetch:
+        with mock.patch("orgs.management.commands.group_companies.gcis.juristic_directors", return_value=[J(FUBON, 5)]) as fetch:
             call_command("group_companies", stdout=mock.MagicMock())
         fetch.assert_called_once()
         self.assertEqual(fetch.call_args.args[1], "11111111")
         due.refresh_from_db()
-        self.assertEqual(due.juristic_directors, [FUBON])
+        self.assertEqual(due.juristic_directors, [J(FUBON, 5)])
         self.assertEqual(due.group_id, Donor.objects.get(pk=fresh.pk).group_id)
 
 

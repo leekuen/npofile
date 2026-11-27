@@ -188,10 +188,15 @@ class GroupListSerializer(serializers.ModelSerializer):
     member_count = serializers.IntegerField()
     org_count = serializers.IntegerField()
     donation_count = serializers.IntegerField()
+    member_names = serializers.SerializerMethodField()
 
     class Meta:
         model = CompanyGroup
-        fields = ("id", "name", "short_name", "label", "total", "member_count", "org_count", "donation_count")
+        fields = ("id", "name", "short_name", "label", "total", "member_count", "org_count", "donation_count", "member_names")
+
+    def get_member_names(self, obj):
+        """排行上認得出是哪個集團：捐最多的前 3 家（集團名稱常是看不出來的投資公司）。"""
+        return [m.name for m in groups.group_members(obj)[:3]]
 
     def get_label(self, obj):
         return groups.group_label(obj.name, obj.member_count)

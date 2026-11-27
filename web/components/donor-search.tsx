@@ -156,6 +156,10 @@ export async function DonorSearch({ searchParams }: { searchParams: Promise<Sear
                 <span className="w-8 shrink-0 text-right font-semibold tabular-nums text-ink-500">{rankBase + i + 1}</span>
                 <div className="min-w-0 flex-1">
                   <p className="break-words font-semibold text-brand-900 underline-offset-2 group-hover:underline">{g.label}</p>
+                  <p className="mt-0.5 break-words text-xs text-ink-700">
+                    {g.member_names.join("、")}
+                    {g.member_count > g.member_names.length ? " 等" : ""}
+                  </p>
                   <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-ink-600">
                     <span className="rounded bg-ink-100 px-1.5 text-ink-700">集團</span>
                     <span>捐給 {formatNumber(g.org_count)} 個組織</span>

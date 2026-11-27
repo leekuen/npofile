@@ -158,8 +158,12 @@ class GcisTests(unittest.TestCase):
 
     def test_juristic_directors_only_keep_juristic_names(self):
         # 個人姓名不留、去重、去空白（LK-23）
-        names = gcis.parse_juristic_directors(read("gcis_directors.json"))
-        self.assertEqual(names, ["國泰金融控股股份有限公司", "行政院國家發展基金管理會"])
+        rows = gcis.parse_juristic_directors(read("gcis_directors.json"))
+        self.assertEqual(rows, [
+            {"name": "國泰金融控股股份有限公司", "seats": 2, "shares": 6351527395},
+            {"name": "行政院國家發展基金管理會", "seats": 1, "shares": 100},
+        ])
+        self.assertNotIn("董事甲", str(rows))
         self.assertEqual(gcis.parse_juristic_directors(""), [])
         self.assertEqual(gcis.parse_juristic_directors("<html>"), [])
         self.assertIn("Business_Accounting_NO%20eq%2003374707", gcis.directors_url("03374707"))

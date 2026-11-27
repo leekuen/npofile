@@ -1,11 +1,13 @@
 """集團歸戶的規則只寫在這裡（口徑見 tickets/LK-23）。
 
-- 公司 A 的董監事裡有代表法人出任的（法人名稱含「公司」）→ A 跟那個法人同一群；
-  兩家公司共用同一個法人董事 → 同一群；法人董事本身就是另一家捐款公司 → 也同一群。
+- 每家公司只認一個「上層」：代表法人出任董監事、佔最多席的那個法人（名稱含「公司」；同席數比持股，再同就不認）。
+  上層本身也有上層就一路往上找，最上面那個法人＝集團；上層一樣的公司同一群，上層本身是捐款公司也算進去。
+  不用「共用任何一個法人董事就同一群」：合資公司（例：台北金融大樓、悠遊卡）的董事來自好幾個集團，
+  這樣連會把富邦、證交所、中華電信、公股銀行串成一群（2026-11-27 本機實測）。
 - 政府機關、國發基金、勞動基金、郵政、信託專戶、財團法人／社團法人這類法人董事不算：
   它們在很多公司都有席次，不代表同一個集團。
 - 只用法人關係，不用同名的個人董事長（同名同姓會誤連；個人姓名也不存）。
-- 集團名稱＝群裡被最多公司共用的法人（同票數取名字短的、再依筆劃順序）。
+- 集團名稱＝最上面那個法人。
 - 管理員指定過的公司（group_manual）不參與自動歸戶；管理員建立的集團（manual）重算時不動。
 """
 
@@ -45,7 +47,7 @@ def short_name(name: str) -> str:
 class Company:
     id: int
     names: tuple[str, ...]  # 清冊上的名稱與登記名稱
-    juristic: tuple[str, ...]  # 法人董監事名稱
+    juristic: tuple[dict, ...]  # 法人董監事：{"name", "seats", "shares"}
 
 
 @dataclass
@@ -54,61 +56,66 @@ class Cluster:
     members: list[int] = field(default_factory=list)
 
 
+def _rows(juristic) -> list[dict]:
+    """舊格式（只存名稱字串）當成一席、持股不明。"""
+    return [j if isinstance(j, dict) else {"name": str(j), "seats": 1, "shares": 0} for j in juristic or ()]
+
+
+def parent_of(juristic) -> str | None:
+    """佔最多席的可歸戶法人；同席數比持股；再同就不認（看不出是哪一個）。"""
+    rows = [j for j in _rows(juristic) if eligible(j.get("name", ""))]
+    if not rows:
+        return None
+    rank = sorted(rows, key=lambda j: (-int(j.get("seats") or 0), -int(j.get("shares") or 0)))
+    top = rank[0]
+    if len(rank) > 1 and (rank[1].get("seats"), rank[1].get("shares")) == (top.get("seats"), top.get("shares")):
+        return None
+    return top["name"].strip()
+
+
 def build_clusters(companies: list[Company]) -> list[Cluster]:
-    """把公司依法人董事連成群；只回兩家以上的群。純函式，測試直接餵資料。"""
-    parent: dict[tuple, tuple] = {}
-
-    def find(x):
-        parent.setdefault(x, x)
-        while parent[x] != x:
-            parent[x] = parent[parent[x]]
-            x = parent[x]
-        return x
-
-    def union(a, b):
-        ra, rb = find(a), find(b)
-        if ra != rb:
-            parent[ra] = rb
-
-    by_key: dict[str, int] = {}
+    """每家公司往上找到最上面的法人，同一個的歸成一群；只回兩家以上的群。純函式，測試直接餵資料。"""
+    by_key: dict[str, Company] = {}
     for c in companies:
         for n in c.names:
             if n:
-                by_key.setdefault(identity_key(n), c.id)
-    shown: dict[str, str] = {}  # 法人的比對用名稱 → 第一次看到的寫法
+                by_key.setdefault(identity_key(n), c)
+    parent_key: dict[int, str | None] = {}
+    shown: dict[str, str] = {}
     for c in companies:
-        node = ("c", c.id)
-        find(node)
-        for j in c.juristic:
-            if not eligible(j):
-                continue
-            key = identity_key(j)
-            shown.setdefault(key, j.strip())
-            union(node, ("j", key))
-            other = by_key.get(key)
-            if other is not None and other != c.id:
-                union(node, ("c", other))
+        p = parent_of(c.juristic)
+        parent_key[c.id] = identity_key(p) if p else None
+        if p:
+            shown.setdefault(identity_key(p), p)
 
-    comps: dict[tuple, list[int]] = defaultdict(list)
+    def root(c: Company) -> str | None:
+        """一路往上：上層是捐款公司就接著看它的上層。繞成一圈（互相持股）時，圈上每家都取同一個（名稱排最前的）。"""
+        key = parent_key[c.id]
+        path: list[str] = []
+        while key is not None:
+            if key in path:
+                return min(path[path.index(key):])
+            path.append(key)
+            up = by_key.get(key)
+            if up is None or parent_key[up.id] is None:
+                return key
+            key = parent_key[up.id]
+        return None
+
+    members: dict[str, set[int]] = defaultdict(set)
     for c in companies:
-        comps[find(("c", c.id))].append(c.id)
-
-    own_key = {c.id: {identity_key(n) for n in c.names if n} for c in companies}
-    juristic_of = {c.id: {identity_key(j) for j in c.juristic if eligible(j)} for c in companies}
-    clusters = []
-    for ids in comps.values():
-        if len(ids) < MIN_MEMBERS:
+        r = root(c)
+        if r is None:
             continue
-        votes: dict[str, int] = defaultdict(int)
-        for i in ids:
-            for key in juristic_of[i]:
-                votes[key] += 1
-        for i in ids:  # 群裡的法人董事本身就是成員之一（母公司）：自己也算一票
-            for key in own_key[i]:
-                if key in votes:
-                    votes[key] += 1
-        anchor_key = min(votes, key=lambda k: (-votes[k], len(shown[k]), shown[k]))
-        clusters.append(Cluster(anchor=shown[anchor_key], members=sorted(ids)))
+        members[r].add(c.id)
+        head = by_key.get(r)
+        if head is not None:
+            members[r].add(head.id)
+    clusters = [
+        Cluster(anchor=by_key[k].names[0] if k in by_key else shown[k], members=sorted(ids))
+        for k, ids in members.items()
+        if len(ids) >= MIN_MEMBERS
+    ]
     return sorted(clusters, key=lambda c: c.anchor)
 
 
@@ -139,7 +146,7 @@ def recompute() -> dict:
         Donor.objects.filter(pk__in=ids).update(group_id=gid)
     removed, _ = CompanyGroup.objects.filter(manual=False).exclude(pk__in=keep).delete()
 
-    with_juristic = sum(1 for c in companies if any(eligible(j) for j in c.juristic))
+    with_juristic = sum(1 for c in companies if any(eligible(j["name"]) for j in _rows(c.juristic)))
     with_any = sum(1 for c in companies if c.juristic)
     return {
         "checked": len(companies),
