@@ -224,6 +224,34 @@ class DonorListSummary(models.Model):
         return f"{self.project} 清冊摘要"
 
 
+class Grant(SourceMixin):
+    """政府對民間團體的補(捐)助（LK-19）：各機關依規定每季公開的核定案件，一行一筆。
+    金額是「含累積金額」的核定金額；同一案件下一季的表金額變了就更新同一筆（以 external_id 認）。"""
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="grants", verbose_name="組織")
+    external_id = models.CharField("來源編號", max_length=40, db_index=True)
+    year = models.PositiveSmallIntegerField("年度（民國）", db_index=True)
+    quarter = models.PositiveSmallIntegerField("資料截至第幾季", default=4)
+    agency = models.CharField("補助機關", max_length=100)
+    county = models.CharField("所屬縣市", max_length=20, blank=True)
+    recipient = models.CharField("表上的受補助對象", max_length=300)
+    facility = models.CharField(
+        "附設單位", max_length=200, blank=True, help_text="表上寫「某某基金會附設某某中心」時，補助算給基金會，這裡記附設單位名稱。"
+    )
+    purpose = models.CharField("補助事項或用途", max_length=500)
+    approved_on = models.DateField("核准日期", null=True, blank=True)
+    amount = models.BigIntegerField("核定金額（含累積）")
+
+    class Meta:
+        verbose_name = "政府補助"
+        verbose_name_plural = "政府補助"
+        ordering = ["-year", "-amount", "id"]
+        constraints = [models.UniqueConstraint(fields=["source_name", "external_id"], name="uniq_grant_source_id")]
+
+    def __str__(self):
+        return f"{self.year} {self.agency} {self.purpose}"
+
+
 class Penalty(SourceMixin):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="penalties", verbose_name="組織")
     external_id = models.CharField("來源編號", max_length=50, blank=True)
