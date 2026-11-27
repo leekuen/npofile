@@ -21,6 +21,11 @@ on:
 permissions:
   contents: read
 
+# 同一條分支又推了新提交，就取消還在跑的舊那次（開發分支每個 commit 都會自動推，不取消會排一串、舊的也常因下面的自動更新測試失敗）
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   compose:
     strategy:
@@ -102,7 +107,8 @@ jobs:
           echo "退回：$(git log -1 --format='%h %s')"
           docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock             -v /tmp/auto-update.sh:/auto-update.sh:ro -e AUTO_UPDATE_BRANCH="$GITHUB_REF_NAME"             --entrypoint sh npofile-updater /auto-update.sh --once
           echo "updater 之後：$(git log -1 --format='%h %s')"
-          [ "$(git rev-parse HEAD)" = "$new" ]
+          # updater 抓的是分支「現在」最新的：測試跑的這幾分鐘內分支又推了新提交，就會比這次測的還新，那也是對的
+          git merge-base --is-ancestor "$new" HEAD
           docker compose up -d --wait --wait-timeout 300
           for p in / /api/stats; do
             code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8080$p"); echo "$code $p"; [ "$code" = 200 ]
