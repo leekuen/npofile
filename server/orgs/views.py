@@ -6,7 +6,7 @@ from rest_framework.decorators import api_view
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 
-from . import donor_rules, period, scoring
+from . import category_api, donor_rules, period, scoring
 from .models import AnnualFundraising, Donor, Organization, Project
 from .serializers import (
     DonorDetailSerializer,
@@ -34,8 +34,9 @@ class OrganizationList(ListAPIView):
             qs = qs.filter(city=city)
         if status := params.get("status", "").strip():
             qs = qs.filter(status=status)
+        qs = category_api.filter_orgs(qs, params)
         ordering = ORDERINGS.get(params.get("ordering", "score"), ORDERINGS["score"])
-        return scoring.with_penalty_count(qs).order_by(*ordering)
+        return scoring.with_penalty_count(qs).prefetch_related("categories").order_by(*ordering)
 
 
 @api_view(["GET"])
@@ -45,6 +46,7 @@ def organization_detail(request, ubn):
             Prefetch("annual_records", queryset=AnnualFundraising.objects.filter(period.annual_q())),
             Prefetch("projects", queryset=Project.objects.filter(period.project_q())),
             "penalties",
+            "categories",
         )
     )
     org = get_object_or_404(qs, ubn=ubn)

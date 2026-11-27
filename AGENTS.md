@@ -208,8 +208,7 @@ crawler/          # 純 Python 套件 npofile_crawler：只負責抓與解析，
    **push 前一律先同步遠端**（`git pull --rebase origin <分支>`，在本地解衝突再推）——此規則由 PreToolUse hook
    （`scripts/git-sync-gate-hook.sh`）機制化強制。**合流的同一次把這張票的變更寫進 `docs/SPEC.md`**
    （依票的開發備註寫；合流沒帶 SPEC 更新 = 這次合流未完成）。合流後的檢查由合流那條 session 跑（`run-checks` skill）。
-   部署方式依專案設定
-   {{TODO：部署方式還未定，之後走 framework 入口補 CD 觸發條件或部署指令。}}。
+   部署方式見下方〈部署〉（推 `prod` 後在伺服器上跑 `deploy/deploy.sh`，沒有自動 CD）。
 7. **驗收**：實機驗收通過 → 票標 `完成`、開發備註寫實作決策與 commit、`docs/SPEC.md` 該功能的狀態改成 ✅。
 
 **分支模型**：`stage` 是預設整合分支（所有 `feature/*` 從它開——票的 `depends` 有還沒進 `stage` 的票時例外）；
@@ -351,13 +350,19 @@ crawler/          # 純 Python 套件 npofile_crawler：只負責抓與解析，
   （**兩道確認閘**，授權單次有效、不跨票延續）。
 - ❌ 在閘門（票務 / 畫面 / git 同步 / git 波及範圍 / 部署檢查）失敗時繞過硬上；放行檔（`cache/*-override`）用完不刪。
 - ❌ 把檢查指令的輸出接管線、或只看到 `OK (skipped=N)` 就宣稱通過。
-- ❌ 手改已提交的 migration；揭露指數在 `orgs/scoring.py` 以外的地方另算一套；捐款人誰看得到在 `orgs/donor_rules.py` 以外另寫判斷。
+- ❌ 手改已提交的 migration；揭露指數在 `orgs/scoring.py` 以外的地方另算一套；捐款人誰看得到在 `orgs/donor_rules.py` 以外另寫判斷；組織分類規則在 `orgs/taxonomy.py` 以外另寫一套。
 - ❌ 把清冊上未達門檻的個人捐款人姓名存進資料庫或送到前台（`DONOR_INDIVIDUAL_THRESHOLD`，見 LK-06）。
 - ❌ 前台直接打外部網站或資料庫（一律經後端 API）；爬蟲繞過網站的登入、驗證碼或使用條款。
 
 ## 部署
 
-未定（還沒有部署環境；之後走 framework 入口補指令、閘門、環境網址、回滾方式）。
+DigitalOcean 單機（一台 Ubuntu 24.04 Droplet：nginx → Next.js＋gunicorn／Django＋PostgreSQL＋cron），LK-10 起。
+完整步驟、環境變數、看紀錄、回滾都在 [`deploy/README.md`](deploy/README.md)。
+
+- **觸發**：沒有自動 CD。`stage` 驗過 → `make confirm-lint-prod t="…"` → 合進 `prod` 推上去 →
+  SSH 到伺服器跑 `sudo -iu npofile ~/app/deploy/deploy.sh`（推 `prod` 與部署都是對外動作，先取得使用者同意）。
+- **伺服器只拉 `prod`**；`server/.env` 只存在伺服器上，不進版控。
+- **回滾**：對 `prod` 做 `git revert` 再跑一次 `deploy.sh`；有不可逆 migration 時先 `pg_dump`。
 
 ## 更多文件
 

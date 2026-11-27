@@ -14,6 +14,7 @@ from npofile_crawler.items import Item
 from npofile_crawler.sources import SOURCES
 
 from orgs import period, scoring
+from orgs.categorize import categorize
 from orgs.models import (
     CRAWLABLE_FIELDS,
     AnnualFundraising,
@@ -92,10 +93,12 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
 
 
 def recompute_ubns(ubns: set[str], chunk: int = 900) -> None:
-    # SQLite 單一查詢的參數有上限，分批送
+    """資料有更新的組織：重算揭露指數、重新分類。SQLite 單一查詢的參數有上限，分批送。"""
     items = sorted(ubns)
     for i in range(0, len(items), chunk):
-        scoring.recompute(Organization.objects.filter(ubn__in=items[i : i + chunk]))
+        orgs = Organization.objects.filter(ubn__in=items[i : i + chunk])
+        scoring.recompute(orgs)
+        categorize(orgs)
 
 
 def _store_batch(source: CrawlerSource, run: CrawlRun, batch: list[Item], known: set[str], touched: set[str]) -> None:

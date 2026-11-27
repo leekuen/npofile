@@ -60,6 +60,8 @@ export async function DonorDetailView({ params }: { params: Promise<{ id: string
         </section>
       )}
 
+      {donor.fields_breakdown.length > 0 && <FieldBreakdown rows={donor.fields_breakdown} />}
+
       <section>
         <h2 className="mb-3 font-display text-xl font-bold text-ink-900">捐給哪些組織</h2>
         <Card className="p-0 sm:p-0">
@@ -116,6 +118,32 @@ export async function DonorDetailView({ params }: { params: Promise<{ id: string
         </Card>
       </section>
     </div>
+  );
+}
+
+/** 依受捐組織的大類加總；組織屬於多個大類時各算全額，所以不畫成加起來 100% 的圓餅。 */
+function FieldBreakdown({ rows }: { rows: DonorDetail["fields_breakdown"] }) {
+  const max = Math.max(...rows.map((r) => r.total), 1);
+  return (
+    <section>
+      <h2 className="mb-1 font-display text-xl font-bold text-ink-900">捐給哪些領域</h2>
+      <p className="mb-3 text-xs text-ink-600">受捐組織同時屬於多個領域時，金額會分別算進每個領域。</p>
+      <Card>
+        <ul className="space-y-2.5">
+          {rows.map((r) => (
+            <li key={r.code || "none"} className="grid grid-cols-[6rem_1fr_auto] items-center gap-3 text-sm">
+              <span className="truncate">
+                {r.code ? <TextLink href={`/categories/${r.code}`}>{r.label}</TextLink> : <span className="text-ink-600">{r.label}</span>}
+              </span>
+              <span className="h-2.5 overflow-hidden rounded-full bg-ink-100" aria-hidden>
+                <span className="block h-full rounded-full bg-brand-600" style={{ width: `${(r.total / max) * 100}%` }} />
+              </span>
+              <span className="tabular-nums text-ink-900">{formatMoney(r.total)}</span>
+            </li>
+          ))}
+        </ul>
+      </Card>
+    </section>
   );
 }
 

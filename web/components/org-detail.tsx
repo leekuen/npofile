@@ -6,6 +6,7 @@ import { formatMoney, formatNumber, formatRocDate } from "@/lib/format";
 import { ApiUnavailableError, getOrg } from "@/lib/server-api";
 import type { OrgDetail, ScoreBreakdown } from "@/lib/types";
 
+import { OrgCategoryTags } from "./categories";
 import { Comments } from "./comments";
 import { Card, EmptyState, ErrorBox, ScoreBadge, Skeleton, SourceNote, StatusBadge, TextLink } from "./ui";
 
@@ -61,6 +62,9 @@ export async function OrgDetailView({
           {org.org_type && <span>{org.org_type}</span>}
           <StatusBadge status={org.status} label={org.status_label} />
         </p>
+        <div className="mt-3">
+          <OrgCategoryTags categories={org.categories} />
+        </div>
       </header>
 
       {/* 桌機：左欄摘要＋分頁，右欄揭露指數＋基本資料；手機依序疊成摘要、右欄、分頁 */}

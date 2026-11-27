@@ -1,5 +1,8 @@
+from django import forms
 from django.contrib import admin, messages
 from django.db.models import Count, Sum
+
+from . import taxonomy
 
 from .models import (
     CRAWLABLE_FIELDS,
@@ -7,6 +10,7 @@ from .models import (
     Donation,
     Donor,
     DonorListSummary,
+    OrgCategory,
     Organization,
     Penalty,
     Project,
@@ -57,13 +61,39 @@ class PenaltyInline(admin.StackedInline):
     )
 
 
+def _category_choices():
+    choices = []
+    for f in taxonomy.FIELDS:
+        choices.append((f.code, f.label))
+        choices.extend((s.code, f"{f.label} › {s.label}") for s in f.subs)
+    choices.extend((t.code, f"服務對象：{t.label}") for t in taxonomy.TARGETS)
+    return choices
+
+
+class OrgCategoryForm(forms.ModelForm):
+    code = forms.ChoiceField(label="分類", choices=_category_choices)
+
+    class Meta:
+        model = OrgCategory
+        fields = ("code", "excluded")
+
+
+class OrgCategoryInline(admin.TabularInline):
+    model = OrgCategory
+    form = OrgCategoryForm
+    extra = 0
+    fields = ("code", "source", "excluded")
+    readonly_fields = ("source",)
+    verbose_name_plural = "分類（自動分類判錯：勾「管理員拿掉」；要補上：新增一列）"
+
+
 @admin.register(Organization)
 class OrganizationAdmin(admin.ModelAdmin):
     list_display = ("name", "ubn", "city", "status", "disclosure_score", "updated_at")
     list_filter = ("status", "city", "org_type")
     search_fields = ("ubn", "name")
     readonly_fields = ("disclosure_score", "created_at", "updated_at")
-    inlines = [AnnualInline, DonationInline, ProjectInline, PenaltyInline]
+    inlines = [OrgCategoryInline, AnnualInline, DonationInline, ProjectInline, PenaltyInline]
     actions = ["unlock_fields"]
     fieldsets = (
         (None, {"fields": ("ubn", "name", "status", "disclosure_score")}),
@@ -78,6 +108,22 @@ class OrganizationAdmin(admin.ModelAdmin):
             touched = [f for f in CRAWLABLE_FIELDS if str(form.cleaned_data.get(f) or "").strip()]
         obj.locked_fields = sorted(set(obj.locked_fields or []) | set(touched))
         super().save_model(request, obj, form, change)
+
+    def save_formset(self, request, form, formset, change):
+        if formset.model is not OrgCategory:
+            return super().save_formset(request, form, formset, change)
+        changed = formset.save(commit=False)  # 只含新增與改過的列；也讓後台的變更紀錄拿得到資料
+        for obj in formset.deleted_objects:
+            obj.delete()
+        for row in changed:
+            row.organization = form.instance
+            row.source = OrgCategory.Source.ADMIN  # 管理員動過的列，自動分類不再改
+            row.save()
+            parent = taxonomy.PARENT.get(row.code)
+            if parent and not row.excluded:
+                OrgCategory.objects.get_or_create(
+                    organization=row.organization, code=parent, defaults={"source": OrgCategory.Source.ADMIN}
+                )
 
     @admin.action(description="解除手動鎖定（讓爬蟲可以再更新這些欄位）")
     def unlock_fields(self, request, queryset):

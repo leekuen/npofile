@@ -2,8 +2,9 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { formatNumber } from "@/lib/format";
-import { ApiUnavailableError, getFilters, listOrgs, type OrgQuery } from "@/lib/server-api";
+import { ApiUnavailableError, getFilters, getTaxonomy, listOrgs, type OrgQuery } from "@/lib/server-api";
 
+import { CategoryBrowser, CategoryChip } from "./categories";
 import { EmptyState, ErrorBox, PenaltyBadge, ScoreBadge, Skeleton, StatusBadge } from "./ui";
 
 const PAGE_SIZE = 20;
@@ -43,12 +44,15 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
     city: pick(sp, "city"),
     status: pick(sp, "status"),
     ordering: pick(sp, "ordering") || "score",
+    field: pick(sp, "field"),
+    sub: pick(sp, "sub"),
+    target: pick(sp, "target"),
     page: pick(sp, "page") || "1",
   };
 
-  let filters, page;
+  let filters, page, taxonomy;
   try {
-    [filters, page] = await Promise.all([getFilters(), listOrgs(query)]);
+    [filters, page, taxonomy] = await Promise.all([getFilters(), listOrgs(query), getTaxonomy()]);
   } catch (e) {
     if (e instanceof ApiUnavailableError) {
       return <ErrorBox title="目前查不到組織資料">資料服務暫時沒有回應，請稍後重新整理。</ErrorBox>;
@@ -57,8 +61,14 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
   }
 
   const statusLabel = Object.fromEntries(filters.statuses.map((s) => [s.value, s.label]));
+  const fieldNode = taxonomy.fields.find((f) => f.code === query.field);
+  const subNode = fieldNode?.subs.find((s) => s.code === query.sub);
+  const targetNode = taxonomy.targets.find((t) => t.code === query.target);
   const chips = [
     query.q && { label: `關鍵字：${query.q}`, clear: { q: "" } },
+    fieldNode && { label: fieldNode.label, clear: { field: "", sub: "" } },
+    subNode && { label: `${fieldNode!.label} › ${subNode.label}`, clear: { sub: "" } },
+    targetNode && { label: `服務對象：${targetNode.label}`, clear: { target: "" } },
     query.city && { label: query.city, clear: { city: "" } },
     query.status && { label: statusLabel[query.status] ?? query.status, clear: { status: "" } },
   ].filter(Boolean) as { label: string; clear: Partial<OrgQuery> }[];
@@ -76,7 +86,14 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
         <h1 id="search-title" className="font-display max-w-2xl text-3xl font-extrabold text-balance text-ink-900 sm:text-4xl">
           查一個非營利組織的募款與裁罰紀錄
         </h1>
-        <form key={`${query.q}|${query.city}|${query.status}|${query.ordering}`} action="/" method="get" className="space-y-3">
+        <form
+          key={`${query.q}|${query.city}|${query.status}|${query.ordering}|${query.field}|${query.sub}|${query.target}`}
+          action="/"
+          method="get"
+          className="space-y-3"
+        >
+          {query.field && <input type="hidden" name="field" value={query.field} />}
+          {query.sub && <input type="hidden" name="sub" value={query.sub} />}
           <div className="flex">
             <label htmlFor="org-q" className="sr-only">
               組織名稱或統一編號
@@ -117,7 +134,18 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
                 ))}
               </select>
             </label>
-            <label className="col-span-2 flex items-center gap-2 text-sm sm:col-span-1">
+            <label className="text-sm">
+              <span className="sr-only">服務對象</span>
+              <select name="target" defaultValue={query.target} className={selectCls}>
+                <option value="">全部服務對象</option>
+                {taxonomy.targets.map((t) => (
+                  <option key={t.code} value={t.code}>
+                    {t.label}（{formatNumber(t.count)}）
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-sm">
               <span className="shrink-0 text-ink-600">排序</span>
               <select name="ordering" defaultValue={query.ordering} className={selectCls}>
                 {ORDERINGS.map((o) => (
@@ -129,6 +157,12 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
             </label>
           </div>
         </form>
+        <CategoryBrowser
+          taxonomy={taxonomy}
+          field={query.field ?? ""}
+          sub={query.sub ?? ""}
+          hrefFor={(patch) => href(query, { ...patch, page: "1" })}
+        />
         </div>
         {stats}
       </section>
@@ -185,6 +219,13 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
                         <PenaltyBadge count={org.penalty_count_5y} />
                       </span>
                     </p>
+                    {org.tags.length > 0 && (
+                      <p className="mt-1.5 flex flex-wrap gap-1">
+                        {org.tags.map((t) => (
+                          <CategoryChip key={t.code} tag={t} link={false} />
+                        ))}
+                      </p>
+                    )}
                   </div>
                   <span className="hidden text-sm sm:block">
                     {org.penalty_count_5y > 0 ? (
