@@ -1,0 +1,153 @@
+import type { Metadata } from "next";
+import { type ReactNode, Suspense } from "react";
+
+import { Card, Skeleton, TextLink } from "@/components/ui";
+import { formatMoney } from "@/lib/format";
+import { ApiUnavailableError, getStats } from "@/lib/server-api";
+
+export const metadata: Metadata = { title: "資料說明" };
+
+const SOURCES = [
+  {
+    name: "財政部非營利事業機關團體資料集",
+    url: "https://eip.fia.gov.tw/data/BGMOPEN99.csv",
+    what: "組織名冊：統一編號、名稱、縣市、營運狀態",
+  },
+  {
+    name: "衛生福利部公益勸募管理系統",
+    url: "https://sasw.mohw.gov.tw/app39/",
+    what: "勸募團體的基本資料與年度募款、每一個勸募活動、活動公開的捐贈人清冊、違規公告（裁罰）",
+  },
+  {
+    name: "經濟部商工登記公示資料",
+    url: "https://data.gcis.nat.gov.tw/",
+    what: "捐款企業的統一編號、代表人、資本額（名稱完全相同才對上）",
+  },
+  {
+    name: "挖貝 WaBay 群眾集資平台",
+    url: "https://wabay.tw",
+    what: "非營利組織提的集資專案（非政府資料，另外標示，不算進揭露指數與任何加總）",
+  },
+];
+
+function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  return (
+    <section aria-labelledby={id} className="space-y-3">
+      <h2 id={id} className="font-display text-xl font-bold text-ink-900">
+        {title}
+      </h2>
+      <div className="space-y-3 text-sm leading-relaxed text-ink-800 sm:text-base">{children}</div>
+    </section>
+  );
+}
+
+export default function AboutPage() {
+  return (
+    <article className="mx-auto max-w-3xl space-y-10">
+      <header className="space-y-2">
+        <h1 className="font-display text-3xl font-extrabold text-ink-900">資料說明</h1>
+        <p className="text-ink-700">這裡的資料都來自公開來源，每天凌晨更新一次。以下說明收了什麼、數字怎麼算。</p>
+      </header>
+      <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+        <AboutBody />
+      </Suspense>
+    </article>
+  );
+}
+
+/** 期間的起始年度與個人捐款人門檻從後端讀（跟實際規則同一個來源）；讀不到就用不帶數字的寫法 */
+async function AboutBody() {
+  let since: number | null = null;
+  let threshold: number | null = null;
+  try {
+    const stats = await getStats();
+    since = stats.since_roc_year;
+    threshold = stats.donor_individual_threshold;
+  } catch (e) {
+    if (!(e instanceof ApiUnavailableError)) throw e;
+  }
+  const window5 = since ? `近 5 年（民國 ${since} 年起）` : "近 5 年";
+
+  return (
+    <div className="space-y-10">
+      <Section id="sources" title="資料從哪來">
+        <ul className="space-y-3">
+          {SOURCES.map((s) => (
+            <li key={s.name}>
+              <Card>
+                <p className="font-semibold text-ink-900">
+                  <TextLink href={s.url}>{s.name}</TextLink>
+                </p>
+                <p className="mt-1 text-sm text-ink-700">{s.what}</p>
+              </Card>
+            </li>
+          ))}
+        </ul>
+        <p>資料以各來源公告為準。本站只整理、不改寫內容；發現與來源不符時，以來源為準。</p>
+      </Section>
+
+      <Section id="period" title="收哪些期間">
+        <p>
+          募款、勸募活動、捐款紀錄只收{window5}，比較有參考性，也讓頁面載入快。<strong className="font-semibold">裁罰紀錄全部年度都保留</strong>，不會因為時間過去而消失。
+        </p>
+      </Section>
+
+      <Section id="score" title="揭露指數怎麼算">
+        <p>揭露指數只看組織把資料公開得齊不齊，滿分 100。它不是好壞評等，也不代表本站背書；受裁罰不扣分，另外標示。</p>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[28rem] border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-ink-200 text-left text-ink-600">
+                <th scope="col" className="py-2 pr-4 font-medium">項目</th>
+                <th scope="col" className="py-2 pr-4 font-medium">怎麼拿分</th>
+                <th scope="col" className="py-2 text-right font-medium">分數</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100">
+              <tr>
+                <td className="py-2 pr-4 whitespace-nowrap">基本資料</td>
+                <td className="py-2 pr-4">統一編號、團體類型、地址、電話、官網、勸募用途，有一項 5 分</td>
+                <td className="py-2 text-right tabular-nums">30</td>
+              </tr>
+              <tr>
+                <td className="py-2 pr-4 whitespace-nowrap">募款紀錄</td>
+                <td className="py-2 pr-4">近 5 年有實際募到款，或有捐款紀錄</td>
+                <td className="py-2 text-right tabular-nums">25</td>
+              </tr>
+              <tr>
+                <td className="py-2 pr-4 whitespace-nowrap">勸募活動</td>
+                <td className="py-2 pr-4">近 5 年有經政府許可的勸募活動</td>
+                <td className="py-2 text-right tabular-nums">20</td>
+              </tr>
+              <tr>
+                <td className="py-2 pr-4 whitespace-nowrap">成果備查</td>
+                <td className="py-2 pr-4">有募到款的勸募活動中，已向主管機關成果備查的比例 × 25</td>
+                <td className="py-2 text-right tabular-nums">25</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="text-ink-600">群眾集資平台上的專案沒有政府的成果備查，不算進揭露指數。</p>
+      </Section>
+
+      <Section id="categories" title="分類怎麼來">
+        <p>
+          大類先看衛福部登記的「勸募用途」。小類與服務對象（例：原住民、長者）是依組織名稱與近 5 年勸募活動的名稱推測的，畫面上會標「推測」，可能有誤。管理員修正過的分類，之後自動分類不會改掉。
+        </p>
+      </Section>
+
+      <Section id="donors" title="捐款人與隱私">
+        <ul className="list-disc space-y-2 pl-5">
+          <li>企業與團體捐款人全部列出，可以看到捐給哪些組織、捐了多少。</li>
+          <li>
+            個人捐款人只在同一個勸募活動累計捐款達
+            {threshold ? ` ${formatMoney(threshold)} ` : "門檻金額"}
+            才顯示姓名，而且只出現在受捐組織的頁面；其餘只算人次與金額。
+          </li>
+          <li>匿名、「善心人士」，以及超商、電商、行動支付平台代收的小額捐款，不列名稱。</li>
+          <li>收據編號不公開。</li>
+        </ul>
+      </Section>
+    </div>
+  );
+}

@@ -24,6 +24,8 @@ export interface Stats {
   with_fundraising: number;
   penalized_5y: number;
   since_roc_year: number;
+  /** 個人捐款人在同一活動累計達這個金額才顯示姓名（元） */
+  donor_individual_threshold: number;
 }
 
 export interface Filters {
