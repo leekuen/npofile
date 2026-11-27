@@ -49,7 +49,8 @@ def ensure_sources() -> None:
     for s in SOURCES.values():
         CrawlerSource.objects.get_or_create(
             key=s.key,
-            defaults={"name": s.name, "url": s.url, "auto_approve": s.official, "description": s.description},
+            defaults={"name": s.name, "url": s.url, "auto_approve": s.default_auto_approve, "description": s.description,
+                      "enabled": s.enabled_by_default},
         )
 
 
@@ -67,9 +68,11 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
                 if items is None:
                     client = PoliteClient(min_interval=min_interval)
                     src = SOURCES[source.key]
-                    values = {"threshold": settings.DONOR_INDIVIDUAL_THRESHOLD, "since_roc": period.since_roc_year()}
-                    items = src.fetch(client, limit, **{k: values[k] for k in src.options})
+                    items = src.fetch(client, limit, **fetch_options(src.options))
                 for item in items:
+                    if item.extra.get("deleted"):
+                        touched.update(remove_withdrawn(source, item.external_id))
+                        continue
                     run.fetched += 1
                     batch.append(item)
                     if len(batch) >= BATCH:
@@ -90,6 +93,34 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
         source.last_run_at = run.finished_at
         source.save(update_fields=["last_run_at"])
     return run
+
+
+def fetch_options(names: tuple[str, ...]) -> dict:
+    """來源要的額外參數；只算用得到的（組織名稱表要讀整個組織表）。"""
+    makers = {
+        "threshold": lambda: settings.DONOR_INDIVIDUAL_THRESHOLD,
+        "since_roc": period.since_roc_year,
+        "org_names": org_names,
+        "judicial_credentials": lambda: (settings.JUDICIAL_API_USER, settings.JUDICIAL_API_PASSWORD),
+    }
+    return {name: makers[name]() for name in names}
+
+
+def org_names() -> dict[str, str]:
+    return dict(Organization.objects.exclude(name="").values_list("name", "ubn"))
+
+
+def remove_withdrawn(source: CrawlerSource, external_id: str) -> set[str]:
+    """來源撤下的資料（司法院移除的判決）：待審資料與已上架的紀錄都刪掉，回傳受影響的統編。"""
+    records = CrawlRecord.objects.filter(source=source, external_id=external_id)
+    ubns = set(records.values_list("ubn", flat=True))
+    penalties = Penalty.objects.filter(source_name=record_source_name(source), external_id=external_id)
+    ubns |= set(penalties.values_list("organization__ubn", flat=True))
+    penalties.delete()
+    records.delete()
+    if ubns:
+        log.info("%s 撤下 %s，已刪除相關資料（%s）", source.key, external_id, ", ".join(sorted(ubns)))
+    return ubns
 
 
 def recompute_ubns(ubns: set[str], chunk: int = 900) -> None:

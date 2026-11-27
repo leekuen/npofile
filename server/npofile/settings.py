@@ -136,4 +136,7 @@ LOGGING = {
 CRAWLER_MIN_INTERVAL = float(os.environ.get("CRAWLER_MIN_INTERVAL", "1.0"))
 
 # 捐贈人清冊：個人在同一活動累計達這個金額才存姓名並顯示（口徑見 tickets/LK-06）
+# 司法院資料開放平臺帳號（https://opendata.judicial.gov.tw/ 註冊）；裁判書 API 要用
+JUDICIAL_API_USER = os.environ.get("JUDICIAL_API_USER", "")
+JUDICIAL_API_PASSWORD = os.environ.get("JUDICIAL_API_PASSWORD", "")
 DONOR_INDIVIDUAL_THRESHOLD = int(os.environ.get("DONOR_INDIVIDUAL_THRESHOLD", "100000"))

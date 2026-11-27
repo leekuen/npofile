@@ -140,6 +140,10 @@ cd ~/app/server
 .venv/bin/python manage.py crawl mohw                      # 公益勸募團體
 .venv/bin/python manage.py crawl mohw_violations           # 違規公告（全部年度的裁罰）
 .venv/bin/python manage.py crawl mohw_activities --limit 50 # 勸募活動＋捐贈人清冊（先抓一部分）
+# 司法院判決書（選用）：先在 server/.env 設 JUDICIAL_API_USER／JUDICIAL_API_PASSWORD（https://opendata.judicial.gov.tw/ 註冊），
+# 後台「爬蟲來源設定」勾選啟用「司法院裁判書」。API 只在 00:00–06:00 開放，平常交給 crontab 00:30 那一行。
+# 歷年判決：平臺的每月整包 RAR 下載解壓後匯入（不連網、什麼時間都能跑）：
+.venv/bin/python manage.py crawl judicial --archive /path/to/202609 --force
 .venv/bin/python manage.py match_companies
 .venv/bin/python manage.py recompute_scores
 ```
@@ -172,6 +176,7 @@ cd ~/app/server
    |---|---|---|
    | `npofile-backup` | `0 2 * * *` | 1 小時 |
    | `npofile-crawl` | `30 2 * * *` | 3 小時（爬蟲開始後超過這麼久沒跑完，也會通知） |
+   | `npofile-judicial` | `30 0 * * *` | 5 小時（API 06:00 關閉，超過就一定是卡住了） |
    | `npofile-scores` | `30 5 * * *` | 1 小時 |
 
 會收到通知的情況：
