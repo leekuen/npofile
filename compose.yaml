@@ -117,6 +117,27 @@ services:
         condition: service_healthy
     logging: *logging
 
+  # 自動更新：每 5 分鐘看 GitHub 的 prod 有沒有新版，有就 git pull＋重建重啟其他服務（docker/auto-update.sh）
+  # 要操作這台的 Docker，所以掛 docker.sock；repo 要掛在跟主機一樣的路徑，compose 裡的相對路徑才對得上
+  updater:
+    build:
+      context: docker
+      dockerfile: updater.Dockerfile
+    image: npofile-updater
+    restart: unless-stopped
+    working_dir: ${PWD}
+    entrypoint: ["sh", "docker/auto-update.sh"]
+    environment:
+      AUTO_UPDATE_BRANCH: ${AUTO_UPDATE_BRANCH:-prod}
+      AUTO_UPDATE_INTERVAL: ${AUTO_UPDATE_INTERVAL:-300}
+      COMPOSE_PROJECT_NAME: npofile
+      TZ: Asia/Taipei
+    volumes:
+      - ${PWD}:${PWD}
+      - /var/run/docker.sock:/var/run/docker.sock
+    profiles: ["autoupdate"]
+    logging: *logging
+
   # 對外：Cloudflare Tunnel。在 Cloudflare 後台把 Public Hostname 指到 http://nginx:80
   cloudflared:
     image: cloudflare/cloudflared:2026.11.0

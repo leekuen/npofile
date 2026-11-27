@@ -84,7 +84,7 @@ put() {
 R="$TMP/repo"
 put "$R" .githooks/pre-commit .githooks/pre-push .githooks/post-commit \
   scripts/setup-hooks.sh scripts/conflict-marker-lint.sh scripts/bash32-var-lint.sh \
-  scripts/walkthrough_record_lint.py scripts/unconfirmed-conditions.sh
+  scripts/walkthrough_record_lint.py scripts/unconfirmed-conditions.sh scripts/migration-number-lint.sh
 chmod +x "$R"/.githooks/*
 cd "$R" || exit 1
 must git init -q .
@@ -258,7 +258,7 @@ for spec in \
   "scripts/conflict-marker-lint.sh|sh|衝突標記檢查跑不起來" \
   "scripts/walkthrough_record_lint.py|py|走查交代檢查跑不起來" \
   "scripts/unconfirmed-conditions.sh|sh|條件確認檢查跑不起來" \
-  "scripts/bash32-var-lint.sh|sh|bash 3.2 變數檢查跑不起來"; do
+  "scripts/bash32-var-lint.sh|sh|bash 3.2 變數檢查跑不起來"   "scripts/migration-number-lint.sh|sh|資料庫更新撞號檢查跑不起來"; do
   f="${spec%%|*}"
   rest="${spec#*|}"
   kind="${rest%%|*}"

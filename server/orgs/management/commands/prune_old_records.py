@@ -3,7 +3,7 @@ from django.db import transaction
 
 from crawling.models import ActivityProgress, CrawlRecord
 from orgs import period
-from orgs.models import AnnualFundraising, Donation, FinancialYear, OrgDocument, Organization, Project
+from orgs.models import AnnualFundraising, Donation, FinancialYear, Grant, OrgDocument, Organization, Project
 from orgs.signals import suspend_scoring
 from orgs.scoring import recompute
 
@@ -19,6 +19,7 @@ class Command(BaseCommand):
         annual = AnnualFundraising.objects.exclude(period.annual_q())
         projects = Project.objects.exclude(period.project_q())
         donations = Donation.objects.exclude(period.donation_q())
+        grants = Grant.objects.exclude(period.grant_q())  # 政府補助（LK-19）
         # 舊清冊的原始內容也很佔空間；只刪清冊，團體頁其他紀錄留作歷史
         old_ids = list(projects.values_list("external_id", flat=True))
         records = CrawlRecord.objects.filter(kind="donor_list", external_id__in=old_ids) if old_ids else CrawlRecord.objects.none()
@@ -29,6 +30,7 @@ class Command(BaseCommand):
             "年度募款": annual.count(),
             "專案": projects.count(),
             "捐款紀錄": donations.count(),
+            "政府補助": grants.count(),
             "清冊原始紀錄": records.count(),
             "活動抓取進度": progress.count(),
             "年度財務": financials.count(),
@@ -41,6 +43,7 @@ class Command(BaseCommand):
         touched = set(annual.values_list("organization_id", flat=True)) | set(projects.values_list("organization_id", flat=True))
         with transaction.atomic(), suspend_scoring():
             donations.delete()
+            grants.delete()
             projects.delete()
             annual.delete()
             records.delete()

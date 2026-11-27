@@ -11,6 +11,7 @@ from .models import (
     Donor,
     DonorListSummary,
     FinancialYear,
+    Grant,
     OrgCategory,
     OrgDocument,
     Organization,
@@ -45,9 +46,10 @@ class ProjectInline(admin.StackedInline):
     model = Project
     extra = 0
     fields = (
-        ("name", "category"),
+        ("name", "category", "channel"),
         ("start_date", "end_date", "region"),
         ("target", "raised", "permit_no"),
+        ("monthly_raised", "backers"),
         ("result_filed_on", "closed_filed_on"),
         "description",
         ("source_name", "source_url", "external_id"),
@@ -175,6 +177,14 @@ class OrganizationAdmin(admin.ModelAdmin):
         self.message_user(request, f"已解除 {n} 個組織的手動鎖定。", messages.SUCCESS)
 
 
+@admin.register(Grant)
+class GrantAdmin(admin.ModelAdmin):
+    list_display = ("organization", "year", "agency", "purpose", "amount", "approved_on")
+    list_filter = ("year", "agency")
+    search_fields = ("organization__name", "organization__ubn", "recipient", "purpose")
+    autocomplete_fields = ("organization",)
+
+
 @admin.register(FinancialYear)
 class FinancialYearAdmin(admin.ModelAdmin):
     list_display = ("organization", "year", "total_revenue", "total_expenses", "net_assets", "method", "locked")
@@ -218,7 +228,8 @@ class DonorListSummaryInline(admin.StackedInline):
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ("name", "organization", "target", "raised", "result_filed_on")
+    list_display = ("name", "organization", "channel", "target", "raised", "result_filed_on")
+    list_filter = ("channel",)
     search_fields = ("name", "organization__name", "organization__ubn")
     autocomplete_fields = ("organization",)
     inlines = [DonorListSummaryInline]

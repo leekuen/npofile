@@ -43,3 +43,7 @@ NO_PIPE_COMMANDS=("make check" "make ticket-lint" "make test-server" "make test-
 
 # 本機健康檢查 URL（agent-status 簡報用；留空 = 跳過健康檢查）
 HEALTH_URL=""
+
+# 資料庫更新（migration）資料夾（相對 repo 根目錄的 shell 樣式）：scripts/migration-number-lint.sh 檢查同一資料夾的檔名編號不重複，
+# 推 stage／prod 前的 pre-push 與 make check 都會跑（框架 v5.2.0）。空陣列＝專案沒有這種東西，不檢查。
+MIGRATION_GLOBS=("server/*/migrations")

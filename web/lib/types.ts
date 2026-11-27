@@ -9,6 +9,7 @@ export interface OrgSummary {
   status_label: string;
   disclosure_score: number;
   penalty_count_5y: number;
+  public_raised_5y: number;
   tags: CategoryTag[];
   /** 近 5 年內有總收入的最近一年（LK-17）；列表 API 才有，沒有財務數字是 null */
   latest_revenue?: { year: number; total_revenue: number } | null;
@@ -26,6 +27,8 @@ export interface Stats {
   with_fundraising: number;
   penalized_5y: number;
   since_roc_year: number;
+  /** 個人捐款人在同一活動累計達這個金額才顯示姓名（元） */
+  donor_individual_threshold: number;
 }
 
 export interface Filters {
@@ -62,6 +65,10 @@ export interface Project {
   description: string;
   source_name: string;
   source_url: string;
+  /** permit＝衛福部勸募活動；crowdfunding＝群眾集資（挖貝，LK-15） */
+  channel: "permit" | "crowdfunding";
+  monthly_raised: number | null;
+  backers: number | null;
 }
 
 export interface Penalty {
@@ -93,7 +100,10 @@ export interface DonationRow {
 export interface ScoreBreakdown {
   basic: number;
   basic_max: number;
-  basic_present: Record<"ubn" | "org_type" | "address" | "phone" | "website" | "purposes", boolean>;
+  basic_present: Record<
+    "ubn" | "org_type" | "address" | "phone" | "website" | "purposes",
+    boolean
+  >;
   fundraising: number;
   fundraising_max: number;
   project: number;
@@ -139,7 +149,32 @@ export interface OrgDocument {
   found_on: string;
 }
 
-export interface OrgDetail extends OrgSummary {
+/** 近 5 年公開募款（LK-20）：勸募申報＋群眾集資；勸募已申報的年度不再加當年集資 */
+export interface PublicRaised {
+  total: number;
+  permit: number;
+  crowdfunding: number;
+  crowdfunding_counted: number;
+}
+
+/** 政府對民間團體的補(捐)助（LK-19）：金額是核定金額（含累積） */
+export interface Grant {
+  id: number;
+  year: number;
+  quarter: number;
+  agency: string;
+  county: string;
+  recipient: string;
+  facility: string;
+  purpose: string;
+  approved_on: string | null;
+  amount: number;
+  source_name: string;
+  source_url: string;
+}
+
+export interface OrgDetail extends Omit<OrgSummary, "public_raised_5y"> {
+  public_raised: PublicRaised;
   representative: string;
   registered_address: string;
   contact_address: string;
@@ -153,6 +188,8 @@ export interface OrgDetail extends OrgSummary {
   documents: OrgDocument[];
   projects: Project[];
   penalties: Penalty[];
+  /** 政府補助（LK-19），近 5 年，金額大的在前 */
+  grants: Grant[];
   donations: DonationRow[];
   corporate_donors: CorporateDonorRank[];
   individual_donors: { name: string; total: number; count: number }[];
@@ -269,9 +306,33 @@ export interface CategoryOverview {
   org_count: number;
   raised_5y: number;
   penalized_5y: number;
-  top_score: { ubn: string; name: string; city: string; disclosure_score: number }[];
-  top_raised: { ubn: string; name: string; city: string; disclosure_score: number; raised_5y: number }[];
-  top_donors: { donor_id: number; name: string; kind_label: string; total: number; org_count: number }[];
-  penalties: { id: number; decided_on: string | null; content: string; fine_text: string; org_ubn: string; org_name: string }[];
+  top_score: {
+    ubn: string;
+    name: string;
+    city: string;
+    disclosure_score: number;
+  }[];
+  top_raised: {
+    ubn: string;
+    name: string;
+    city: string;
+    disclosure_score: number;
+    raised_5y: number;
+  }[];
+  top_donors: {
+    donor_id: number;
+    name: string;
+    kind_label: string;
+    total: number;
+    org_count: number;
+  }[];
+  penalties: {
+    id: number;
+    decided_on: string | null;
+    content: string;
+    fine_text: string;
+    org_ubn: string;
+    org_name: string;
+  }[];
   penalty_total: number;
 }

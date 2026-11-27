@@ -1,7 +1,9 @@
 import re
 
+from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
+from npofile_crawler import donors as donor_names
 
 ubn_validator = RegexValidator(r"^\d{8}$", "統一編號必須是 8 碼數字")
 
@@ -43,6 +45,8 @@ class Organization(models.Model):
         "手動鎖定欄位", default=list, blank=True, help_text="管理員手動改過的欄位，爬蟲不會覆蓋。"
     )
     disclosure_score = models.PositiveSmallIntegerField("揭露指數", default=0, db_index=True, editable=False)
+    # 近 5 年公開募款（勸募申報＋群眾集資，同一年度不重複算；口徑見 tickets/LK-20），跟揭露指數一起重算
+    public_raised_5y = models.BigIntegerField("近 5 年公開募款", default=0, db_index=True, editable=False)
     created_at = models.DateTimeField("建立時間", auto_now_add=True)
     updated_at = models.DateTimeField("更新時間", auto_now=True)
 
@@ -90,6 +94,8 @@ class Donor(models.Model):
     PUBLIC_KINDS = (Kind.COMPANY, Kind.GROUP)
 
     name = models.CharField("名稱", max_length=200, unique=True)
+    # 判斷是不是同一位用的寫法（npofile_crawler.donors.identity_key）：台／臺、空白、(股) 不同也算同一位（LK-16）
+    name_key = models.CharField("比對用名稱", max_length=200, unique=True, editable=False)
     kind = models.CharField("類型", max_length=12, choices=Kind.choices, db_index=True)
     kind_manual = models.BooleanField(
         "類型由管理員指定", default=False, help_text="管理員改過類型就會勾起；重新分類時不會改掉。"
@@ -111,6 +117,20 @@ class Donor(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        self.name = donor_names.normalize(self.name)[:200]
+        self.name_key = donor_names.identity_key(self.name)[:200]
+        if kwargs.get("update_fields") and "name" in kwargs["update_fields"]:
+            kwargs["update_fields"] = {*kwargs["update_fields"], "name_key"}
+        super().save(*args, **kwargs)
+
+    def clean(self):
+        super().clean()
+        key = donor_names.identity_key(self.name or "")
+        same = Donor.objects.filter(name_key=key).exclude(pk=self.pk).first()
+        if same:
+            raise ValidationError({"name": f"跟另一位捐款人「{same.name}」（編號 {same.pk}）是同一位，請改用那一筆或換個名稱。"})
 
     @property
     def is_public(self) -> bool:
@@ -148,6 +168,10 @@ class Donation(SourceMixin):
 
 
 class Project(SourceMixin):
+    class Channel(models.TextChoices):
+        PERMIT = "permit", "勸募活動"
+        CROWDFUNDING = "crowdfunding", "群眾集資"
+
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="projects", verbose_name="組織")
     external_id = models.CharField("來源編號", max_length=50, blank=True)
     name = models.CharField("專案名稱", max_length=300)
@@ -161,6 +185,12 @@ class Project(SourceMixin):
     result_filed_on = models.DateField("成果備查日期", null=True, blank=True)
     closed_filed_on = models.DateField("結案備查日期", null=True, blank=True)
     description = models.TextField("成果／說明", blank=True)
+    channel = models.CharField(
+        "募款管道", max_length=20, choices=Channel.choices, default=Channel.PERMIT,
+        help_text="群眾集資專案（例：挖貝）不算進揭露指數，見 LK-15。",
+    )
+    monthly_raised = models.BigIntegerField("每月定期定額", null=True, blank=True)
+    backers = models.PositiveIntegerField("參與人次", null=True, blank=True)
     period_year = models.PositiveSmallIntegerField(
         "年度（民國）", null=True, blank=True, db_index=True, editable=False,
         help_text="依開始日期，沒有就看名稱開頭的年度、再沒有看成果備查日期；用來判斷是否在近 5 年內。",
@@ -212,6 +242,34 @@ class DonorListSummary(models.Model):
 
     def __str__(self):
         return f"{self.project} 清冊摘要"
+
+
+class Grant(SourceMixin):
+    """政府對民間團體的補(捐)助（LK-19）：各機關依規定每季公開的核定案件，一行一筆。
+    金額是「含累積金額」的核定金額；同一案件下一季的表金額變了就更新同一筆（以 external_id 認）。"""
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="grants", verbose_name="組織")
+    external_id = models.CharField("來源編號", max_length=40, db_index=True)
+    year = models.PositiveSmallIntegerField("年度（民國）", db_index=True)
+    quarter = models.PositiveSmallIntegerField("資料截至第幾季", default=4)
+    agency = models.CharField("補助機關", max_length=100)
+    county = models.CharField("所屬縣市", max_length=20, blank=True)
+    recipient = models.CharField("表上的受補助對象", max_length=300)
+    facility = models.CharField(
+        "附設單位", max_length=200, blank=True, help_text="表上寫「某某基金會附設某某中心」時，補助算給基金會，這裡記附設單位名稱。"
+    )
+    purpose = models.CharField("補助事項或用途", max_length=500)
+    approved_on = models.DateField("核准日期", null=True, blank=True)
+    amount = models.BigIntegerField("核定金額（含累積）")
+
+    class Meta:
+        verbose_name = "政府補助"
+        verbose_name_plural = "政府補助"
+        ordering = ["-year", "-amount", "id"]
+        constraints = [models.UniqueConstraint(fields=["source_name", "external_id"], name="uniq_grant_source_id")]
+
+    def __str__(self):
+        return f"{self.year} {self.agency} {self.purpose}"
 
 
 class Penalty(SourceMixin):

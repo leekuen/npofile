@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 更新正式環境：在伺服器上用 npofile 帳號執行
 #   sudo -iu npofile ~/app/deploy/deploy.sh
-# 拉 prod → 裝套件 → migrate → collectstatic → 建前台 → 重啟服務 → 重算組織分類
+# 拉 prod → 裝套件 → migrate → collectstatic → 建前台 → 重啟服務 → 重算組織分類 → 重算揭露指數與公開募款
 set -euo pipefail
 
 APP="${APP:-$HOME/app}"
@@ -40,4 +40,7 @@ curl -fsS -o /dev/null http://127.0.0.1:3000/ && echo "    前台 OK"
 echo "==> 重算組織分類"
 cd "$APP/server"
 .venv/bin/python manage.py classify_orgs
+# 揭露指數與近 5 年公開募款（LK-20）存在組織上、每天 05:30 重算；新欄位或算法換版後先算一次，首頁排序不用等到隔天
+echo "==> 重算揭露指數與近 5 年公開募款"
+.venv/bin/python manage.py recompute_scores
 echo "==> 完成"

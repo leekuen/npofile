@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 import zipfile
 from collections import defaultdict
 from collections.abc import Iterator
@@ -38,14 +39,29 @@ GROUP_EN_RE = re.compile(
 GROUP_SUFFIX_RE = re.compile(r"(部|署|局|政府|公所|議會|法院|委員會|辦公室|堂|宮|寺|廟|教會)$")
 # 「王小明(同001772220)」「李素菁 (同 001179057)」：清冊的內部附註，分類前去掉
 NOTE_RE = re.compile(r"[（(]\s*同\s*\d+\s*[)）]")
+# 看不見的字元（零寬空白、方向控制、軟連字號…）：畫面上看不出來，卻會讓同一家變成兩家（LK-16）
+INVISIBLE_RE = re.compile("[­᠎​-‏‪-‮⁠-⁯﻿]")
+# 名稱後面附的統編：「米〇國際股份有限公司 統一編號：16230598」「青域設計有限公司 統編：54362423」
+UBN_NOTE_RE = re.compile(r"\s*[(]?\s*(?:統一編號|統編)\s*[:]?\s*\d{8}\s*[)]?\s*$")
+TRAILING_PUNCT_RE = re.compile(r"[\s。.,，、;；]+$")
+SHARE_RE = re.compile(r"\(股\)(?:公司)?")
 
 DEFAULT_INDIVIDUAL_THRESHOLD = 100_000
 
 
 def normalize(name: str) -> str:
-    name = NOTE_RE.sub("", name or "")
-    name = name.replace("（", "(").replace("）", ")")
-    return " ".join(name.split())
+    """清冊上的寫法 → 顯示的名稱：去掉看不見的字元與附註、全形英數標點換成一般寫法、空白併成一個。"""
+    name = unicodedata.normalize("NFKC", INVISIBLE_RE.sub("", name or ""))
+    name = NOTE_RE.sub("", name)
+    name = UBN_NOTE_RE.sub("", name)
+    name = TRAILING_PUNCT_RE.sub("", " ".join(name.split()))
+    return name
+
+
+def identity_key(name: str) -> str:
+    """判斷是不是同一位（只用來比對，不拿來顯示）：台當臺、不看空白、(股) 當股份有限公司、英文不分大小寫。"""
+    key = normalize(name).replace("台", "臺").replace(" ", "")
+    return SHARE_RE.sub("股份有限公司", key).casefold()
 
 
 def classify(name: str) -> str:
@@ -122,7 +138,7 @@ def parse_ods(data: bytes) -> Iterator[DonorRow]:
 def summarize(rows: Iterator[DonorRow], threshold: int = DEFAULT_INDIVIDUAL_THRESHOLD) -> dict:
     """把一份清冊整理成：要保留的逐筆（企業、團體、大額個人）＋摘要（小額個人、匿名只留數字）。"""
     kept: list[dict] = []
-    individuals: dict[str, list[dict]] = defaultdict(list)
+    individuals: dict[str, list[dict]] = defaultdict(list)  # 同一個人的不同寫法合起來算門檻（identity_key）
     summary = {
         "total_rows": 0,
         "total_amount": 0,
@@ -143,7 +159,7 @@ def summarize(rows: Iterator[DonorRow], threshold: int = DEFAULT_INDIVIDUAL_THRE
             summary["anonymous_rows"] += 1
             summary["anonymous_amount"] += r.amount
         elif kind == INDIVIDUAL:
-            individuals[name].append(row)
+            individuals[identity_key(name)].append(row)
         else:
             kept.append(row)
     for name, rs in individuals.items():

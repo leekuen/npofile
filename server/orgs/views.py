@@ -1,13 +1,15 @@
 import re
 
+from django.conf import settings
 from django.db.models import OuterRef, Prefetch, Q, Subquery
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.generics import ListAPIView
+from npofile_crawler.donors import identity_key
 from rest_framework.response import Response
 
 from . import category_api, donor_rules, period, scoring
-from .models import AnnualFundraising, Donor, FinancialYear, OrgDocument, Organization, Project
+from .models import AnnualFundraising, Donor, FinancialYear, Grant, OrgDocument, Organization, Project
 from .serializers import (
     DonorDetailSerializer,
     DonorListSerializer,
@@ -15,7 +17,13 @@ from .serializers import (
     OrganizationListSerializer,
 )
 
-ORDERINGS = {"score": ("-disclosure_score", "name"), "name": ("name",)}
+# 預設「近 5 年公開募款」（勸募申報＋群眾集資，口徑見 tickets/LK-20）；沒有的組織排在後面，依揭露指數、名稱
+ORDERINGS = {
+    "raised": ("-public_raised_5y", "-disclosure_score", "name"),
+    "score": ("-disclosure_score", "name"),
+    "name": ("name",),
+}
+DEFAULT_ORDERING = "raised"
 
 
 class OrganizationList(ListAPIView):
@@ -42,7 +50,7 @@ class OrganizationList(ListAPIView):
         qs = qs.annotate(
             fin_year=Subquery(latest.values("year")[:1]), fin_revenue=Subquery(latest.values("total_revenue")[:1])
         )
-        ordering = ORDERINGS.get(params.get("ordering", "score"), ORDERINGS["score"])
+        ordering = ORDERINGS.get(params.get("ordering", DEFAULT_ORDERING), ORDERINGS[DEFAULT_ORDERING])
         return scoring.with_penalty_count(qs).prefetch_related("categories").order_by(*ordering)
 
 
@@ -55,6 +63,7 @@ def organization_detail(request, ubn):
             Prefetch("documents", queryset=OrgDocument.objects.filter(period.annual_q())),
             Prefetch("projects", queryset=Project.objects.filter(period.project_q())),
             "penalties",
+            Prefetch("grants", queryset=Grant.objects.filter(period.grant_q())),
             "categories",
         )
     )
@@ -72,6 +81,8 @@ def stats(request):
                 period.annual_q("annual_records__") | (Q(projects__isnull=False) & period.project_q("projects__"))
             ).distinct().count(),
             "since_roc_year": period.since_roc_year(),
+            # 資料說明頁要寫個人捐款人的門檻：從設定讀，畫面不寫死（LK-22）
+            "donor_individual_threshold": settings.DONOR_INDIVIDUAL_THRESHOLD,
             "penalized_5y": orgs.filter(scoring.penalty_5y_filter("penalties__")).distinct().count(),
         }
     )
@@ -103,7 +114,8 @@ class DonorList(ListAPIView):
         qs = donor_rules.public_donors()
         q = params.get("q", "").strip()
         if q:
-            cond = Q(name__icontains=q) | Q(registered_name__icontains=q)
+            # 比對用名稱也查：打「台灣」找得到「臺灣」、打「(股)」找得到「股份有限公司」、不看空白與大小寫（LK-16）
+            cond = Q(name__icontains=q) | Q(registered_name__icontains=q) | Q(name_key__contains=identity_key(q))
             if re.fullmatch(r"\d{8}", q):
                 cond |= Q(ubn=q)
             qs = qs.filter(cond)
