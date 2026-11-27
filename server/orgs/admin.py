@@ -210,9 +210,9 @@ class OrgDocumentAdmin(admin.ModelAdmin):
 
 @admin.register(Penalty)
 class PenaltyAdmin(admin.ModelAdmin):
-    list_display = ("organization", "decided_on", "fine_text")
-    list_filter = ("decided_on",)
-    search_fields = ("organization__name", "organization__ubn", "content")
+    list_display = ("organization", "decided_on", "authority", "fine_text", "source_name")
+    list_filter = ("source_name", "decided_on")
+    search_fields = ("organization__name", "organization__ubn", "content", "document_no")
     autocomplete_fields = ("organization",)
 
 

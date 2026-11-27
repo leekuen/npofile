@@ -83,6 +83,8 @@ export interface Penalty {
   reason: string;
   source_name: string;
   source_url: string;
+  /** labor＝地方勞動局依勞基法公布的處分；fundraising＝公益勸募裁處 */
+  category: "labor" | "fundraising";
 }
 
 export type DonorKind = "company" | "group" | "individual";

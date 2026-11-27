@@ -180,20 +180,44 @@ def _financial_table(rec):
     )
 
 
+class MatchFilter(admin.SimpleListFilter):
+    """名稱對不上組織的（統編空白，LK-29 勞動局處分）：管理員指定組織後核准，或退回略過。"""
+
+    title = "對組織"
+    parameter_name = "match"
+
+    def lookups(self, request, model_admin):
+        return [("unmatched", "對不上組織（待指定）"), ("matched", "有統編")]
+
+    def queryset(self, request, queryset):
+        if self.value() == "unmatched":
+            return queryset.filter(ubn="")
+        if self.value() == "matched":
+            return queryset.exclude(ubn="")
+        return queryset
+
+
 @admin.register(CrawlRecord)
 class CrawlRecordAdmin(admin.ModelAdmin):
     list_display = ("kind", "ubn", "summary", "source", "status", "created_at")
-    list_filter = (ReviewStatusFilter, "kind", "source")
-    search_fields = ("ubn", "external_id")
+    list_filter = (ReviewStatusFilter, MatchFilter, "kind", "source")
+    search_fields = ("ubn", "external_id", "payload__org_name")
     readonly_fields = (
         "source", "run", "kind", "ubn", "org_name", "external_id", "pretty_payload", "link", "status",
         "organization", "created_at", "reviewed_at", "reviewed_by",
     )
     fields = readonly_fields + ("review_note",)
+    autocomplete_fields = ("organization",)
     actions = ["approve", "reject"]
 
     def has_add_permission(self, request):
         return False
+
+    def get_readonly_fields(self, request, obj=None):
+        # 對不上組織、還沒審的：可以在「對應組織」指定組織，按「核准並上架」就掛到那個組織
+        if obj is not None and not obj.ubn and obj.status == CrawlRecord.Status.PENDING:
+            return tuple(f for f in self.readonly_fields if f != "organization")
+        return self.readonly_fields
 
     @admin.display(description="內容摘要")
     def summary(self, obj):
@@ -203,10 +227,14 @@ class CrawlRecordAdmin(admin.ModelAdmin):
             return f"{p.get('year')} 年 總收入 {total:,} 元" if isinstance(total, int) else f"{p.get('year')} 年"
         if obj.kind == CrawlRecord.Kind.DOCUMENT:
             return f"{p.get('year')} 年 {DOC_KIND_LABELS.get(p.get('doc_kind'), '')}：{p.get('title', '')}"[:60]
+        if obj.kind == CrawlRecord.Kind.PENALTY and p.get("org_name"):
+            return f"{p['org_name']}：{p.get('content', '')}"[:60]
         return str(p.get("name") or p.get("content") or p.get("title") or p.get("year") or "")[:40]
 
     @admin.display(description="組織")
     def org_name(self, obj):
+        if not obj.ubn:
+            return f"（對不上組織：來源上的名稱是「{obj.payload.get('org_name', '')}」，請在下方「對應組織」指定，或退回）"
         org = Organization.objects.filter(ubn=obj.ubn).only("name").first()
         return org.name if org else "（還沒有這個統一編號的組織）"
 

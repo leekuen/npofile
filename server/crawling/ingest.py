@@ -190,10 +190,13 @@ def _store_batch(source: CrawlerSource, run: CrawlRun, batch: list[Item], known:
     saved = list(CrawlRecord.objects.filter(source=source, run=run, content_hash__in=[r.content_hash for r in fresh]))
     run.created += len(saved)
     if source.auto_approve:
-        ok, failed = apply_records(saved, CrawlRecord.Status.AUTO)
+        # 統編空白＝名稱對不上組織（LK-29 勞動局處分）：不上架，留在審核清單等管理員指定組織或退回
+        matched = [r for r in saved if r.ubn]
+        ok, failed = apply_records(matched, CrawlRecord.Status.AUTO)
         run.applied += ok
         run.failed += failed
-        touched.update(r.ubn for r in saved)
+        run.pending += len(saved) - len(matched)
+        touched.update(r.ubn for r in matched)
     else:
         updates = _approved_updates(source, saved)
         if updates:
@@ -231,6 +234,11 @@ def apply_records(records: list[CrawlRecord], status: str, user=None) -> tuple[i
 def _apply_records(records: list[CrawlRecord], status: str, user) -> tuple[int, int]:
     records = sorted(records, key=lambda r: KIND_ORDER[r.kind])
     sources = {r.source_id: r.source for r in records}
+    # 對不上組織、管理員在「對應組織」指定了的：用指定的組織的統編上架
+    assigned = Organization.objects.in_bulk({r.organization_id for r in records if not r.ubn and r.organization_id})
+    for rec in records:
+        if not rec.ubn and rec.organization_id in assigned:
+            rec.ubn = assigned[rec.organization_id].ubn
     orgs = _apply_org_records([r for r in records if r.kind == "org"], sources)
     for ubn, org in Organization.objects.in_bulk(
         {r.ubn for r in records} - set(orgs), field_name="ubn"
@@ -240,8 +248,11 @@ def _apply_records(records: list[CrawlRecord], status: str, user) -> tuple[int, 
     now = timezone.now()
     ok = failed = 0
     for rec in records:
-        org = orgs.get(rec.ubn)
-        if org is None:
+        org = orgs.get(rec.ubn) if rec.ubn else None
+        if not rec.ubn:
+            rec.review_note = "名稱對不上組織：先在「對應組織」指定是哪個組織再核准；不是收錄的組織就退回"
+            failed += 1
+        elif org is None:
             rec.review_note = "找不到這個統一編號的組織，請先核准該組織的基本資料"
             failed += 1
         else:
@@ -252,7 +263,7 @@ def _apply_records(records: list[CrawlRecord], status: str, user) -> tuple[int, 
             rec.reviewed_at = now
             rec.reviewed_by = user
             ok += 1
-    CrawlRecord.objects.bulk_update(records, ["organization", "status", "reviewed_at", "reviewed_by", "review_note"])
+    CrawlRecord.objects.bulk_update(records, ["ubn", "organization", "status", "reviewed_at", "reviewed_by", "review_note"])
     return ok, failed
 
 
