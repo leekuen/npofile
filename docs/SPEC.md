@@ -72,6 +72,7 @@
   `prune_old_records`（刪掉近 5 年以前的年度募款、專案、捐款與清冊原始紀錄，裁罰不刪）、`recompute_scores`；建議每天跑後兩支。
 - **審核機制**：每個來源可設「自動上架」或「先審核」（政府來源預設自動上架）。先審核的資料在「爬蟲資料（審核佇列）」，預設只列待審核，可批次核准或退回；核准才寫進組織資料。
 - **紀錄**：每次執行一筆紀錄（抓到、新資料、上架、待審核、失敗、錯誤訊息）；後台可「立即試跑」每個來源 5 筆。
+- **抓到 0 筆算失敗**：來源執行成功卻一筆都沒抓到（多半是網站改版），`crawl` 印警告並以失敗結束，排程會發通知；執行紀錄的狀態仍是成功（LK-12）。
 
 ### 3.3 組織列表、組織資訊頁與揭露指數 🚧
 
@@ -120,7 +121,9 @@
 
 - 祕密走環境變數（`server/.env.example`）；正式環境沒設 `DJANGO_SECRET_KEY` 拒絕啟動。登入／註冊檢查 CSRF，前台經同源 `/api/*` 轉給後端。
 - 正式環境資料庫為 PostgreSQL（`DATABASE_URL`），目前只驗過設定解析，尚未實際連 PostgreSQL 跑過；本機用 SQLite。
-- 部署：DigitalOcean 單機（nginx → Next.js＋gunicorn／Django＋PostgreSQL＋cron），伺服器只拉 `prod`，更新跑 `deploy/deploy.sh`；步驟見 `deploy/README.md`（LK-10）。部署檔已進版控，伺服器尚未實際裝起來驗收。
+- 部署：DigitalOcean 單機（nginx → Next.js＋gunicorn／Django＋PostgreSQL＋cron），伺服器只拉 `prod`，更新跑 `deploy/deploy.sh`；步驟見 `deploy/README.md`（LK-10）。2026-11-27 起正式站 https://npofile-kuen.duckdns.org，與 LINE CRM 共用同一台 512MB Droplet（CRM 的 Caddy 轉到主機 nginx :8080），做法見 `deploy/README.md`〈與 LINE CRM 共用主機〉。
+- 排程失敗通知：每天的備份、爬蟲、重算都經過 `deploy/run-job.sh`，回報 Healthchecks.io；工作失敗、沒準時開始或沒跑完都會寄信（要設 `HEALTHCHECKS_PING_KEY`，沒設只寫紀錄）（LK-12）。
+- 資料庫備份：每天 02:00（爬蟲前）`deploy/backup-db.sh` 用 `pg_dump` 存一份，檢查讀得回來且有組織資料，本機留 14 天；可選用 rclone 複製到機器外（例 DigitalOcean Spaces）留 60 天。還原與每月演練步驟在 `deploy/README.md`（LK-12）。尚未在伺服器上跑過。
 - 「近 5 年」只定義在 `server/orgs/period.py`（民國年度今年往前 4 年的 1 月 1 日起），隨日期移動：每天跑 `recompute_scores`、`prune_old_records`。
 - 大型團體的清冊可達十幾萬列（約 3 MB），以串流解析，只存企業、團體與大額個人的逐筆。
 
@@ -130,6 +133,7 @@
 
 | 日期 | 變更內容 | 對應功能 | 原因 / 來源 | 狀態 |
 |------|----------|----------|-------------|------|
+| 2026-11-27 | 上線保命：排程失敗通知（Healthchecks.io）、爬蟲抓到 0 筆算失敗、資料庫每日備份與還原步驟 | 3.2、4 | 使用者：排程失敗只寫 log 沒人知道；正式資料庫壞了要重爬好幾天（LK-12） | 🚧 |
 | 2026-11-27 | 組織分類：兩層領域＋服務對象、首頁依領域瀏覽與篩選、領域頁、組織與企業頁顯示分類 | 3.6 | 使用者：要用 TAG 區分組織（例：動保、環保），並能組合「原住民文化」「原住民教育」（LK-09） | 🚧 |
 | 2026-11-27 | 正式環境部署檔：systemd（gunicorn、Next.js）、nginx、`deploy.sh`、每日排程（爬蟲、清舊資料、重算揭露指數） | 4 | 使用者已開 DigitalOcean 伺服器，要正式上線（LK-10） | 🚧 |
 | 2026-11-27 | 捐贈人清冊（企業／團體／大額個人、捐款企業排行與內頁、商工統編）；資料只收近 5 年、違規公告全部年度；前台改版（搜尋優先首頁、揭露指數圓環、組織頁摘要） | 3.2、3.3、3.5 | 使用者：要看出是哪個企業或個人；近 5 年載入快且有參考性、裁罰永久；前台好看一點（LK-06、LK-07、LK-08） | 🚧 |

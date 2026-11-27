@@ -107,6 +107,7 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
             store()
             if plan is not None:
                 run.note = "；".join(x for x in (run.note, progress.summary_text()) if x)[:300]
+                run.listed_cards = plan.listed_count  # 不存資料庫：給 crawl 指令判斷「來源網站是不是改版了」
     finally:
         if hasattr(items, "close"):
             items.close()

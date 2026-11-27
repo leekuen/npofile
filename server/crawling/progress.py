@@ -71,6 +71,7 @@ class DbActivityPlan(ActivityPlan):
         self.dirty: set[str] = set()
         self.groups: dict[str, str] | None = None
         self.this_roc = timezone.localdate().year - 1911
+        self.listed_count = 0  # 這次從活動列表讀到幾張卡片（0＝來源網站多半改版了）
 
     def should_list(self, year: int) -> bool:
         """今年、明年每次都翻（新活動在這裡出現）；過去的年度 7 天翻一次，看實募金額有沒有變。"""
@@ -103,6 +104,7 @@ class DbActivityPlan(ActivityPlan):
             self.rows.update(ActivityProgress.objects.in_bulk(ids[i : i + 900], field_name="activity_id"))
         if not listed:
             return  # 卡片是上次記下的，不用回寫
+        self.listed_count += len(cards)
         now = timezone.now()
         new, changed = [], []
         for c in cards:

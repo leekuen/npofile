@@ -152,3 +152,27 @@ class CommandTests(TestCase):
         CrawlerSource.objects.filter(key="fia").update(enabled=False)
         call_command("crawl", "fia")
         self.assertFalse(CrawlRun.objects.exists())
+
+    def _crawl_with(self, items):
+        from dataclasses import replace
+        from io import StringIO
+        from unittest import mock
+
+        from crawling import ingest
+
+        fake = replace(ingest.SOURCES["fia"], fetch=lambda client, limit: iter(items))
+        with mock.patch.dict(ingest.SOURCES, {"fia": fake}):
+            call_command("crawl", "fia", stdout=StringIO(), stderr=StringIO())
+
+    def test_zero_items_counts_as_failure(self):
+        """LK-12：成功卻一筆都沒抓到＝來源網站多半改版了，結束碼要是失敗，排程才會通知。"""
+        from django.core.management.base import CommandError
+
+        with self.assertRaises(CommandError):
+            self._crawl_with([])
+        self.assertEqual(CrawlRun.objects.get().status, CrawlRun.Status.SUCCESS)
+
+    def test_items_found_is_success(self):
+        items = list(fia.parse_csv(read("fia_sample.csv")))
+        self._crawl_with(items)
+        self.assertEqual(CrawlRun.objects.get().fetched, len(items))

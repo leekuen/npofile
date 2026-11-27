@@ -134,7 +134,7 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
                 ))}
               </select>
             </label>
-            <label className="text-sm">
+            <label className="col-span-2 text-sm sm:col-span-1">
               <span className="sr-only">服務對象</span>
               <select name="target" defaultValue={query.target} className={selectCls}>
                 <option value="">全部服務對象</option>
@@ -145,7 +145,7 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
                 ))}
               </select>
             </label>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="col-span-2 flex items-center gap-2 text-sm sm:col-span-1">
               <span className="shrink-0 text-ink-600">排序</span>
               <select name="ordering" defaultValue={query.ordering} className={selectCls}>
                 {ORDERINGS.map((o) => (

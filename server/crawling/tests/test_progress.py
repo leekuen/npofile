@@ -49,6 +49,9 @@ class FakeMohw:
             return Resp(content=(FX / "donors_sample.ods").read_bytes())
         raise AssertionError(url)
 
+    def close(self):
+        pass
+
     def count(self, part):
         return sum(part in u for u in self.log)
 
@@ -200,6 +203,38 @@ class RunTests(TestCase):
         self.run_once(c, limit=2)
         self.assertEqual(c.count("fundactivityDetails"), 2)
         self.assertEqual(progress.summary()["pending"], 4)
+
+    def test_crawl_command_nothing_new_is_not_a_failure(self):
+        """LK-12 把「一筆都沒抓到」當成來源網站改版；勸募活動補齊後沒有新的是正常的，改看列表有沒有讀到卡片。"""
+        from io import StringIO
+
+        from django.core.management.base import CommandError
+
+        def crawl(site):
+            with mock.patch("crawling.ingest.PoliteClient", return_value=site):
+                call_command("crawl", "mohw_activities", stdout=StringIO(), stderr=StringIO())
+
+        this_roc = timezone.localdate().year - 1911
+
+        class ThisYear(FakeMohw):
+            """真實網站今年一定有活動（今年的列表每晚都翻）：把存下來的列表當成今年的。"""
+
+            def get(self, url, **kw):
+                if "fundactivityIndex" in url:
+                    hit = f"qyyy={this_roc}&" in url and "offset=0&" in url
+                    return Resp(read("activity_index.html") if hit else "")
+                return super().get(url, **kw)
+
+        crawl(ThisYear())
+        crawl(ThisYear())  # 第二次什麼都不用抓：不算失敗
+        self.assertEqual(CrawlRun.objects.filter(source=self.source).first().fetched, 0)
+
+        class Broken(FakeMohw):
+            def get(self, url, **kw):
+                return Resp("") if "fundactivityIndex" in url else super().get(url, **kw)
+
+        with self.assertRaises(CommandError):
+            crawl(Broken())  # 列表一張卡片都讀不到：多半是網站改版
 
     def test_prune_removes_old_progress(self):
         since = period.since_roc_year()
