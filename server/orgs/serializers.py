@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from . import category_api, donor_rules, period, scoring
-from .models import AnnualFundraising, Donation, Donor, Organization, Penalty, Project
+from .models import AnnualFundraising, Donation, Donor, Grant, Organization, Penalty, Project
 
 RECENT_DONATIONS = 50
 DONOR_DETAIL_DONATIONS = 200
@@ -53,6 +53,15 @@ class PenaltySerializer(serializers.ModelSerializer):
         )
 
 
+class GrantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Grant
+        fields = (
+            "id", "year", "quarter", "agency", "county", "recipient", "facility", "purpose", "approved_on", "amount",
+            "source_name", "source_url",
+        )
+
+
 class DonationSerializer(serializers.ModelSerializer):
     donor_name = serializers.CharField(source="public_donor_name")
     donor_id = serializers.SerializerMethodField()
@@ -76,6 +85,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     annual_records = AnnualSerializer(many=True)
     projects = ProjectSerializer(many=True)
     penalties = PenaltySerializer(many=True)
+    grants = GrantSerializer(many=True)
     donations = serializers.SerializerMethodField()
     corporate_donors = serializers.SerializerMethodField()
     individual_donors = serializers.SerializerMethodField()
@@ -88,7 +98,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
         fields = (
             "ubn", "name", "org_type", "representative", "registered_address", "contact_address", "phone",
             "website", "city", "purposes", "status", "status_label", "source_links", "disclosure_score",
-            "penalty_count_5y", "score", "annual_records", "projects", "penalties", "donations",
+            "penalty_count_5y", "score", "annual_records", "projects", "penalties", "grants", "donations",
             "corporate_donors", "individual_donors", "donor_summary", "since_roc_year", "categories",
             "updated_at",
         )

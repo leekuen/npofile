@@ -8,6 +8,7 @@ from .models import (
     CRAWLABLE_FIELDS,
     AnnualFundraising,
     Donation,
+    Grant,
     Donor,
     DonorListSummary,
     OrgCategory,
@@ -130,6 +131,14 @@ class OrganizationAdmin(admin.ModelAdmin):
     def unlock_fields(self, request, queryset):
         n = queryset.update(locked_fields=[])
         self.message_user(request, f"已解除 {n} 個組織的手動鎖定。", messages.SUCCESS)
+
+
+@admin.register(Grant)
+class GrantAdmin(admin.ModelAdmin):
+    list_display = ("organization", "year", "agency", "purpose", "amount", "approved_on")
+    list_filter = ("year", "agency")
+    search_fields = ("organization__name", "organization__ubn", "recipient", "purpose")
+    autocomplete_fields = ("organization",)
 
 
 @admin.register(Penalty)
