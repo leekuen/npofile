@@ -195,8 +195,8 @@ function OrgSummary({ org }: { org: OrgDetail }) {
             className={`flex h-full flex-col rounded-2xl border px-2.5 py-2 hover:border-brand-600 sm:px-3 sm:py-2.5 ${it.tone}`}
           >
             <span className="text-xs text-ink-600">{it.label}</span>
-            <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 font-num text-sm font-semibold break-all tabular-nums sm:text-base">
-              {it.icon && <span aria-hidden>{it.icon}</span>}
+            <span className="mt-0.5 flex items-center gap-x-1.5 font-num text-[0.8125rem] font-semibold whitespace-nowrap tabular-nums sm:text-base">
+              {it.icon && <span aria-hidden className="hidden sm:inline">{it.icon}</span>}
               {it.value}
             </span>
           </Link>
@@ -437,31 +437,31 @@ function DonationsTab({ org }: { org: OrgDetail }) {
                 <tr>
                   <th
                     scope="col"
-                    className="px-3 py-2 text-left font-medium whitespace-nowrap"
+                    className="px-2 py-2 sm:px-3 text-left font-medium whitespace-nowrap"
                   >
                     年度（民國）
                   </th>
                   <th
                     scope="col"
-                    className="w-full min-w-16 px-3 py-2 text-left font-medium"
+                    className="hidden w-full min-w-16 px-2 py-2 sm:px-3 text-left font-medium sm:table-cell"
                   >
                     <span className="sr-only">實募金額比較</span>
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-2 text-right font-medium whitespace-nowrap"
+                    className="px-2 py-2 sm:px-3 text-right font-medium whitespace-nowrap"
                   >
                     實募金額
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-2 text-right font-medium whitespace-nowrap"
+                    className="px-2 py-2 sm:px-3 text-right font-medium whitespace-nowrap"
                   >
                     預募金額
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-2 text-right font-medium whitespace-nowrap"
+                    className="px-2 py-2 sm:px-3 text-right font-medium whitespace-nowrap"
                   >
                     達成率
                   </th>
@@ -470,8 +470,8 @@ function DonationsTab({ org }: { org: OrgDetail }) {
               <tbody className="divide-y divide-ink-100 tabular-nums">
                 {years.map((a) => (
                   <tr key={`${a.year}-${a.source_name}`}>
-                    <td className="px-3 py-2">{a.year}</td>
-                    <td className="px-3 py-2" aria-hidden>
+                    <td className="px-2 py-2 sm:px-3">{a.year}</td>
+                    <td className="hidden px-2 py-2 sm:px-3 sm:table-cell" aria-hidden>
                       <div
                         className="h-3 rounded-sm bg-brand-600"
                         style={{
@@ -479,13 +479,13 @@ function DonationsTab({ org }: { org: OrgDetail }) {
                         }}
                       />
                     </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                    <td className="px-2 py-2 sm:px-3 text-right whitespace-nowrap">
                       {formatMoney(a.raised)}
                     </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                    <td className="px-2 py-2 sm:px-3 text-right whitespace-nowrap">
                       {formatMoney(a.target)}
                     </td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-2 py-2 sm:px-3 text-right">
                       {a.achievement_rate === null
                         ? "—"
                         : `${a.achievement_rate}%`}
