@@ -5,6 +5,7 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase, TestCase
@@ -93,7 +94,8 @@ class ApiTests(TestCase):
     def test_stats(self):
         r = self.client.get("/api/stats").json()
         self.assertEqual(
-            r, {"organizations": 3, "with_fundraising": 1, "penalized_5y": 1, "since_roc_year": period.since_roc_year()}
+            r, {"organizations": 3, "with_fundraising": 1, "penalized_5y": 1, "since_roc_year": period.since_roc_year(),
+                "donor_individual_threshold": settings.DONOR_INDIVIDUAL_THRESHOLD}
         )
 
     def test_list_default_order_and_penalty_count(self):
