@@ -20,6 +20,7 @@ scheduler（同 backend 映像檔＋supercronic）──▶ 每天備份、爬�
 | `nginx` | `nginx:1.28-alpine` | 只綁 `127.0.0.1:8080`（本機測試用，外面連不到） |
 | `scheduler` | 同 `backend` | 無 |
 | `cloudflared` | `cloudflare/cloudflared:2026.11.0` | 無（主動連出去） |
+| `updater` | 本 repo `docker/updater.Dockerfile`（`docker:29.8-cli`＋git） | 無 |
 
 **沒有上傳檔案的功能**，要保存的只有資料庫（`PG_DATA_DIR`）；備份與排程紀錄另外各一個資料夾。
 
@@ -62,7 +63,7 @@ docker compose exec -u app backend python manage.py createsuperuser   # 管理�
 1. Cloudflare 後台 → Zero Trust → Networks → Tunnels → Create a tunnel → Cloudflared，取名 `npofile`。
 2. 安裝步驟那頁會顯示一串 token（`eyJ…`），貼到 `.env` 的 `CLOUDFLARE_TUNNEL_TOKEN`。不用照它的指令裝 cloudflared，compose 裡已經有。
 3. Public Hostname：Subdomain `npofile`、Domain `leekuen.com`、Service **HTTP**、URL **`nginx:80`**。
-4. `.env` 保留 `COMPOSE_PROFILES=tunnel`，`docker compose up -d`。
+4. `.env` 保留 `COMPOSE_PROFILES=tunnel,autoupdate`，`docker compose up -d`。
 
 主機不用開任何 port。HTTPS 由 Cloudflare 處理；Django 的登入 cookie 只走 HTTPS（`DJANGO_SECURE_COOKIES=true`），
 所以**登入、留言只能從 `https://網域` 測**，`http://127.0.0.1:8080` 看得到頁面但登不進去。
@@ -77,7 +78,21 @@ docker compose exec -T db pg_restore -U npofile -d npofile --clean --if-exists -
 docker compose start backend web scheduler
 ```
 
-## 更新
+## 自動更新
+
+`.env` 的 `COMPOSE_PROFILES` 有 `autoupdate` 時，`updater` 每 5 分鐘（`AUTO_UPDATE_INTERVAL`）看一次 GitHub 上的
+`prod`（`AUTO_UPDATE_BRANCH`）：有新版就 `git` 快轉、`docker compose up -d --build` 重建並重啟其他服務，再清掉舊映像檔。
+沒有新版什麼都不做。
+
+- **一定要在 repo 資料夾裡執行 `docker compose`**：`updater` 把 repo 掛在跟主機一樣的路徑（`${PWD}`），
+  compose 裡的相對路徑才對得上；在別的資料夾用 `-f` 啟動會掛錯地方。
+- 它掛了 `/var/run/docker.sock`，等於能操作這台的 Docker；只拉公開 repo 的 `prod`，不需要任何帳號或 token。
+- 看它在做什麼：`docker compose logs -f updater`。
+- **不要在這台上直接改程式檔**（`.env` 與資料夾不算）：本機有改過的檔案或跟 `prod` 分岔時，它會停下來不更新、在 log 裡說原因。
+  要還原成 GitHub 上的版本：`git fetch origin && git reset --hard origin/prod`。
+- 不想自動更新：`COMPOSE_PROFILES` 拿掉 `autoupdate`，`docker compose up -d --remove-orphans`。
+
+手動更新（沒開自動更新時）：
 
 ```bash
 git pull
