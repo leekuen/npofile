@@ -63,3 +63,56 @@ class GrantIngestTests(TestCase):
         call_command("prune_old_records")
         self.assertEqual(Grant.objects.count(), 5)
         self.assertFalse(Grant.objects.filter(year__lt=period.since_roc_year()).exists())
+
+
+class MoreAgenciesTests(TestCase):
+    """LK-30：更多部會的補助來源（設定同衛福部）；勞發署跟就業安定基金重複列的只算一筆。"""
+
+    def setUp(self):
+        self.maria = Organization.objects.create(ubn="05557110", name="財團法人瑪利亞社會福利基金會")
+        self.union = Organization.objects.create(ubn="10000002", name="社團法人中華民國全國中小企業總會")
+        self.orgs = list(Organization.objects.values_list("ubn", "name"))
+        self.year = period.since_roc_year() + 4
+
+    def wda_items(self):
+        f = grants.GrantFile(self.year, 3, "CSV", "x", grants.WDA.id)
+        rows = grants.rows_from_table(grants.csv_table((FX / "grants_wda_115q3.csv").read_bytes()))
+        return list(grants.to_items(f, rows, grants.OrgMatcher(self.orgs), grants.WDA.agency, grants.WDA.prefix_re))
+
+    def test_new_sources_seeded_as_official(self):
+        for key in ("k12ea_grants", "wda_grants", "nidf_grants", "oac_grants"):
+            source = CrawlerSource.objects.get(key=key)
+            self.assertTrue(source.auto_approve, key)
+            self.assertTrue(source.url.startswith("https://data.gov.tw/dataset/"), key)
+
+    def test_wda_ingest_and_agency_from_branch(self):
+        run = run_source(CrawlerSource.objects.get(key="wda_grants"), items=self.wda_items())
+        self.assertEqual((run.created, run.applied), (2, 2))
+        g = Grant.objects.get(organization=self.union)
+        self.assertEqual(g.agency, "北基宜花金馬分署")
+        self.assertEqual(g.recipient, "社團法人中華民國全國中小企業總會")
+        self.assertEqual(g.source_url, "https://data.gov.tw/dataset/143623")
+
+    def test_same_grant_in_wda_and_esf_counts_once(self):
+        run_source(CrawlerSource.objects.get(key="wda_grants"), items=self.wda_items())
+        # 就業安定基金的表也列了瑪利亞同一筆（名稱、事項、核准日、金額都相同，只是機關寫法不同）
+        dup = Grant.objects.get(organization=self.maria)
+        esf = CrawlerSource.objects.get(key="esf_grants")
+        Grant.objects.create(organization=self.maria, source_name=esf.name, external_id="esf-1", year=dup.year,
+                             agency="勞動部", recipient="財團法人瑪利亞社會福利基金會", purpose=dup.purpose,
+                             approved_on=dup.approved_on, amount=dup.amount)
+        # 金額不同的是另一筆
+        Grant.objects.create(organization=self.maria, source_name=esf.name, external_id="esf-3", year=dup.year,
+                             agency="勞動部", recipient="財團法人瑪利亞社會福利基金會", purpose=dup.purpose,
+                             approved_on=dup.approved_on, amount=dup.amount + 1)
+        data = self.client.get("/api/orgs/05557110").json()["grants"]
+        self.assertEqual(sorted((g["amount"], g["source_name"]) for g in data),
+                         [(dup.amount, dup.source_name), (dup.amount + 1, esf.name)])
+
+    def test_identical_rows_within_one_source_are_two_grants(self):
+        run_source(CrawlerSource.objects.get(key="wda_grants"), items=self.wda_items())
+        dup = Grant.objects.get(organization=self.maria)
+        Grant.objects.create(organization=self.maria, source_name=dup.source_name, external_id=dup.external_id + "-2",
+                             year=dup.year, agency=dup.agency, recipient=dup.recipient, purpose=dup.purpose,
+                             approved_on=dup.approved_on, amount=dup.amount)
+        self.assertEqual(len(self.client.get("/api/orgs/05557110").json()["grants"]), 2)

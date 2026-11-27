@@ -89,6 +89,20 @@ class GrantSerializer(serializers.ModelSerializer):
         )
 
 
+def distinct_grants(grants):
+    """同一筆補助被兩個部會的表都列出來（例：勞發署跟就業安定基金，LK-30 條件確認）時只留一筆：
+    名稱＋事項＋核准日＋金額（同一年度）全同、而且來自不同來源的，留先出現的那個來源。
+    同一個來源裡全同的兩行是真的兩筆（例：分兩次核定），不合併。"""
+    first_source: dict[tuple, str] = {}
+    kept = []
+    for g in grants:
+        key = (g.year, "".join(g.recipient.split()).replace("臺", "台"), "".join(g.purpose.split()), g.approved_on, g.amount)
+        src = first_source.setdefault(key, g.source_name)
+        if src == g.source_name:
+            kept.append(g)
+    return kept
+
+
 class DonationSerializer(serializers.ModelSerializer):
     donor_name = serializers.CharField(source="public_donor_name")
     donor_id = serializers.SerializerMethodField()
@@ -115,7 +129,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     documents = OrgDocumentSerializer(many=True)
     projects = ProjectSerializer(many=True)
     penalties = PenaltySerializer(many=True)
-    grants = GrantSerializer(many=True)
+    grants = serializers.SerializerMethodField()
     donations = serializers.SerializerMethodField()
     corporate_donors = serializers.SerializerMethodField()
     individual_donors = serializers.SerializerMethodField()
@@ -133,6 +147,9 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
             "corporate_donors", "individual_donors", "donor_summary", "since_roc_year", "categories",
             "updated_at",
         )
+
+    def get_grants(self, obj):
+        return GrantSerializer(distinct_grants(obj.grants.all()), many=True).data
 
     def get_score(self, obj):
         return scoring.breakdown(obj)

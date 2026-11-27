@@ -180,7 +180,7 @@ class OrganizationAdmin(admin.ModelAdmin):
 @admin.register(Grant)
 class GrantAdmin(admin.ModelAdmin):
     list_display = ("organization", "year", "agency", "purpose", "amount", "approved_on")
-    list_filter = ("year", "agency")
+    list_filter = ("year", "source_name", "agency")
     search_fields = ("organization__name", "organization__ubn", "recipient", "purpose")
     autocomplete_fields = ("organization",)
 
