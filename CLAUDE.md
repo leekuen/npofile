@@ -44,27 +44,23 @@ hook 附上的即時狀態只當「這段時間變了什麼」的參考。
   （這條放在本檔而不是 AGENTS.md：Claude 每個 session 必載入的只有本檔。）
 - 詳細規則：`tickets/README.md`、AGENTS.md「Ticket 工作流」與「git 波及範圍」、`docs/FRAMEWORK.md`。
 
-## 掛載的 hooks（由 harness 強制，非建議；設定在 .claude/settings.json）
+## 給使用者的流程提醒（省 token；框架 v5.2.0）
 
-- SessionStart：`scripts/session-start-hook.sh` 注入開場規則與即時狀態
-  （未初始化時改注入首次使用引導；恢復／壓縮後改注入「接續中的 session」提示）。
-- PreToolUse 票務閘門：`scripts/ticket-gate-hook.sh`——tickets/ 無「待開發/開發中」
-  票時，產品程式碼的檔案修改**直接被擋**（無票不開發）。被擋時不要繞過：
-  回報使用者並走開票流程。
-- PreToolUse 畫面閘門：`scripts/ui-design-gate-hook.sh`——本 session 還沒啟動過 `ui-design` skill 就寫畫面檔會被擋
-  （`scripts/ui-design-mark-hook.sh` 在 skill 啟動時留標記）。
-- PreToolUse 示意圖文字閘門：`scripts/mockup-text-gate-hook.sh`——第一次寫 `cache/demos/` 的示意圖時，
-  先把「這句話在做什麼工作」分類表推到眼前，看過才放行。
-- PreToolUse 遠端同步閘門：`scripts/git-sync-gate-hook.sh`——`git push` 前 fetch，
-  本地落後遠端就**擋下**，要求先 `git pull --rebase origin <分支>` 整合再推。
-  被擋時照訊息先 pull --rebase、當場解衝突、重跑檢查，再推。
-- PreToolUse git 波及範圍閘門：`scripts/git-scope-gate-hook.sh`——擋整批提交（`git add -A`／`.`／資料夾、
-  `git commit -a`）與用 `HEAD^`／`HEAD~n` 做的 `reset`／`revert`／`rebase`；擋下時會說怎麼改寫。
-- PreToolUse 檢查管線閘門：`scripts/check-pipe-gate-hook.sh`——`NO_PIPE_COMMANDS` 列的檢查指令後面接管線
-  （`| tail` 之類）會被擋：結束碼會變成後面那個指令的，失敗被吞掉。
+使用者希望在這些時機被提醒（回覆最後一句話，只提醒、不替他決定；同一條 session 同一種提醒只說一次）：
 
-另有版控內的 git hooks（`.githooks/`：commit 前擋衝突標記、推 `stage`／`prod` 前跑通用關卡、
-開發分支 commit 後自動推）——**每個 clone 跑一次 `make hooks` 才生效**，沒跑就沒有這幾道。
+- **一張票合進 stage 或上 prod 之後**：建議另開新的 session 做下一張——對話越長，之後每一步都越貴；票、分支、SPEC 都在 repo 裡，換 session 不會丟進度。
+- **同一條 session 已做完第二張票，或對話被自動壓縮過**：建議另開，或打 `/compact`。
+- **接下來是例行工作**（合流、跑抓取、改文字、照定案的票實作）：可以在模型選單換成 Sonnet 或 Haiku，設計規則、找問題時再換回來。
+- **要確認好幾張票的條件時**：一次列完，請他一次回（例：「LK-18 全部同意、LK-21 同意」），不要分好幾輪問。
+- **要開新票時**：`make new-ticket` 會列出標題相近的既有票，先看是不是同一件事、或該接在舊票上。
+
+自己也照做：走查確認文字與數字用讀頁面文字，只有版面問題才截圖；長輸出先存檔再挑要看的行。
+
+## 掛載的 hooks（由 harness 強制，非建議）
+
+SessionStart 注入開場規則與即時狀態；PreToolUse 有六道閘門：票務（無票不開發）、畫面（先套 `ui-design`）、示意圖文字、
+推送前同步（落後就擋）、git 波及範圍（擋整批提交與 `HEAD~n`）、檢查管線（檢查指令不接管線）。**被擋時照訊息做，不繞過。**
+另有版控內的 `.githooks/`（每個 clone 跑一次 `make hooks`）。每一道的細節：`docs/harness/hooks-and-agents.md`。
 
 ## Agent 制度檔（docs/harness/）
 
@@ -81,26 +77,10 @@ skills 由 harness 自動從 `.claude/skills/` 列出（不在此重複）；can
 
 ## 自訂 subagent（`.claude/agents/`）
 
-**skill 跟 subagent 不一樣**：skill 跑在主對話的 context 裡（看得見整段對話，好處是知道脈絡、
-壞處是被脈絡帶偏）；subagent 是**獨立 context 的全新實例**，可並行、可限制工具、可指定模型。
-**「fresh eye」這個性質只有 subagent 做得到**——skill 看得見主對話已經下過的所有結論，包括錯的。
-
-檔案就是全部：`.claude/agents/<name>.md`（專案層，進 git）。**不做 canonical/adapter 兩份**
-（理由見 `docs/FRAMEWORK.md` 決策紀錄）。模板附六個：
-
-| 檔名 | 暱稱 | 什麼時候派 |
-|---|---|---|
-| `spec-adversary` | 規格審查師 | 票寫好、還沒動工時，找票裡沒抓到的洞 |
-| `fresh-eye-ux-auditor` | Fresh-eye UX Auditor | 設計圖／UI 使用體驗／文案定案前（交圖前**自己派、照複雜度分級**：`ui-design`〈示意圖〉第 13 條） |
-| `breaker` | 測試計畫審查師（破壞法） | 測試計畫寫好後，先攻擊再比對 |
-| `qa-architect` | 測試覆蓋審查師（盤點法） | 同上，與 breaker 互補、一起派 |
-| `skill-change-proofreader` | Skill 變更校對者 | 沉澱完、一批 skill／agent 改動要出貨前（**校對不是對抗審查**） |
-| `adversarial-reviewer` | 提案審查師 | 提案、框架變更、檢討拿給使用者拍板前；落地後併 stage 前對照提案再審（prompt 寫法見 framework SKILL〈怎麼派對抗審查〉） |
-
-**迭代方式**：用完直接說「幫我把這個 agent retro 一下然後優化它」——
-改的是那個檔案，並在檔頭的版本註解區塊留下「改了什麼、為什麼」（版本註解就是它的訓練紀錄，不另建 eval）。
-每個檔案裡最重要的是**「讓它有效的那一句」**（例如 `breaker` 的「第一階段不准看測試計畫」）
-——那是它價值的來源，retro 時主要就是在改那一句。
+subagent 是獨立 context 的全新實例（「fresh eye」只有它做得到），**但每派一次約十幾萬 token**，照各規則的門檻派、不多派。
+`spec-adversary`（票寫好、動工前找洞）、`fresh-eye-ux-auditor`（交圖前，預設最多一輪：`ui-design`〈示意圖〉第 13 條）、
+`breaker`＋`qa-architect`（測試計畫寫好後）、`skill-change-proofreader`、`adversarial-reviewer`（框架大改才派：framework SKILL〈2. 討論〉）。
+用法、迭代方式（「幫我把這個 agent retro 一下」）見 `docs/harness/hooks-and-agents.md`。
 
 ## 常用指令
 
