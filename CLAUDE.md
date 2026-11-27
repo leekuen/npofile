@@ -132,6 +132,7 @@ server/.venv/Scripts/python server/manage.py crawl mohw_activities --limit 20   
 server/.venv/Scripts/python server/manage.py crawl mohw_activities --group 7210       # 只抓指定團體（網址 fundgroupDetails/ 後的數字）
 server/.venv/Scripts/python server/manage.py match_companies --limit 200   # 企業捐款人對商工登記統編（名稱完全相同才連）
 server/.venv/Scripts/python server/manage.py reclassify_donors             # 分類規則改了之後重新分類（管理員指定過的不動）
+server/.venv/Scripts/python server/manage.py merge_donors                  # 捐款人名稱規則改了之後：同一位的不同寫法（台／臺、空白、(股)）合成一筆（migrate 時也會跑）
 server/.venv/Scripts/python server/manage.py classify_orgs                 # 依 orgs/taxonomy.py 重算組織的領域與服務對象（管理員修正的不動）
 server/.venv/Scripts/python server/manage.py recompute_scores        # 重算揭露指數（「近五年」隨日期移動，每天跑）
 make test-crawler / make test-server / make lint-web / make build-web

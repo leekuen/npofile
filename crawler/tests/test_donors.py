@@ -54,6 +54,35 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(donors.normalize("洪正哲(同001772220)"), "洪正哲")
         self.assertEqual(donors.normalize("李素菁 （同 001179057）"), "李素菁")
 
+    def test_normalize_cleans_display_name(self):
+        """LK-16：看不見的字元、全形、附註的統編、結尾標點。"""
+        self.assertEqual(donors.normalize("天​​行​能​源股份有限公司"), "天行能源股份有限公司")
+        self.assertEqual(donors.normalize("米〇國際股份有限公司 統一編號：16230598"), "米〇國際股份有限公司")
+        self.assertEqual(donors.normalize("青域設計有限公司 統編：54362423"), "青域設計有限公司")
+        self.assertEqual(donors.normalize("程拾宏大有限公司｡"), "程拾宏大有限公司")
+        self.assertEqual(donors.normalize("ＡＢＣ　股份有限公司"), "ABC 股份有限公司")
+        self.assertEqual(donors.normalize("台灣證券交易所股份有限公司"), "台灣證券交易所股份有限公司")  # 顯示不改台／臺
+
+    def test_identity_key_same_company(self):
+        same = [
+            ("臺灣證券交易所股份有限公司", "台灣證券交易所股份有限公司"),
+            ("統一數位 翻譯股份 有限公司", "統一數位翻譯股份有限公司"),
+            ("翔喻企業(股)公司", "翔喻企業股份有限公司"),
+            ("HSBC Holdings plc", "HSBC HOLDINGS PLC"),
+            ("天​行能源股份有限公司", "天行能源股份有限公司"),
+        ]
+        for a, b in same:
+            self.assertEqual(donors.identity_key(a), donors.identity_key(b), (a, b))
+        self.assertNotEqual(donors.identity_key("青域設計有限公司"), donors.identity_key("青彧設計有限公司"))
+        for name in ("王 小明", "臺灣證券交易所股份有限公司"):
+            self.assertEqual(donors.identity_key(donors.normalize(name)), donors.identity_key(name))
+
+    def test_individual_spellings_add_up_for_threshold(self):
+        rows = [donors.DonorRow("1", None, "王小明", 60_000, ""), donors.DonorRow("2", None, "王 小明", 50_000, "")]
+        result = donors.summarize(iter(rows), threshold=100_000)
+        self.assertEqual(len(result["rows"]), 2)  # 合起來 11 萬 ≥ 門檻：兩筆都保留
+        self.assertEqual(result["summary"]["small_individual_count"], 0)
+
 
 class OdsTests(unittest.TestCase):
     def setUp(self):

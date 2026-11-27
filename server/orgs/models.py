@@ -1,7 +1,9 @@
 import re
 
+from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
+from npofile_crawler import donors as donor_names
 
 ubn_validator = RegexValidator(r"^\d{8}$", "統一編號必須是 8 碼數字")
 
@@ -90,6 +92,8 @@ class Donor(models.Model):
     PUBLIC_KINDS = (Kind.COMPANY, Kind.GROUP)
 
     name = models.CharField("名稱", max_length=200, unique=True)
+    # 判斷是不是同一位用的寫法（npofile_crawler.donors.identity_key）：台／臺、空白、(股) 不同也算同一位（LK-16）
+    name_key = models.CharField("比對用名稱", max_length=200, unique=True, editable=False)
     kind = models.CharField("類型", max_length=12, choices=Kind.choices, db_index=True)
     kind_manual = models.BooleanField(
         "類型由管理員指定", default=False, help_text="管理員改過類型就會勾起；重新分類時不會改掉。"
@@ -111,6 +115,20 @@ class Donor(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        self.name = donor_names.normalize(self.name)[:200]
+        self.name_key = donor_names.identity_key(self.name)[:200]
+        if kwargs.get("update_fields") and "name" in kwargs["update_fields"]:
+            kwargs["update_fields"] = {*kwargs["update_fields"], "name_key"}
+        super().save(*args, **kwargs)
+
+    def clean(self):
+        super().clean()
+        key = donor_names.identity_key(self.name or "")
+        same = Donor.objects.filter(name_key=key).exclude(pk=self.pk).first()
+        if same:
+            raise ValidationError({"name": f"跟另一位捐款人「{same.name}」（編號 {same.pk}）是同一位，請改用那一筆或換個名稱。"})
 
     @property
     def is_public(self) -> bool:
