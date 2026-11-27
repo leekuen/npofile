@@ -73,7 +73,7 @@ cron   ──▶ 每天爬蟲、清舊資料、重算揭露指數
       - "host.docker.internal:host-gateway"
 ```
 
-主機上 `/srv/line-crm/.env` 加 `NPOFILE_ADDRESS=http://168.144.130.162`（`.env` 不會被 CRM 部署蓋掉）。
+主機上 `/srv/line-crm/.env` 加 `NPOFILE_ADDRESS=npofile-kuen.duckdns.org`（2026-11-27 起；沒有網域時填 `http://主機IP`）（`.env` 不會被 CRM 部署蓋掉）。
 改完 `cd /srv/line-crm && docker compose up -d caddy`。改之前的備份在 `/root/backup-line-crm/`。
 
 **換成網域**（例：`npofile-kuen.duckdns.org`，DNS 指到 168.144.130.162）：
