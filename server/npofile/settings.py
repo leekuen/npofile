@@ -134,3 +134,6 @@ LOGGING = {
 
 # 爬蟲：每個請求最少間隔秒數（對來源網站客氣）
 CRAWLER_MIN_INTERVAL = float(os.environ.get("CRAWLER_MIN_INTERVAL", "1.0"))
+
+# 捐贈人清冊：個人在同一活動累計達這個金額才存姓名並顯示（口徑見 tickets/LK-06）
+DONOR_INDIVIDUAL_THRESHOLD = int(os.environ.get("DONOR_INDIVIDUAL_THRESHOLD", "100000"))

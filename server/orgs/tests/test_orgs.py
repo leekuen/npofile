@@ -10,7 +10,7 @@ from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase, TestCase
 from rest_framework.test import APIClient
 
-from orgs import scoring
+from orgs import period, scoring
 from orgs.models import AnnualFundraising, Donation, Organization, Penalty, Project
 
 
@@ -84,7 +84,7 @@ class ApiTests(TestCase):
         Penalty.objects.create(organization=self.a, decided_on=today - timedelta(days=30), content="近期")
         Penalty.objects.create(organization=self.a, decided_on=today - timedelta(days=365 * 6), content="很久以前")
         Penalty.objects.create(organization=self.c, decided_on=today - timedelta(days=365 * 7), content="很久以前")
-        AnnualFundraising.objects.create(organization=self.b, year=110, raised=0, target=0)
+        AnnualFundraising.objects.create(organization=self.b, year=period.since_roc_year(), raised=0, target=0)
         Donation.objects.create(organization=self.a, donor_name="王大明", amount=500)
         Donation.objects.create(organization=self.a, donor_name="王大明", amount=700)
         Donation.objects.create(organization=self.a, donor_name="陳小華", amount=1000)
@@ -92,7 +92,9 @@ class ApiTests(TestCase):
 
     def test_stats(self):
         r = self.client.get("/api/stats").json()
-        self.assertEqual(r, {"organizations": 3, "with_fundraising": 1, "penalized_5y": 1})
+        self.assertEqual(
+            r, {"organizations": 3, "with_fundraising": 1, "penalized_5y": 1, "since_roc_year": period.since_roc_year()}
+        )
 
     def test_list_default_order_and_penalty_count(self):
         r = self.client.get("/api/orgs").json()
@@ -115,7 +117,11 @@ class ApiTests(TestCase):
         r = self.client.get("/api/orgs/11111111").json()
         self.assertEqual(r["penalty_count_5y"], 1)
         self.assertEqual(len(r["penalties"]), 2)
-        self.assertEqual(r["top_donors"], [{"donor_name": "王大明", "total": 1200}, {"donor_name": "陳小華", "total": 1000}])
+        self.assertEqual(
+            [(d["name"], d["total"]) for d in r["individual_donors"]], [("王大明", 1200), ("陳小華", 1000)]
+        )
+        self.assertEqual(r["corporate_donors"], [])
+        self.assertIsNone(r["donor_summary"])
         names = {d["donor_name"] for d in r["donations"]}
         self.assertIn("匿名", names)
         self.assertNotIn("秘密捐款人", str(r))
@@ -125,7 +131,7 @@ class ApiTests(TestCase):
         self.assertEqual(self.client.get("/api/orgs/99999999").status_code, 404)
 
     def test_achievement_rate(self):
-        AnnualFundraising.objects.create(organization=self.c, year=114, raised=66358, target=1500000)
+        AnnualFundraising.objects.create(organization=self.c, year=period.since_roc_year() + 1, raised=66358, target=1500000)
         rows = self.client.get("/api/orgs/33333333").json()["annual_records"]
         self.assertEqual(rows[0]["achievement_rate"], 4.4)
         self.assertIsNone(self.client.get("/api/orgs/22222222").json()["annual_records"][0]["achievement_rate"])

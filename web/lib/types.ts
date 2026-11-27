@@ -22,6 +22,7 @@ export interface Stats {
   organizations: number;
   with_fundraising: number;
   penalized_5y: number;
+  since_roc_year: number;
 }
 
 export interface Filters {
@@ -52,6 +53,7 @@ export interface Project {
   target: number | null;
   raised: number | null;
   permit_no: string;
+  region: string;
   result_filed_on: string | null;
   closed_filed_on: string | null;
   description: string;
@@ -63,15 +65,22 @@ export interface Penalty {
   id: number;
   decided_on: string | null;
   authority: string;
+  document_no: string;
   content: string;
   fine_text: string;
+  reason: string;
   source_name: string;
   source_url: string;
 }
 
+export type DonorKind = "company" | "group" | "individual";
+
 export interface DonationRow {
   id: number;
   donor_name: string;
+  donor_id: number | null;
+  donor_kind: DonorKind | null;
+  purpose: string;
   amount: number;
   donated_on: string | null;
   source_name: string;
@@ -106,7 +115,10 @@ export interface OrgDetail extends OrgSummary {
   projects: Project[];
   penalties: Penalty[];
   donations: DonationRow[];
-  top_donors: { donor_name: string; total: number }[];
+  corporate_donors: CorporateDonorRank[];
+  individual_donors: { name: string; total: number; count: number }[];
+  donor_summary: DonorSummary | null;
+  since_roc_year: number;
   updated_at: string;
 }
 
@@ -129,4 +141,55 @@ export interface CommentRow {
 
 export interface ApiErrorBody {
   error: { code: string; message: string; fields: Record<string, string[]> };
+}
+
+export interface CorporateDonorRank {
+  donor_id: number;
+  name: string;
+  kind: "company" | "group";
+  kind_label: string;
+  ubn: string;
+  total: number;
+  count: number;
+}
+
+export interface DonorSummary {
+  lists: number;
+  total_rows: number;
+  total_amount: number;
+  small_individual_count: number;
+  small_individual_amount: number;
+  anonymous_rows: number;
+  anonymous_amount: number;
+  threshold: number;
+}
+
+export interface DonorSummaryRow {
+  id: number;
+  name: string;
+  kind: "company" | "group";
+  kind_label: string;
+  ubn: string;
+  total: number;
+  org_count: number;
+  donation_count: number;
+}
+
+export interface DonorDetail extends DonorSummaryRow {
+  registered_name: string;
+  representative: string;
+  capital: number | null;
+  address: string;
+  organizations: { ubn: string; name: string; total: number; count: number }[];
+  donations: {
+    id: number;
+    donated_on: string | null;
+    amount: number;
+    purpose: string;
+    org_ubn: string;
+    org_name: string;
+    project_name: string;
+    source_name: string;
+    source_url: string;
+  }[];
 }

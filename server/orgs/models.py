@@ -1,3 +1,5 @@
+import re
+
 from django.core.validators import RegexValidator
 from django.db import models
 
@@ -77,12 +79,56 @@ class AnnualFundraising(SourceMixin):
         return f"{self.year} 年"
 
 
+class Donor(models.Model):
+    """清冊上的捐款人（企業、團體、大額個人）。小額個人與匿名不建捐款人，只進專案的清冊摘要。"""
+
+    class Kind(models.TextChoices):
+        COMPANY = "company", "企業"
+        GROUP = "group", "團體"
+        INDIVIDUAL = "individual", "個人"
+
+    PUBLIC_KINDS = (Kind.COMPANY, Kind.GROUP)
+
+    name = models.CharField("名稱", max_length=200, unique=True)
+    kind = models.CharField("類型", max_length=12, choices=Kind.choices, db_index=True)
+    kind_manual = models.BooleanField(
+        "類型由管理員指定", default=False, help_text="管理員改過類型就會勾起；重新分類時不會改掉。"
+    )
+    hidden = models.BooleanField(
+        "隱藏", default=False, help_text="勾選後前台一律不出現（排行、明細、搜尋），金額併入匿名摘要。用於當事人要求等情況。"
+    )
+    ubn = models.CharField("統一編號", max_length=8, blank=True, db_index=True)
+    registered_name = models.CharField("登記名稱", max_length=200, blank=True)
+    representative = models.CharField("代表人", max_length=100, blank=True)
+    capital = models.BigIntegerField("實收資本額", null=True, blank=True)
+    address = models.CharField("登記地址", max_length=300, blank=True)
+    registry_checked_at = models.DateTimeField("查過商工登記", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "捐款人"
+        verbose_name_plural = "捐款人"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def is_public(self) -> bool:
+        return self.kind in self.PUBLIC_KINDS and not self.hidden
+
+
 class Donation(SourceMixin):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="donations", verbose_name="組織")
+    donor = models.ForeignKey(Donor, on_delete=models.CASCADE, null=True, blank=True, related_name="donations", verbose_name="捐款人")
+    project = models.ForeignKey(
+        "Project", on_delete=models.CASCADE, null=True, blank=True, related_name="donations", verbose_name="專案"
+    )
     donor_name = models.CharField("捐款人名稱", max_length=200, blank=True)
     is_anonymous = models.BooleanField("匿名", default=False)
     amount = models.BigIntegerField("金額")
     donated_on = models.DateField("捐款日期", null=True, blank=True)
+    receipt_no = models.CharField("收據編號", max_length=50, blank=True)
+    purpose = models.CharField("捐贈用途", max_length=200, blank=True)
 
     class Meta:
         verbose_name = "捐款紀錄"
@@ -94,8 +140,11 @@ class Donation(SourceMixin):
 
     @property
     def public_donor_name(self) -> str:
-        """前台與 API 一律走這裡：匿名或沒填名字就是「匿名」。"""
-        return "匿名" if self.is_anonymous or not self.donor_name.strip() else self.donor_name
+        """前台與 API 一律走這裡：匿名、被隱藏、或沒填名字就是「匿名」。"""
+        if self.is_anonymous or (self.donor_id and self.donor.hidden):
+            return "匿名"
+        name = self.donor.name if self.donor_id else self.donor_name
+        return name.strip() or "匿名"
 
 
 class Project(SourceMixin):
@@ -108,9 +157,14 @@ class Project(SourceMixin):
     target = models.BigIntegerField("預募金額", null=True, blank=True)
     raised = models.BigIntegerField("實募金額", null=True, blank=True)
     permit_no = models.CharField("許可文號", max_length=100, blank=True)
+    region = models.CharField("活動地區", max_length=100, blank=True)
     result_filed_on = models.DateField("成果備查日期", null=True, blank=True)
     closed_filed_on = models.DateField("結案備查日期", null=True, blank=True)
     description = models.TextField("成果／說明", blank=True)
+    period_year = models.PositiveSmallIntegerField(
+        "年度（民國）", null=True, blank=True, db_index=True, editable=False,
+        help_text="依開始日期，沒有就看名稱開頭的年度、再沒有看成果備查日期；用來判斷是否在近 5 年內。",
+    )
 
     class Meta:
         verbose_name = "捐款專案"
@@ -120,14 +174,55 @@ class Project(SourceMixin):
     def __str__(self):
         return self.name
 
+    def compute_period_year(self) -> int | None:
+        if self.start_date:
+            return self.start_date.year - 1911
+        m = re.match(r"^\s*(\d{2,3})\s*年", self.name or "")
+        if m:
+            return int(m.group(1))
+        if self.result_filed_on:
+            return self.result_filed_on.year - 1911
+        return None
+
+    def save(self, *args, **kwargs):
+        self.period_year = self.compute_period_year()
+        if kwargs.get("update_fields") is not None:
+            kwargs["update_fields"] = {*kwargs["update_fields"], "period_year"}
+        super().save(*args, **kwargs)
+
+
+class DonorListSummary(models.Model):
+    """一份捐贈人清冊的摘要：小額個人與匿名只留數字，不存姓名。"""
+
+    project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name="donor_summary", verbose_name="專案")
+    total_rows = models.PositiveIntegerField("清冊總筆數", default=0)
+    total_amount = models.BigIntegerField("清冊總金額", default=0)
+    small_individual_count = models.PositiveIntegerField("小額個人人數", default=0)
+    small_individual_amount = models.BigIntegerField("小額個人金額", default=0)
+    anonymous_rows = models.PositiveIntegerField("匿名筆數", default=0)
+    anonymous_amount = models.BigIntegerField("匿名金額", default=0)
+    threshold = models.BigIntegerField("個人顯示門檻", default=0)
+    source_name = models.CharField("來源名稱", max_length=100, blank=True)
+    source_url = models.URLField("來源網址", max_length=500, blank=True)
+    updated_at = models.DateTimeField("更新時間", auto_now=True)
+
+    class Meta:
+        verbose_name = "捐贈人清冊摘要"
+        verbose_name_plural = "捐贈人清冊摘要"
+
+    def __str__(self):
+        return f"{self.project} 清冊摘要"
+
 
 class Penalty(SourceMixin):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="penalties", verbose_name="組織")
     external_id = models.CharField("來源編號", max_length=50, blank=True)
     decided_on = models.DateField("處分日期", null=True, blank=True)
     authority = models.CharField("處分機關", max_length=200, blank=True)
+    document_no = models.CharField("文號", max_length=200, blank=True)
     content = models.TextField("處分內容")
     fine_text = models.CharField("罰鍰", max_length=300, blank=True)
+    reason = models.TextField("處分理由", blank=True)
 
     class Meta:
         verbose_name = "受裁罰紀錄"

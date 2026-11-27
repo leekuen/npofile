@@ -46,21 +46,41 @@ export function PenaltyBadge({ count }: { count: number }) {
   );
 }
 
-export function scoreTone(score: number) {
-  if (score >= 70) return "bg-teal-700 text-white";
-  if (score >= 40) return "bg-teal-100 text-teal-900";
-  return "bg-slate-200 text-slate-800";
+/** 揭露指數的圓環顏色：只分「揭露得多／中等／少」，不做好壞評等 */
+export function scoreStroke(score: number) {
+  if (score >= 70) return "stroke-teal-600";
+  if (score >= 40) return "stroke-teal-400";
+  return "stroke-slate-400";
 }
 
+/** 揭露指數圓環：環的長度＝分數，中間是數字 */
 export function ScoreBadge({ score, size = "sm" }: { score: number; size?: "sm" | "lg" }) {
-  const dims = size === "lg" ? "h-20 w-20 text-3xl" : "h-11 w-11 text-base";
+  const lg = size === "lg";
+  const r = 16;
+  const c = 2 * Math.PI * r;
+  const pct = Math.max(0, Math.min(100, score));
   return (
     <span
-      className={`inline-flex shrink-0 flex-col items-center justify-center rounded-full font-bold tabular-nums ${dims} ${scoreTone(score)}`}
+      className={`relative inline-flex shrink-0 items-center justify-center ${lg ? "h-24 w-24" : "h-12 w-12"}`}
       title={`揭露指數 ${score} 分（滿分 100）`}
     >
-      {score}
-      {size === "lg" && <span className="text-xs font-medium">／100</span>}
+      <svg viewBox="0 0 40 40" className="absolute inset-0 -rotate-90" aria-hidden>
+        <circle cx="20" cy="20" r={r} fill="none" strokeWidth={lg ? 3.5 : 4} className="stroke-slate-200" />
+        <circle
+          cx="20"
+          cy="20"
+          r={r}
+          fill="none"
+          strokeWidth={lg ? 3.5 : 4}
+          strokeLinecap="round"
+          strokeDasharray={`${(pct / 100) * c} ${c}`}
+          className={scoreStroke(score)}
+        />
+      </svg>
+      <span className="relative flex flex-col items-center leading-none">
+        <span className={`font-bold tabular-nums text-slate-900 ${lg ? "text-3xl" : "text-sm"}`}>{score}</span>
+        {lg && <span className="mt-1 text-xs text-slate-500">／100</span>}
+      </span>
     </span>
   );
 }

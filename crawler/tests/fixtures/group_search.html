@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <!--連續數個 < !---- > 的使用，僅為了提供套版時視覺上的區隔，無其他用途-->
+    <meta charset="UTF-8"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <!-- default header name is X-CSRF-TOKEN -->
+    <meta name="_csrf" content=""/>
+    <meta name="_csrf_header" content=""/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="build-date" content="2026-11-25 14:10:29">
+    <meta name="app-version" content="20230805">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="sitename">
+    <meta property="og:description" content="description">
+    <meta property="og:url" content="url">
+    <meta property="og:image" content="og-image.png">
+    <title>勸募團體 | 公益勸募管理系統</title>
+
+    <link rel="shortcut icon" href="/app39/assets/favicon-a4ee112453d7d8b891324cd5b5b20068.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="/app39/assets/apple-touch-icon-5579d5aa0fafb65397f8e98f6f1649f8.png">
+
+
+    
+    <script type="text/javascript" nonce="TUkSHv2+J8y/X7eIczNCbA">
+        window.appname = '/app39';
+    </script>
+
+
+    <link rel="stylesheet" href="/app39/assets/front-132715dd4883effed6df5960e19f011e.css" />
+    <script type="text/javascript" src="/app39/assets/front-0e92bbb33eba4d126921a5d26ad30d07.js" nonce="TUkSHv2+J8y/X7eIczNCbA"></script>
+
+
+
+
+
+    <!-- HTML5 shim and Respond.js 讓 IE8 支援 HTML5 元素與媒體查詢 -->
+    <!-- 警告：Respond.js 無法在 file:// 協定下運作 -->
+    <!--[if lt IE 9] -->
+    <script type="text/javascript" src="/app39/assets/vendor/respond.min-678d372b349e434d9923e1b591f14a1e.js" nonce="TUkSHv2+J8y/X7eIczNCbA"></script>
+    <script type="text/javascript" src="/app39/assets/vendor/html5shiv-7861771525b46abe3f2b6e323eaa6f82.js" nonce="TUkSHv2+J8y/X7eIczNCbA"></script>
+    <!--[endif] -->
+    
+    <meta name="layout" content="bootstrap">
+    
+
+</head>
+
+<body>
+<noscript>偵測到您目前的瀏覽器未開啟JavaScript功能，在此情形下本網站無法正常使用，請開啟瀏覽器的JavaScript支援。</noscript>
+<!-- Body main wrapper start -->
+<script type="text/javascript" nonce="TUkSHv2+J8y/X7eIczNCbA">
+    //當滾動時關閉 datepicker
+    $(document).ready(function(){
+        $(window).scroll(
+            function(){
+                $(".datepicker").attr("style","display:none");
+            }
+        );
+
+        // 阻止 href="#" 的錨點跳頁頂行為
+        $(document).on('click', 'a.bi-item, a.table-extend', function(e){ e.preventDefault(); });
+
+        // 返回上一頁
+        $(document).on('click', '.goback', function(){ history.back(); });
+
+        // 清除查詢條件按鈕
+        $(document).on('click', '[data-action="clear-form"]', function(){ ClearForm(); });
+
+        // 觸發指定元素的 click（用於搜尋按鈕代理）
+        $(document).on('click', '[data-click-target]', function(){
+            var target = $(this).data('click-target');
+            $(target).trigger('click');
+        });
+
+        // 圖片載入失敗回退（error 事件不冒泡，必須直接綁定每個元素）
+        document.querySelectorAll('img[data-fallback-src]').forEach(function(img) {
+            if (img.complete && img.naturalHeight === 0) {
+                img.src = img.getAttribute('data-fallback-src');
+            } else {
+                img.addEventListener('error', function() {
+                    this.onerror = null;
+                    this.src = this.getAttribute('data-fallback-src');
+                });
+            }
+        });
+    });
+
+    //清除查詢條件
+    function ClearForm() {
+        jQuery('select').not(':disabled').not(':hidden').val('');
+        jQuery(':input[type=number]:not(:disabled):not(:hidden)').val('');
+        jQuery(':input[type=text]:not(:disabled):not(:hidden)').val('');
+        jQuery(':input[type=date]:not(:disabled):not(:hidden)').val('');
+        jQuery(':input[type=radio]:not(:disabled):not(:hidden)').removeAttr('checked');
+        jQuery(':input[type=checkbox]:not(:disabled)').removeAttr('checked');
+    }
+</script>
+<!-- header -->
+
+
+<!--網頁上方導覽區-->
+<a class="sr-only sr-only-focusable a18y-jump" href="#anchor-pageMain">跳到主要內容區塊</a>
+<nav class="navbar navbar-expand-xl navbar-light fixed-top" aria-label="主選單導覽">
+    <div class="container limited">
+        <h1 class="logo"><a class="navbar-brand" href="/app39/"><img src="/app39/assets/logo-f936dca3e426914cb305c9515b64e255.svg" alt=""><span class="sr-only">公益勸募管理系統</span></a></h1>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation"><span class="navbar-toggler-icon"></span></button>
+        <div class="collapse navbar-collapse" id="mainNavbar">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item ml-md-2">
+                    <a class="nav-link a11y-guidepoint" id="pageTop" href="#pageTop" accesskey="U" title="上方導覽連結區">:::</a>
+                </li>
+                <li class="nav-item ml-md-2 line-1 ">
+                    <a class="nav-link" href="/app39/">首頁</a>
+                </li>
+                <li class="nav-item ml-md-2 line-1 ">
+                    <a class="nav-link" href="/app39/sitemap/sitemapIndex">網站導覽</a>
+                </li>
+                <li class="nav-item ml-md-2 line-1 ">
+                    <a class="nav-link" href="/app39/faq/faqIndex">常見問題</a>
+                </li>
+                <li class="nav-item ml-md-2 line-1 ">
+                    <a class="nav-link" target="_blank" title="(另開新視窗)" href="https://pwfr.mohw.gov.tw/pwfr/register/index">帳號申請
+                        <span class="tip">另開新視窗</span>
+                    </a>
+                </li>
+                <li class="nav-item ml-md-2 line-1 login-btn">
+                    <a class="nav-link" target="_blank" title="(另開新視窗)" href="https://pwfr.mohw.gov.tw/pwfr/"><i class="mr-2 fa-regular fa-circle-user" aria-hidden="true"></i>帳號登入
+                        <span class="tip">另開新視窗</span>
+                    </a>
+                </li>
+                <li class="nav-item ml-md-2 line-2 ">
+                    <a class="nav-link" href="/app39/news/newsIndex">最新消息</a>
+                </li>
+                <li class="nav-item ml-md-2 line-2 ">
+                    <a class="nav-link" href="/app39/decree/decreeIndex">相關法令</a>
+                </li>
+                <li class="nav-item ml-md-2 dropdown line-2 ">
+                    <a class="nav-link dropdown-toggle" id="dropdown6" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">訊息公告</a>
+                    <div class="dropdown-menu" aria-labelledby="dropdown6">
+                        <a class="dropdown-item" href="/app39/training/trainingIndex">教育訓練</a>
+                        <a class="dropdown-item" href="/app39/disaster/disasterIndex">重大災害</a>
+                        <a class="dropdown-item" href="/app39/publicity/publicityIndex">宣導專區</a>
+                        <a class="dropdown-item" href="/app39/localinfo/localinfoIndex">直轄市、縣(市)主管機關</a>
+                        <a class="dropdown-item" href="/app39/statistics/statisticsIndex">統計資料</a>
+                    </div>
+                </li>
+                <li class="nav-item ml-md-2 dropdown line-2 ">
+                    <a class="nav-link dropdown-toggle" id="dropdown7" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">查詢專區</a>
+                    <div class="dropdown-menu" aria-labelledby="dropdown7">
+                        <a class="dropdown-item" href="/app39/fundactivity/fundactivityIndex">勸募活動</a>
+                        <a class="dropdown-item" href="/app39/fundgroup/fundgroupIndex">勸募團體</a>
+                        <a class="dropdown-item" href="/app39/ministryArea/ministryAreaIndex">相關部會專區</a>
+                    </div>
+                </li>
+                <li class="nav-item ml-md-2 line-2 ">
+                    <a class="nav-link" href="/app39/violation/violationIndex">違規公告</a>
+                </li>
+                <li class="nav-item ml-md-2 line-2 ">
+                    <a class="nav-link" href="/app39/datadl/datadlIndex">資料下載</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+<nav class="navbarline-secondary" aria-label="快捷連結導覽">
+    <div class="container limited-2">
+        <li class="nav-item ml-md-2 line-2">
+            <a class="nav-link" href="/app39/news/newsIndex">最新消息</a>
+        </li>
+        <li class="nav-item ml-md-2 line-2 ">
+            <a class="nav-link" href="/app39/decree/decreeIndex">相關法令</a>
+        </li>
+        <li class="nav-item ml-md-2 dropdown line-2">
+            <a class="nav-link dropdown-toggle" id="dropdown6" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">訊息公告</a>
+            <div class="dropdown-menu" aria-labelledby="dropdown6">
+                <a class="dropdown-item" href="/app39/training/trainingIndex">教育訓練</a>
+                <a class="dropdown-item" href="/app39/disaster/disasterIndex">重大災害</a>
+                <a class="dropdown-item" href="/app39/publicity/publicityIndex">宣導專區</a>
+                <a class="dropdown-item" href="/app39/localinfo/localinfoIndex">直轄市、縣(市)主管機關</a>
+                <a class="dropdown-item" href="/app39/statistics/statisticsIndex">統計資料</a>
+            </div>
+        </li>
+        <li class="nav-item ml-md-2 dropdown line-2"><a class="nav-link dropdown-toggle" id="dropdown7" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">查詢專區</a>
+            <div class="dropdown-menu" aria-labelledby="dropdown7">
+                <a class="dropdown-item" href="/app39/fundactivity/fundactivityIndex">勸募活動</a>
+                <a class="dropdown-item" href="/app39/fundgroup/fundgroupIndex">勸募團體</a>
+                <a class="dropdown-item" href="/app39/ministryArea/ministryAreaIndex">相關部會專區</a>
+            </div>
+        </li>
+        <li class="nav-item ml-md-2 line-2 ">
+            <a class="nav-link" href="/app39/violation/violationIndex">違規公告</a>
+        </li>
+        <li class="nav-item ml-md-2 line-2">
+            <a class="nav-link" href="/app39/datadl/datadlIndex">資料下載</a>
+        </li>
+    </div>
+</nav>
+<div class="navbarcover-top"></div>
+
+
+<main>
+    
+<!-- 社群媒體連結-->
+<div class="container-fluid container-lg">
+    <div class="sociallink">
+        <div class="sociallink-box">
+            <div class="sociallink-box2">
+                <a class="socialbox" href="https://social-plugins.line.me/lineit/share?url=https://www.google.com.tw/" target="_blank" title="line(另開新視窗)" aria-label="分享到 LINE（另開新視窗）">
+                    <img class="img-fluid" src="/app39/assets/line-976eb1e0388411fe1e9f6eac6d50ae8d.svg" alt="line">
+                    <span class="sr-only">分享到 LINE（另開新視窗）</span>
+                </a>
+                <a class="socialbox" href="https://www.facebook.com/sharer/sharer.php?u=https://www.google.com.tw/" target="_blank" title="fb(另開新視窗)" aria-label="分享到 Facebook（另開新視窗）">
+                    <img class="img-fluid" src="/app39/assets/fb-5ab433fc7cbdbe7ac06a4b878f06207b.svg" alt="fb">
+                    <span class="sr-only">分享到 Facebook（另開新視窗）</span>
+                </a>
+                <a class="socialbox" href="https://twitter.com/intent/tweet?url=https://www.google.com.tw/&text=Check%20out%20this%20link!" target="_blank" title="twitter(另開新視窗)" aria-label="分享到 X（另開新視窗）">
+                    <img class="img-fluid" src="/app39/assets/twitter_x-20838053ea7df30339d9ea7868c73975.svg" alt="twitter">
+                    <span class="sr-only">分享到 X（另開新視窗）</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="global-wrapper">
+    <div class="main-content inner-bg">
+        <div class="inner-box container">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a class="a11y-guidepoint" id="pageCenter" href="#pageCenter" accesskey="C" title="中央內容區塊">:::</a>
+                        <a href="/app39/">
+                            <img class="home-icon" src="/app39/assets/home-lg-67b0837f873f8d4e6da5403e2b0ef0c6.svg" alt="">首頁
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item">查詢專區</li>
+                    <li class="breadcrumb-item active" aria-current="page">勸募團體</li>
+                </ol>
+            </nav>
+            <div class="inner-ui-bg fundgroup" id="anchor-pageMain">
+                <div class="inner-title title-box">
+                    <h2 class="title-main"> <img class="t-icon mt-1" src="/app39/assets/group-2008b595fde472a05031064f5ce765ec.svg" alt="">
+                        <div class="title">勸募團體</div>
+                    </h2>
+                </div>
+                <form action="/app39/fundgroup/index" method="post" name="ae6f2767-aff4-4bc2-92dc-1ec79ef3b831" class="inner-head-center" id="ae6f2767-aff4-4bc2-92dc-1ec79ef3b831" >
+<input type="hidden" name="SYNCHRONIZER_TOKEN" value="317c841b-552f-448b-8733-36238b3b504c" id="SYNCHRONIZER_TOKEN" />
+<input type="hidden" name="SYNCHRONIZER_URI" value="/app39/fundgroup/fundgroupIndex" id="SYNCHRONIZER_URI" />
+                    <input type="hidden" name="_csrf" value="" id="_csrf" />
+                    <input type="hidden" name="_csrf_header" value="" id="_csrf_header" />
+                    <div class="search-box-column gap-1">
+                        <div class="input-date-row">
+                            <div class="from-day input-box one-column">
+                                <label class="items" for="qdisplayName">勸募團體</label>
+                                <input type="text" name="qdisplayName" class="form-control" value="社團法人台灣愛克特動物重生救援協會" widthInForm="half" title="請填入勸募團體" id="qdisplayName" />
+                            </div>
+                        </div>
+                        <div class="input-date-row">
+                            <div class="active-name input-box">
+                                <label class="items" for="qubno">統一編號</label>
+                                <input type="text" name="qubno" class="form-control" value="" widthInForm="half" title="請填入統一編號" id="qubno" />
+                            </div>
+                        </div>
+                        <div class="input-date-row">
+                            <div class="type input-box">
+                                <label class="input-label items" for="qorgType">團體類型</label>
+                                <div class="checkbox-row">
+                                    
+                                        <div class="checkbox icheck-carrot">
+                                            <div class='icheck-alizarin form-check form-check-inline'><input type="hidden" name="_qorgtype" /><input type="checkbox" name="qorgtype" value="1" id="qorgtype.1" label="公立學校"  />
+  <label for='qorgtype.1' class='form-check-label radio-label'>&nbsp公立學校</label>
+</div>
+                                        </div>
+                                    
+                                        <div class="checkbox icheck-carrot">
+                                            <div class='icheck-alizarin form-check form-check-inline'><input type="hidden" name="_qorgtype" /><input type="checkbox" name="qorgtype" value="2" id="qorgtype.2" label="行政法人"  />
+  <label for='qorgtype.2' class='form-check-label radio-label'>&nbsp行政法人</label>
+</div>
+                                        </div>
+                                    
+                                        <div class="checkbox icheck-carrot">
+                                            <div class='icheck-alizarin form-check form-check-inline'><input type="hidden" name="_qorgtype" /><input type="checkbox" name="qorgtype" value="3" id="qorgtype.3" label="公益性社團法人"  />
+  <label for='qorgtype.3' class='form-check-label radio-label'>&nbsp公益性社團法人</label>
+</div>
+                                        </div>
+                                    
+                                        <div class="checkbox icheck-carrot">
+                                            <div class='icheck-alizarin form-check form-check-inline'><input type="hidden" name="_qorgtype" /><input type="checkbox" name="qorgtype" value="4" id="qorgtype.4" label="財團法人"  />
+  <label for='qorgtype.4' class='form-check-label radio-label'>&nbsp財團法人</label>
+</div>
+                                        </div>
+                                    
+                                </div>
+                            </div>
+                        </div>
+                        <div class="input-date-row">
+                            <div class="type input-box">
+                                <label class="input-label items">勸募用途</label>
+                                <div class="checkbox-row">
+                                    
+                                        <div class="checkbox icheck-carrot">
+                                            <div class='icheck-alizarin form-check form-check-inline'><input type="hidden" name="_qpurpose" /><input type="checkbox" name="qpurpose" value="01" id="qpurpose.01" label="社會福利事業/社會慈善事業"  />
+  <label for='qpurpose.01' class='form-check-label radio-label'>&nbsp社會福利事業/社會慈善事業</label>
+</div>
+                                        </div>
+                                    
+                                        <div class="checkbox icheck-carrot">
+                                            <div class='icheck-alizarin form-check form-check-inline'><input type="hidden" name="_qpurpose" /><input type="checkbox" name="qpurpose" value="02" id="qpurpose.02" label="教育事業"  />
+  <label for='qpurpose.02' class='form-check-label radio-label'>&nbsp教育事業</label>
+</div>
+                                        </div>
+                                    
+                                        <div class="checkbox icheck-carrot">
+                                            <div class='icheck-alizarin form-check form-check-inline'><input type="hidden" name="_qpurpose" /><input type="checkbox" name="qpurpose" value="03" id="qpurpose.03" label="文化事業"  />
+  <label for='qpurpose.03' class='form-check-label radio-label'>&nbsp文化事業</label>
+</div>
+                                        </div>
+                                    
+                                        <div class="checkbox icheck-carrot">
+                                            <div class='icheck-alizarin form-check form-check-inline'><input type="hidden" name="_qpurpose" /><input type="checkbox" name="qpurpose" value="07" id="qpurpose.07" label="援外或國際人道救援"  />
+  <label for='qpurpose.07' class='form-check-label radio-label'>&nbsp援外或國際人道救援</label>
+</div>
+                                        </div>
+                                    
+                                        <div class="checkbox icheck-carrot">
+                                            <div class='icheck-alizarin form-check form-check-inline'><input type="hidden" name="_qpurpose" /><input type="checkbox" name="qpurpose" value="04" id="qpurpose.04" label="醫療保健事業"  />
+  <label for='qpurpose.04' class='form-check-label radio-label'>&nbsp醫療保健事業</label>
+</div>
+                                        </div>
+                                    
+                                        <div class="checkbox icheck-carrot">
+                                            <div class='icheck-alizarin form-check form-check-inline'><input type="hidden" name="_qpurpose" /><input type="checkbox" name="qpurpose" value="05" id="qpurpose.05" label="環境保護事業"  />
+  <label for='qpurpose.05' class='form-check-label radio-label'>&nbsp環境保護事業</label>
+</div>
+                                        </div>
+                                    
+                                        <div class="checkbox icheck-carrot">
+                                            <div class='icheck-alizarin form-check form-check-inline'><input type="hidden" name="_qpurpose" /><input type="checkbox" name="qpurpose" value="06" id="qpurpose.06" label="動物保護事業"  />
+  <label for='qpurpose.06' class='form-check-label radio-label'>&nbsp動物保護事業</label>
+</div>
+                                        </div>
+                                    
+                                        <div class="checkbox icheck-carrot">
+                                            <div class='icheck-alizarin form-check form-check-inline'><input type="hidden" name="_qpurpose" /><input type="checkbox" name="qpurpose" value="08" id="qpurpose.08" label="其他經主管機關認定之事業"  />
+  <label for='qpurpose.08' class='form-check-label radio-label'>&nbsp其他經主管機關認定之事業</label>
+</div>
+                                        </div>
+                                    
+                                </div>
+                            </div>
+                        </div>
+                        <div class="search">
+                            <input class="btn clean-btn" type="button" value="清除" data-action="clear-form">
+                            <input type="submit" name="_action_fundgroupSearch" value="查詢" class="btn search-btn" controller="fundgroup" />
+                        </div>
+                    </div>
+                </form>
+                <hr>
+                
+                    <div class="card-box">
+                        
+                            <a class="card-style card-sg" href="/app39/fundgroup/fundgroupDetails/8697" title="社團法人台灣愛克特動物重生救援協會">
+                                <div class="card-sg-left">
+                                    
+                                    <div class="sg-color-card" id="sg_color_8697">
+                                        <div class="sgcc-text">社團法人台灣愛克特動物重生救援協會</div>
+                                    </div>
+                                    
+
+
+
+
+
+
+
+
+                                </div>
+                                <div class="card-sg-right">
+                                    <div class="card-sg-rtop">
+                                        <div class="sg-group">社團法人台灣愛克特動物重生救援協會</div>
+                                        <div class="sg-uniform-numbers">統一編號：85201366</div>
+                                        <div class="sg-group-type">團體類型：公益性社團法人</div>
+                                    </div>
+                                    <div class="card-sg-rbottom">
+                                        <div class="sg-labels">
+                                            
+                                            
+                                                <div class="sg-label">動物保護事業</div>
+                                            
+                                        </div>
+                                    </div>
+                                </div>
+                            </a>
+                            <script type="text/javascript" nonce="TUkSHv2+J8y/X7eIczNCbA">
+                                
+                                $(document).ready(function(){
+                                    let colorArray = ["orange","amber","lime","teal","indigo","purple","brown","green","cyan","pink"]
+                                    let randomNb = Math.floor( Math.random() * colorArray.length )
+                                    $("#sg_color_8697").addClass("sgcc-"+colorArray[randomNb]);
+                                })
+                            </script>
+                        
+                    </div>
+                
+                <nav class="text-center" aria-label="...">
+                    <ul class="pagination">
+                        
+<script type="text/javascript" nonce="TUkSHv2+J8y/X7eIczNCbA">
+    var w =$(window).width();
+    checkWidth();
+    function checkWidth(){
+        w =$(window).width();
+        if(w < 992){
+            // console.log($(".pagination a").hasClass("prevLink"))
+            // console.log($(".pagination a").hasClass("nextLink"))
+            if($(".pagination a").hasClass("prevLink")){
+                $(".pagination").removeClass('currentStep-md-before');
+                // console.log("hasClassPP")
+            }else{
+                $(".pagination").addClass('currentStep-md-before');
+                // console.log("NoClassPP")
+            }
+            if($(".pagination a").hasClass("nextLink")){
+                $(".pagination").removeClass('currentStep-md-after');
+                // console.log("hasClassNN")
+            }else{
+                $(".pagination").addClass('currentStep-md-after');
+                // console.log("NoClassNN")
+            }
+
+        }else{
+            $(".pagination").removeClass('currentStep-md-before');
+            $(".pagination").removeClass('currentStep-md-after');
+        }
+
+    }
+    $(window).resize(checkWidth);
+</script>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+</main>
+
+<!-- footer -->
+
+
+<!--頁尾區域-網站聯絡資訊-->
+<footer class="footer">
+    <div class="info container">
+        <div class="title">
+            <a class="a11y-guidepoint mr-2" id="pageBottom" href="#pageBottom" accesskey="Z" title="頁尾網站資訊">:::</a>
+            衛生福利部 | 公益勸募管理系統
+        </div>
+        <div class="relevant">
+            <div class="Views">總瀏覽人次：15,738,417</div>
+            <div class="address">地址：11558台北市南港區忠孝東路6段488號</div>
+        </div>
+        <div class="content mw-limited">
+            <div class="content-box">
+                <div class="content-info">勸募活動案件申請/審查進度、計畫變更、法令諮詢、系統報修，及相關通案性問題</div>
+                <div class="content-connect">
+                    <div class="phone connect"><i class="icon-circle fa-solid fa-phone-flip" aria-hidden="true"></i>
+                        (02)8590-6991</div>
+                    <div class="email connect"><i class="icon-circle fa-solid fa-envelope" aria-hidden="true"></i>
+                        donate&#64;wezoomtek.com.tw</div>
+                </div>
+            </div>
+            <div class="content-box">
+                <div class="content-info">會計師查核、專戶/成果/結案備查、勸募所得財物之會計帳務等問題，請洽資誠聯合會計師事務所</div>
+                <div class="content-connect">
+                    <div class="phone connect"><i class="icon-circle fa-solid fa-phone-flip" aria-hidden="true"></i>
+                        (02)2729-6666#22003 周小姐 / (02)2729-6666#23648 張小姐</div>
+                    <div class="email connect"><i class="icon-circle fa-solid fa-envelope" aria-hidden="true"></i>
+                        janice.chou&#64;pwc.com / olive.chang&#64;pwc.com</div>
+                </div>
+            </div>
+            
+
+
+
+
+
+
+
+            
+            <a class="cert" href="https://accessibility.moda.gov.tw/Applications/Detail?category=20241113135240" target="_blank" title="無障礙網站(另開新視窗)" aria-label="AAA 無障礙標章（另開新視窗）"><img src="/app39/assets/cert-AAA-526bac8037b74c22796631109bf4df94.svg" alt="AAA無障礙標章"><span class="sr-only">AAA 無障礙標章（另開新視窗）</span></a>
+        </div>
+    </div>
+    <div class="copyright">
+        <div class="content mw-limited">瀏覽器建議使用 Google Chrome, Microsoft Edge 或 FireFox 最新版本</div>
+    </div>
+</footer>
+
+
+
+
+</body>
+</html>

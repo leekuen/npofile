@@ -25,7 +25,8 @@ def mohw_items():
 class SourceSeedTests(TestCase):
     def test_sources_seeded_after_migrate(self):
         self.assertEqual(
-            dict(CrawlerSource.objects.values_list("key", "auto_approve")), {"fia": True, "mohw": True}
+            dict(CrawlerSource.objects.values_list("key", "auto_approve")),
+            {"fia": True, "mohw": True, "mohw_activities": True, "mohw_violations": True},
         )
 
 

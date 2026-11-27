@@ -10,6 +10,7 @@ from datetime import date
 from django.db.models import Count, Q, QuerySet
 from django.utils import timezone
 
+from . import period
 from .models import Organization
 
 BASIC_FIELDS = ("ubn", "org_type", "address", "phone", "website", "purposes")
@@ -31,11 +32,6 @@ def five_years_ago(ref: date | None = None) -> date:
         return ref.replace(year=ref.year - 5, day=28)
 
 
-def recent_roc_years(ref: date | None = None) -> range:
-    ry = (ref or today()).year - 1911
-    return range(ry - 4, ry + 1)
-
-
 def penalty_5y_filter(prefix: str = "") -> Q:
     return Q(**{f"{prefix}decided_on__gte": five_years_ago()})
 
@@ -48,6 +44,8 @@ def breakdown(org: Organization, annual=None, donations_exist=None, projects=Non
     """回傳四項分數與總分。annual/projects 可傳入已預先載入的清單，避免重複查詢。"""
     annual = list(org.annual_records.all()) if annual is None else annual
     projects = list(org.projects.all()) if projects is None else projects
+    since = period.since_roc_year(ref)
+    projects = [p for p in projects if period.in_window(p.period_year, ref)]
     if donations_exist is None:
         donations_exist = org.donations.exists()
 
@@ -61,8 +59,7 @@ def breakdown(org: Organization, annual=None, donations_exist=None, projects=Non
     }
     basic = sum(BASIC_POINTS for f in BASIC_FIELDS if present[f])
 
-    years = set(recent_roc_years(ref))
-    has_fundraising = donations_exist or any(a.year in years and (a.raised or 0) > 0 for a in annual)
+    has_fundraising = donations_exist or any(a.year >= since and (a.raised or 0) > 0 for a in annual)
     fundraising = FUNDRAISING_POINTS if has_fundraising else 0
 
     project = PROJECT_POINTS if projects else 0
@@ -90,7 +87,9 @@ def breakdown(org: Organization, annual=None, donations_exist=None, projects=Non
 def recompute(orgs: QuerySet[Organization] | None = None, chunk: int = 2000) -> int:
     """重算揭露指數並寫回；回傳有變動的組織數。"""
     qs = (orgs if orgs is not None else Organization.objects.all()).order_by("pk")
-    qs = qs.prefetch_related("annual_records", "projects").annotate(_donations=Count("donations"))
+    qs = qs.prefetch_related("annual_records", "projects").annotate(
+        _donations=Count("donations", filter=period.donation_q("donations__"))
+    )
     changed = 0
     batch: list[Organization] = []
     for org in qs.iterator(chunk_size=chunk):
