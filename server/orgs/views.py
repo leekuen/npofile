@@ -1,15 +1,15 @@
 import re
 
 from django.conf import settings
-from django.db.models import Prefetch, Q
+from django.db.models import OuterRef, Prefetch, Q, Subquery
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.generics import ListAPIView
 from npofile_crawler.donors import identity_key
 from rest_framework.response import Response
 
-from . import category_api, donor_rules, period, scoring
-from .models import AnnualFundraising, Donor, Grant, Organization, Project
+from . import category_api, donor_rules, home, period, scoring
+from .models import AnnualFundraising, Donor, FinancialYear, Grant, OrgDocument, Organization, Project
 from .serializers import (
     DonorDetailSerializer,
     DonorListSerializer,
@@ -43,6 +43,13 @@ class OrganizationList(ListAPIView):
         if status := params.get("status", "").strip():
             qs = qs.filter(status=status)
         qs = category_api.filter_orgs(qs, params)
+        # 卡片上的「總收入（民國 N 年度）」：近 5 年內、有總收入的最近一年（LK-17）
+        latest = FinancialYear.objects.filter(
+            period.annual_q(), organization=OuterRef("pk"), total_revenue__isnull=False
+        ).order_by("-year")
+        qs = qs.annotate(
+            fin_year=Subquery(latest.values("year")[:1]), fin_revenue=Subquery(latest.values("total_revenue")[:1])
+        )
         ordering = ORDERINGS.get(params.get("ordering", DEFAULT_ORDERING), ORDERINGS[DEFAULT_ORDERING])
         return scoring.with_penalty_count(qs).prefetch_related("categories").order_by(*ordering)
 
@@ -52,6 +59,8 @@ def organization_detail(request, ubn):
     qs = scoring.with_penalty_count(
         Organization.objects.prefetch_related(
             Prefetch("annual_records", queryset=AnnualFundraising.objects.filter(period.annual_q())),
+            Prefetch("financials", queryset=FinancialYear.objects.filter(period.annual_q())),
+            Prefetch("documents", queryset=OrgDocument.objects.filter(period.annual_q())),
             Prefetch("projects", queryset=Project.objects.filter(period.project_q())),
             "penalties",
             Prefetch("grants", queryset=Grant.objects.filter(period.grant_q())),
@@ -120,3 +129,15 @@ class DonorList(ListAPIView):
 def donor_detail(request, pk):
     donor = get_object_or_404(donor_rules.public_donors(), pk=pk)
     return Response(DonorDetailSerializer(donor).data)
+
+
+@api_view(["GET"])
+def home_discover(request):
+    """首頁探索區：快截止的募款、最新裁罰、企業捐款（LK-18）。"""
+    return Response(home.discover())
+
+
+@api_view(["GET"])
+def home_picks(request):
+    """首頁領域區：選了領域或服務對象時的組織（LK-18）；沒有可看的分類回 {"picks": null}。"""
+    return Response({"picks": home.field_picks(request.query_params)})

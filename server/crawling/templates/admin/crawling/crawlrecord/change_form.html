@@ -1,0 +1,13 @@
+{% extends "admin/change_form.html" %}
+{% comment %}審核頁：待審核的紀錄直接在這頁核准或退回，不用回列表勾選（LK-17）{% endcomment %}
+{% block submit_buttons_bottom %}
+  {% if original and original.status == "pending" %}
+    <div class="submit-row">
+      <input type="submit" class="default" name="_approve" value="核准並上架">
+      <input type="submit" name="_reject" value="退回（不上架）">
+      <input type="submit" name="_continue" value="只存審核備註">
+    </div>
+  {% else %}
+    {{ block.super }}
+  {% endif %}
+{% endblock %}

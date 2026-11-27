@@ -314,3 +314,84 @@ class OrgCategory(models.Model):
         from .taxonomy import LABELS
 
         return LABELS.get(self.code, self.code)
+
+
+class OrgDocument(models.Model):
+    """組織官網上公開的報告檔（LK-17）：財務報告、年報、工作／成果報告。只收近 5 年，年度看 period.annual_q。"""
+
+    class Kind(models.TextChoices):
+        FINANCIAL = "financial", "財務報告"
+        ANNUAL = "annual", "年報"
+        WORK = "work", "工作／成果報告"
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="documents", verbose_name="組織")
+    year = models.PositiveSmallIntegerField("年度（民國）", db_index=True)
+    kind = models.CharField("種類", max_length=10, choices=Kind.choices)
+    title = models.CharField("標題", max_length=200)
+    url = models.URLField("檔案網址", max_length=1000)
+    found_on = models.URLField("在哪一頁找到", max_length=1000, blank=True)
+    source_name = models.CharField("來源名稱", max_length=100, blank=True)
+    created_at = models.DateTimeField("收錄時間", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "報告文件"
+        verbose_name_plural = "報告文件"
+        ordering = ["-year", "kind", "title"]
+        constraints = [models.UniqueConstraint(fields=["organization", "url"], name="uniq_org_document_url")]
+
+    def __str__(self):
+        return f"{self.year} {self.title}"
+
+
+class FinancialYear(models.Model):
+    """一個組織一個會計年度的財務摘要（LK-17），欄位參照 Candid 的 Financials：收入、支出、資產負債。
+
+    金額都是新臺幣元；報告沒列的留空（不是 0）。管理員在後台改過就勾 locked，爬蟲不再覆蓋。"""
+
+    class Method(models.TextChoices):
+        AI = "ai", "AI 讀取報告"
+        MANUAL = "manual", "管理員輸入"
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="financials", verbose_name="組織")
+    year = models.PositiveSmallIntegerField("年度（民國）", db_index=True)
+    # 收入
+    total_revenue = models.BigIntegerField("總收入", null=True, blank=True)
+    contributions = models.BigIntegerField("捐款收入", null=True, blank=True)
+    government_grants = models.BigIntegerField("政府補助", null=True, blank=True)
+    program_service_revenue = models.BigIntegerField("業務／服務收入", null=True, blank=True)
+    investment_income = models.BigIntegerField("利息與投資收入", null=True, blank=True)
+    other_revenue = models.BigIntegerField("其他收入", null=True, blank=True)
+    # 支出
+    total_expenses = models.BigIntegerField("總支出", null=True, blank=True)
+    program_expenses = models.BigIntegerField("業務／服務支出", null=True, blank=True)
+    admin_expenses = models.BigIntegerField("行政管理支出", null=True, blank=True)
+    fundraising_expenses = models.BigIntegerField("募款支出", null=True, blank=True)
+    # 餘絀與資產負債
+    surplus = models.BigIntegerField("本期餘絀", null=True, blank=True)
+    total_assets = models.BigIntegerField("年底資產總額", null=True, blank=True)
+    total_liabilities = models.BigIntegerField("年底負債總額", null=True, blank=True)
+    net_assets = models.BigIntegerField("年底淨資產", null=True, blank=True)
+    audited = models.BooleanField("經會計師查核", null=True, blank=True)
+    document_url = models.URLField("數字出自哪份報告", max_length=1000, blank=True)
+    document_title = models.CharField("報告標題", max_length=200, blank=True)
+    method = models.CharField("怎麼來的", max_length=10, choices=Method.choices, default=Method.MANUAL)
+    notes = models.CharField("備註", max_length=300, blank=True)
+    locked = models.BooleanField("管理員改過（爬蟲不覆蓋）", default=False)
+    source_name = models.CharField("來源名稱", max_length=100, blank=True)
+    updated_at = models.DateTimeField("更新時間", auto_now=True)
+
+    class Meta:
+        verbose_name = "年度財務"
+        verbose_name_plural = "年度財務"
+        ordering = ["-year"]
+        constraints = [models.UniqueConstraint(fields=["organization", "year"], name="uniq_financial_year")]
+
+    def __str__(self):
+        return f"{self.year} 年度財務"
+
+    @property
+    def program_expense_ratio(self) -> int | None:
+        """業務支出占比（%）：業務支出 ÷ 總支出，口徑見 tickets/LK-17〈數字口徑〉。"""
+        if not self.total_expenses or self.program_expenses is None:
+            return None
+        return round(self.program_expenses * 100 / self.total_expenses)

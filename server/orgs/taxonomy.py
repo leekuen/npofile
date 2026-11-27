@@ -50,7 +50,9 @@ FIELDS: tuple[Category, ...] = (
         Category("education.special", "特殊教育", Rule(r"特殊教育|特教|啟智|啟聰|啟明")),
         Category("education.reading", "閱讀與圖書", Rule(r"閱讀|圖書|讀書會|書屋|繪本")),
         Category("education.vocational", "技職培力", Rule(r"技職|職業訓練|技能|職能")),
-        Category("education.research", "學術研究", Rule(r"研究|學術")),
+        # 「研究」單獨出現太廣（命理研究學會、咖啡研究協會、癌症臨床研究基金會都會中）：只認學術與研究院／中心／所，醫療與命理類排除（LK-21）
+        Category("education.research", "學術研究", Rule(
+            r"學術|研究(院|中心|所)", unless=r"醫|癌|臨床|病|藥|命理|紫微|斗數|風水|易經|五術|姓名學|卜卦")),
     )),
     Category("culture", "文化藝術", Rule(r"文化|藝文|藝術|文史"), (
         Category("culture.ethnic", "族群文化", Rule(r"原住民.*(文化|藝術|傳統|語言|歌舞|樂舞)|客家|族群|部落.*文化|族語|新住民文化")),

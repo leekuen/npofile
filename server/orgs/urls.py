@@ -4,6 +4,8 @@ from . import category_api, views
 
 urlpatterns = [
     path("stats", views.stats, name="stats"),
+    path("home/discover", views.home_discover, name="home-discover"),
+    path("home/picks", views.home_picks, name="home-picks"),
     path("filters", views.filters, name="filters"),
     path("orgs", views.OrganizationList.as_view(), name="org-list"),
     path("orgs/<str:ubn>", views.organization_detail, name="org-detail"),

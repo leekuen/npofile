@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from . import category_api, donor_rules, period, scoring
-from .models import AnnualFundraising, Donation, Donor, Grant, Organization, Penalty, Project
+from .models import AnnualFundraising, Donation, Donor, FinancialYear, Grant, OrgDocument, Organization, Penalty, Project
 
 RECENT_DONATIONS = 50
 DONOR_DETAIL_DONATIONS = 200
@@ -11,13 +11,18 @@ class OrganizationListSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source="get_status_display")
     penalty_count_5y = serializers.IntegerField()
     tags = serializers.SerializerMethodField()
+    latest_revenue = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
         fields = (
             "ubn", "name", "org_type", "city", "status", "status_label", "disclosure_score", "penalty_count_5y",
-            "public_raised_5y", "tags",
+            "public_raised_5y", "tags", "latest_revenue",
         )
+
+    def get_latest_revenue(self, obj):
+        year = getattr(obj, "fin_year", None)
+        return {"year": year, "total_revenue": obj.fin_revenue} if year is not None else None
 
     def get_tags(self, obj):
         return category_api.short_tags(obj)
@@ -36,11 +41,32 @@ class AnnualSerializer(serializers.ModelSerializer):
         return round(obj.raised * 100 / obj.target, 1)
 
 
+class FinancialYearSerializer(serializers.ModelSerializer):
+    program_expense_ratio = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = FinancialYear
+        fields = (
+            "year", "total_revenue", "contributions", "government_grants", "program_service_revenue",
+            "investment_income", "other_revenue", "total_expenses", "program_expenses", "admin_expenses",
+            "fundraising_expenses", "surplus", "total_assets", "total_liabilities", "net_assets",
+            "program_expense_ratio", "audited", "method", "document_url", "document_title",
+        )
+
+
+class OrgDocumentSerializer(serializers.ModelSerializer):
+    kind_label = serializers.CharField(source="get_kind_display")
+
+    class Meta:
+        model = OrgDocument
+        fields = ("id", "year", "kind", "kind_label", "title", "url", "found_on")
+
+
 class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = (
-            "id", "name", "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
+            "id", "external_id", "name", "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
             "result_filed_on", "closed_filed_on", "description", "source_name", "source_url",
             "channel", "monthly_raised", "backers",
         )
@@ -85,6 +111,8 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     score = serializers.SerializerMethodField()
     public_raised = serializers.SerializerMethodField()
     annual_records = AnnualSerializer(many=True)
+    financials = FinancialYearSerializer(many=True)
+    documents = OrgDocumentSerializer(many=True)
     projects = ProjectSerializer(many=True)
     penalties = PenaltySerializer(many=True)
     grants = GrantSerializer(many=True)
@@ -100,7 +128,8 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
         fields = (
             "ubn", "name", "org_type", "representative", "registered_address", "contact_address", "phone",
             "website", "city", "purposes", "status", "status_label", "source_links", "disclosure_score",
-            "penalty_count_5y", "score", "public_raised", "annual_records", "projects", "penalties", "grants", "donations",
+            "penalty_count_5y", "score", "public_raised", "annual_records", "financials", "documents", "projects",
+            "penalties", "grants", "donations",
             "corporate_donors", "individual_donors", "donor_summary", "since_roc_year", "categories",
             "updated_at",
         )

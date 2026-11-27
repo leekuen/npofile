@@ -137,3 +137,7 @@ CRAWLER_MIN_INTERVAL = float(os.environ.get("CRAWLER_MIN_INTERVAL", "1.0"))
 
 # 捐贈人清冊：個人在同一活動累計達這個金額才存姓名並顯示（口徑見 tickets/LK-06）
 DONOR_INDIVIDUAL_THRESHOLD = int(os.environ.get("DONOR_INDIVIDUAL_THRESHOLD", "100000"))
+
+# 組織官網財報（LK-17）：設了 API 金鑰才用 Claude 讀報告 PDF 裡的數字（會產生費用）；沒設只收報告清單
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+FINANCIAL_EXTRACT_MODEL = os.environ.get("FINANCIAL_EXTRACT_MODEL", "claude-opus-5-5")
