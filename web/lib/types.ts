@@ -50,6 +50,8 @@ export interface Annual {
 
 export interface Project {
   id: number;
+  /** 來源上的編號（衛福部活動編號）：首頁的卡片連到 `?tab=projects#p-<這個>`（LK-18） */
+  external_id: string;
   name: string;
   category: string;
   start_date: string | null;
@@ -297,4 +299,56 @@ export interface CategoryOverview {
     org_name: string;
   }[];
   penalty_total: number;
+}
+
+/** 首頁探索區（LK-18） */
+export interface DiscoverEnding {
+  project_id: string;
+  name: string;
+  end_date: string;
+  target: number;
+  days_left: number;
+  org_ubn: string;
+  org_name: string;
+  org_score: number;
+}
+
+export interface DiscoverPenalty {
+  decided_on: string;
+  /** 白話的違規類型；歸不進去是空字串 */
+  kind: string;
+  fine_text: string;
+  org_ubn: string;
+  org_name: string;
+}
+
+export interface DiscoverGift {
+  donated_on: string;
+  amount: number;
+  donor_id: number;
+  donor_name: string;
+  org_ubn: string;
+  org_name: string;
+}
+
+export interface Discover {
+  ending: DiscoverEnding[];
+  penalties: DiscoverPenalty[];
+  gifts: DiscoverGift[];
+}
+
+/** 首頁領域區（LK-18） */
+export interface FieldPickOrg {
+  ubn: string;
+  name: string;
+  city: string;
+  score: number;
+  raised_5y: number;
+  campaign: { project_id: string; name: string; end_date: string; target: number } | null;
+}
+
+export interface FieldPicks {
+  code: string;
+  label: string;
+  orgs: FieldPickOrg[];
 }

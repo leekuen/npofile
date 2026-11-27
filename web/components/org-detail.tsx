@@ -8,6 +8,7 @@ import type { Grant, OrgDetail, Project, ScoreBreakdown } from "@/lib/types";
 
 import { OrgCategoryTags } from "./categories";
 import { Comments } from "./comments";
+import { HashHighlight } from "./hash-highlight";
 import {
   Card,
   EmptyState,
@@ -751,8 +752,13 @@ function ProjectsTab({ org }: { org: OrgDetail }) {
   }
   return (
     <ul className="space-y-3">
+      <HashHighlight />
       {org.projects.map((p) => (
-        <li key={p.id}>
+        <li
+          key={p.id}
+          id={p.external_id ? `p-${p.external_id}` : undefined}
+          className="scroll-mt-24 rounded-2xl data-highlight:ring-2 data-highlight:ring-brand-600 data-highlight:ring-offset-2"
+        >
           {p.channel === "crowdfunding" ? (
             <CrowdfundingCard p={p} />
           ) : (

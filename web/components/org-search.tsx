@@ -1,10 +1,11 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { type ReactNode, Suspense } from "react";
 
 import { formatMoney, formatNumber } from "@/lib/format";
 import { ApiUnavailableError, getFilters, getTaxonomy, listOrgs, type OrgQuery } from "@/lib/server-api";
 
 import { CategoryBrowser, CategoryChip } from "./categories";
+import { FieldPicksSection, HomeDiscover, HomeSectionSkeleton } from "./home-discover";
 import { EmptyState, ErrorBox, PenaltyBadge, ScoreBadge, Skeleton, StatusBadge } from "./ui";
 
 const PAGE_SIZE = 20;
@@ -78,6 +79,9 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
 
   const current = Number(query.page) || 1;
   const lastPage = Math.max(1, Math.ceil(page.count / PAGE_SIZE));
+  // 探索區：什麼條件都沒有、在第 1 頁（改排序不算條件）；領域區：選了領域或服務對象、沒有關鍵字、在第 1 頁（LK-18）
+  const showDiscover = current === 1 && !query.q && !query.city && !query.status && !query.field && !query.sub && !query.target;
+  const showPicks = current === 1 && !query.q && Boolean(query.field || query.sub || query.target);
 
   return (
     <div className="space-y-8">
@@ -169,6 +173,17 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
         </div>
         {stats}
       </section>
+
+      {showDiscover && (
+        <Suspense fallback={<HomeSectionSkeleton />}>
+          <HomeDiscover />
+        </Suspense>
+      )}
+      {showPicks && (
+        <Suspense key={`${query.field}|${query.sub}|${query.target}|${query.city}|${query.status}`} fallback={<HomeSectionSkeleton />}>
+          <FieldPicksSection query={query} />
+        </Suspense>
+      )}
 
       <section aria-labelledby="org-list-title" className="space-y-4">
       <h2 id="org-list-title" className="sr-only">
