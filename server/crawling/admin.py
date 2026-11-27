@@ -5,18 +5,23 @@ from django.contrib import admin, messages
 from django.utils import timezone
 from django.utils.html import format_html
 
+from . import progress
 from .ingest import apply_records, recompute_ubns, run_source
-from .models import CrawlerSource, CrawlRecord, CrawlRun
+from .models import ActivityProgress, CrawlerSource, CrawlRecord, CrawlRun
 
 TRIAL_LIMIT = 5
 
 
 @admin.register(CrawlerSource)
 class CrawlerSourceAdmin(admin.ModelAdmin):
-    list_display = ("name", "key", "enabled", "auto_approve", "max_items", "last_run_at")
-    list_editable = ("enabled", "auto_approve", "max_items")
-    readonly_fields = ("key", "last_run_at")
+    list_display = ("name", "key", "enabled", "auto_approve", "max_items", "max_minutes", "last_run_at")
+    list_editable = ("enabled", "auto_approve", "max_items", "max_minutes")
+    readonly_fields = ("key", "last_run_at", "activity_progress")
     actions = ["trial_run"]
+
+    @admin.display(description="抓取進度")
+    def activity_progress(self, obj):
+        return progress.summary_text() if obj.key == "mohw_activities" else "—"
 
     def has_add_permission(self, request):
         return False
@@ -38,9 +43,47 @@ class CrawlerSourceAdmin(admin.ModelAdmin):
             )
 
 
+class ProgressStateFilter(admin.SimpleListFilter):
+    title = "進度"
+    parameter_name = "state"
+
+    def lookups(self, request, model_admin):
+        return [("done", "已抓"), ("pending", "還沒抓"), ("unmatched", "對不到")]
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if value == "done":
+            return queryset.filter(checked_at__isnull=False, unmatched_reason="")
+        if value == "pending":
+            return queryset.filter(checked_at__isnull=True)
+        if value == "unmatched":
+            return queryset.exclude(unmatched_reason="")
+        return queryset
+
+
+@admin.register(ActivityProgress)
+class ActivityProgressAdmin(admin.ModelAdmin):
+    list_display = ("activity_id", "name", "org_name", "ubn", "roc_year", "listed_raised", "has_donor_list",
+                    "unmatched_reason", "checked_at")
+    list_filter = (ProgressStateFilter, "roc_year", "has_donor_list")
+    search_fields = ("activity_id", "name", "org_name", "ubn")
+    readonly_fields = [f.name for f in ActivityProgress._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        extra_context = {**(extra_context or {}), "title": f"勸募活動抓取進度：{progress.summary_text()}"}
+        return super().changelist_view(request, extra_context)
+
+
 @admin.register(CrawlRun)
 class CrawlRunAdmin(admin.ModelAdmin):
-    list_display = ("source", "started_at", "finished_at", "status", "fetched", "created", "applied", "pending", "failed")
+    list_display = ("source", "started_at", "finished_at", "status", "fetched", "created", "applied", "pending", "failed",
+                    "note")
     list_filter = ("source", "status")
     readonly_fields = [f.name for f in CrawlRun._meta.fields]
 

@@ -48,11 +48,15 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"{run.get_status_display()}：抓到 {run.fetched}、新資料 {run.created}、上架 {run.applied}、"
                 f"待審核 {run.pending}、失敗 {run.failed}" + (f"\n錯誤：{run.error}" if run.error else "")
+                + (f"\n{run.note}" if run.note else "")
             )
             failed |= run.status != run.Status.SUCCESS
             # 每次都是整批重抓、比對後才決定哪些是新的，所以「成功卻一筆都沒抓到」幾乎都是來源網站改版、
             # 解析不到東西。不當成成功，排程才會發通知（LK-12）。
-            if run.status == run.Status.SUCCESS and run.fetched == 0 and limit != 0:
+            # 例外：勸募活動只抓新的與有變的（LK-13），補齊後某晚一筆都不用抓是正常的，改看活動列表有沒有讀到卡片。
+            listed = getattr(run, "listed_cards", None)
+            nothing = listed == 0 if listed is not None else run.fetched == 0
+            if run.status == run.Status.SUCCESS and nothing and limit != 0:
                 self.stderr.write(f"警告：{source.name} 一筆都沒抓到，來源網站可能改版或暫時沒有回應")
                 failed = True
         if failed:

@@ -9,6 +9,8 @@ import logging
 import re
 import zipfile
 from collections.abc import Iterator
+from dataclasses import dataclass
+from datetime import date
 from urllib.parse import quote, urljoin
 from xml.etree.ElementTree import ParseError
 
@@ -267,9 +269,176 @@ def list_activity_ids(client: PoliteClient, org_name: str, page_size: int = 10) 
         offset += len(page)
 
 
+ACTIVITY_YEAR_URL = (
+    BASE + "/app39/fundactivity/fundactivityIndex?qorg=&qyyy={year}&qtitle=&qactiveArea=&qactiveArea2=&qestNo="
+    "&offset={offset}&max={size}"
+)
+GROUP_SEARCH_URL = BASE + "/app39/fundgroup/fundgroupIndex?qdisplayName={name}"
+RAISED_RE = re.compile(r"實募\s*NT\$?\s*([\d,]+)")
+
+
+@dataclass(frozen=True)
+class ActivityCard:
+    """活動列表上的一張卡片：不用開活動頁就知道是誰辦的、目前實募多少。"""
+
+    aid: str
+    name: str
+    org_name: str
+    raised: int | None
+    year: int
+
+
+def parse_activity_cards(html: str, year: int) -> list[ActivityCard]:
+    soup = BeautifulSoup(html, "html.parser")
+    cards: list[ActivityCard] = []
+    for a in soup.select("a.card-sa[href]"):
+        m = ACTIVITY_ID_RE.search(a["href"])
+        if not m or any(c.aid == m.group(1) for c in cards):
+            continue
+        raised = RAISED_RE.search(_text(a.select_one(".sa-number")))
+        cards.append(ActivityCard(
+            aid=m.group(1),
+            name=_text(a.select_one(".sa-title")) or a.get("title", "").strip(),
+            org_name=_text(a.select_one(".sa-group")),
+            raised=money(raised.group(1)) if raised else None,
+            year=year,
+        ))
+    return cards
+
+
+def list_activity_cards(client: PoliteClient, year: int, page_size: int = 9) -> list[ActivityCard]:
+    """某個勸募年度的所有活動（列表一頁 9 張，翻到沒有新卡片為止）。"""
+    cards: list[ActivityCard] = []
+    seen: set[str] = set()
+    offset = 0
+    while True:
+        page = parse_activity_cards(client.get(ACTIVITY_YEAR_URL.format(year=year, offset=offset, size=page_size)).text, year)
+        fresh = [c for c in page if c.aid not in seen]
+        if not fresh:
+            return cards
+        cards.extend(fresh)
+        seen.update(c.aid for c in fresh)
+        offset += len(page)
+
+
+def exact_group_ids(search_html: str, name: str) -> list[str]:
+    """團體查詢結果裡，名稱完全相同的團體編號（可能不只一個）。"""
+    soup = BeautifulSoup(search_html, "html.parser")
+    ids: list[str] = []
+    for a in soup.select("a.card-sg[href]"):
+        m = GROUP_ID_RE.search(a["href"])
+        if m and a.get("title", "").strip() == name.strip() and m.group(1) not in ids:
+            ids.append(m.group(1))
+    return ids
+
+
+class ActivityPlan:
+    """決定這次要抓哪些活動、記住抓到哪裡。預設（爬蟲單獨跑）：全部都抓、什麼都不記。
+    後端換成記在資料庫的版本（crawling/progress.py），才能每晚接著抓、只抓新的與有變的。"""
+
+    def should_list(self, year: int) -> bool:
+        """這個年度要不要重新翻活動列表（不翻就用上次記下的卡片）。"""
+        return True
+
+    def stored_cards(self, year: int) -> list[ActivityCard]:
+        return []
+
+    def select(self, cards: list[ActivityCard], listed: bool = True) -> list[ActivityCard]:
+        return cards
+
+    def ubn_for(self, org_name: str) -> str | None:
+        return None
+
+    def need_donors(self, card: ActivityCard) -> bool:
+        return True
+
+    def done(self, card: ActivityCard, ubn: str, *, end_date, has_donor_link: bool, donors_fetched: bool) -> None:
+        pass
+
+    def unmatched(self, card: ActivityCard, reason: str) -> None:
+        log.warning("活動 %s 的申請單位「%s」對不到團體：%s", card.aid, card.org_name, reason)
+
+
 def fetch_activities(client: PoliteClient, limit: int | None = None,
-                     threshold: int = donors.DEFAULT_INDIVIDUAL_THRESHOLD, since_roc: int | None = None) -> Iterator[Item]:
-    yield from fetch_activities_for(client, list_group_ids(client, limit=limit), threshold, since_roc)
+                     threshold: int = donors.DEFAULT_INDIVIDUAL_THRESHOLD, since_roc: int | None = None,
+                     plan: ActivityPlan | None = None, this_roc: int | None = None) -> Iterator[Item]:
+    """依勸募年度（去年 → since_roc，再今年、明年）一年一年處理：列出活動 → plan 挑出要抓的 → 活動頁＋需要的話下載清冊。
+    列完一年就先抓那一年，時間上限短也抓得到東西。limit 算的是活動數。
+    第一次遇到的申請單位：用名稱查團體、抓一次團體頁（組織才建得起來）。"""
+    plan = plan or ActivityPlan()
+    this_roc = this_roc or date.today().year - 1911
+    groups: dict[str, tuple[str | None, str]] = {}  # 申請單位 → (統編, 對不到的原因)；同一次執行同名只查一次
+    seen: set[str] = set()
+    count = 0
+    # 去年 → 往前到 since_roc，再今年、明年：清冊在活動結束後才有，已結束的年度先抓，不讓進行中的活動佔掉時間上限
+    # （補齊之後過去的年度 7 天才翻一次，平常很快就輪到今年）
+    first = since_roc if since_roc and since_roc < this_roc else this_roc
+    for year in [*range(this_roc - 1, first - 1, -1), this_roc, this_roc + 1]:
+        listed = plan.should_list(year)
+        cards = [c for c in (list_activity_cards(client, year) if listed else plan.stored_cards(year)) if c.aid not in seen]
+        seen.update(c.aid for c in cards)
+        for card in plan.select(cards, listed):
+            if limit and count >= limit:
+                return
+            if card.org_name not in groups:
+                ubn = plan.ubn_for(card.org_name)
+                reason = ""
+                if ubn is None:
+                    ubn, reason, group_items = _find_group(client, card.org_name, since_roc)
+                    yield from group_items
+                groups[card.org_name] = (ubn, reason)
+            ubn, reason = groups[card.org_name]
+            if not ubn:
+                plan.unmatched(card, reason)
+                continue
+            count += 1
+            url = ACTIVITY_URL.format(aid=card.aid)
+            project, donors_url = parse_activity(client.get(url).text, url, ubn)
+            if project is None:
+                plan.unmatched(card, "活動頁讀不到")
+                continue
+            yield project
+            fetched = False
+            if donors_url and plan.need_donors(card):
+                item = _donor_list(client, donors_url, project, ubn, url, threshold)
+                if item is not None:
+                    yield item
+                    fetched = True
+            plan.done(card, ubn, end_date=project.data.get("end_date"), has_donor_link=bool(donors_url),
+                      donors_fetched=fetched)
+
+
+def _find_group(client: PoliteClient, name: str, since_roc: int | None) -> tuple[str | None, str, list[Item]]:
+    """用名稱查團體：名稱完全相同的只有一個才算，並抓它的團體頁（統編、基本資料、年度募款、裁處）。"""
+    gids = exact_group_ids(client.get(GROUP_SEARCH_URL.format(name=quote(name))).text, name)
+    if not gids:
+        return None, "團體列表查無此名稱", []
+    if len(gids) > 1:
+        return None, "同名團體不只一個", []
+    group_url = GROUP_URL.format(gid=gids[0])
+    items = parse_group(client.get(group_url).text, group_url, since_roc=since_roc)
+    org = next((i for i in items if i.kind == "org"), None)
+    if org is None:
+        return None, "團體頁讀不到統一編號", []
+    return org.ubn, "", items
+
+
+def _donor_list(client: PoliteClient, donors_url: str, project: Item, ubn: str, url: str, threshold: int) -> Item | None:
+    try:
+        # 大型團體的清冊有好幾 MB、十幾萬列，下載給長一點的時間
+        data = client.get(donors_url, timeout=DONOR_FILE_TIMEOUT).content
+        result = donors.summarize(donors.parse_ods(data), threshold)
+    except (httpx.HTTPError, zipfile.BadZipFile, ParseError) as exc:
+        # 一份清冊壞掉不拖垮其他活動；下次重跑會再試（內容沒存，不會被去重擋掉）
+        log.warning("捐贈人清冊下載或解析失敗 %s：%s", donors_url, exc)
+        return None
+    return Item(
+        kind="donor_list",
+        ubn=ubn,
+        data={"project_name": project.data["name"], **result},
+        source_url=url,
+        external_id=project.external_id,
+    )
 
 
 def fetch_activities_for(client: PoliteClient, group_ids, threshold: int = donors.DEFAULT_INDIVIDUAL_THRESHOLD,
@@ -293,21 +462,9 @@ def fetch_activities_for(client: PoliteClient, group_ids, threshold: int = donor
                 continue  # 舊活動：不收、也不下載清冊
             yield project
             if donors_url:
-                try:
-                    # 大型團體的清冊有好幾 MB、十幾萬列，下載給長一點的時間
-                    data = client.get(donors_url, timeout=DONOR_FILE_TIMEOUT).content
-                    result = donors.summarize(donors.parse_ods(data), threshold)
-                except (httpx.HTTPError, zipfile.BadZipFile, ParseError) as exc:
-                    # 一份清冊壞掉不拖垮整個團體；下次重跑會再試（內容沒存，不會被去重擋掉）
-                    log.warning("捐贈人清冊下載或解析失敗 %s：%s", donors_url, exc)
-                    continue
-                yield Item(
-                    kind="donor_list",
-                    ubn=org.ubn,
-                    data={"project_name": project.data["name"], **result},
-                    source_url=url,
-                    external_id=project.external_id,
-                )
+                item = _donor_list(client, donors_url, project, org.ubn, url, threshold)
+                if item is not None:
+                    yield item
 
 
 def list_group_ids(client: PoliteClient, limit: int | None = None, page_size: int = 10) -> Iterator[str]:

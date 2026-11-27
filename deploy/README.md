@@ -201,10 +201,14 @@ cd ~/app/server
 .venv/bin/python manage.py crawl fia                       # 財政部名冊約 10 萬筆
 .venv/bin/python manage.py crawl mohw                      # 公益勸募團體
 .venv/bin/python manage.py crawl mohw_violations           # 違規公告（全部年度的裁罰）
-.venv/bin/python manage.py crawl mohw_activities --limit 50 # 勸募活動＋捐贈人清冊（先抓一部分）
+.venv/bin/python manage.py crawl mohw_activities          # 勸募活動＋捐贈人清冊：先跑 120 分鐘，之後每晚排程接著抓
 .venv/bin/python manage.py match_companies
 .venv/bin/python manage.py recompute_scores
 ```
+
+近 5 年的勸募活動約 4,700 個，每晚排程最多抓 120 分鐘（後台「爬蟲來源設定」的「每次最多跑幾分鐘」），
+大約三、四個晚上補齊；之後每天只抓新的與金額有變的。想一次補齊，就把那個欄位改成 0、在 `tmux` 裡跑上面那行（約 4、5 小時），
+跑完再改回 120。進度看後台「勸募活動抓取進度」，或執行後最後一行印的「近 5 年活動 N 個，已抓 M 個…」。
 
 ### 10. 排程失敗通知（自己的電腦＋npofile）
 
@@ -233,13 +237,13 @@ cd ~/app/server
    | Check | Schedule（Cron，時區選 Asia/Taipei） | Grace time |
    |---|---|---|
    | `npofile-backup` | `0 2 * * *` | 1 小時 |
-   | `npofile-crawl` | `30 2 * * *` | 3 小時（爬蟲開始後超過這麼久沒跑完，也會通知） |
+   | `npofile-crawl` | `30 2 * * *` | 4 小時（爬蟲開始後超過這麼久沒跑完，也會通知；勸募活動每晚最多跑 120 分鐘，整段約 2 小時 45 分） |
    | `npofile-scores` | `30 5 * * *` | 1 小時 |
 
 會收到通知的情況：
 
 - 工作失敗（結束碼不是 0）。信裡附輸出的最後 20KB，通常直接看得到錯誤。
-- 爬蟲「成功」但某個來源**一筆都沒抓到**：多半是來源網站改版，`crawl` 會當成失敗。
+- 爬蟲「成功」但某個來源**一筆都沒抓到**：多半是來源網站改版，`crawl` 會當成失敗。勸募活動補齊之後，某晚沒有新的或有變的活動是正常的，這個來源改看「活動列表一張卡片都沒讀到」。
 - 到了時間沒開始跑、或開始了沒在寬限時間內跑完：伺服器關機、cron 沒裝、程式卡住都屬於這種。
 
 ### 11. 資料庫每日備份（npofile）
