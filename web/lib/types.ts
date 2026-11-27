@@ -162,6 +162,35 @@ export interface PublicRaised {
 }
 
 /** 政府對民間團體的補(捐)助（LK-19）：金額是核定金額（含累積） */
+/** 司法院法人登記公告（LK-31）：只有組織層級的欄位 */
+export type CourtCaseType = "setup" | "change" | "dissolution" | "liquidator" | "liquidation_end";
+
+export interface CourtRegistration {
+  id: number;
+  posted_on: string | null;
+  registered_on: string | null;
+  court: string;
+  case_no: string;
+  reg_no: string;
+  category: "association" | "foundation" | "";
+  category_label: string;
+  case_type: CourtCaseType;
+  case_label: string;
+  property_total: number | null;
+  change_items: string[];
+  source_name: string;
+  source_url: string;
+}
+
+export interface CourtDissolution {
+  posted_on: string | null;
+  registered_on: string | null;
+  court: string;
+  case_type: "dissolution" | "liquidation_end";
+  case_label: string;
+  source_url: string;
+}
+
 export interface Grant {
   id: number;
   year: number;
@@ -194,6 +223,8 @@ export interface OrgDetail extends Omit<OrgSummary, "public_raised_5y"> {
   penalties: Penalty[];
   /** 政府補助（LK-19），近 5 年，金額大的在前 */
   grants: Grant[];
+  court_registrations: CourtRegistration[];
+  court_dissolution: CourtDissolution | null;
   donations: DonationRow[];
   corporate_donors: CorporateDonorRank[];
   individual_donors: { name: string; total: number; count: number }[];

@@ -63,6 +63,7 @@ class CrawlRecord(models.Model):
         DONOR_LIST = "donor_list", "捐贈人清冊"
         DOCUMENT = "document", "官網報告文件"
         FINANCIAL = "financial", "年度財務"
+        COURT_REG = "court_reg", "法院登記公告"
 
     class Status(models.TextChoices):
         PENDING = "pending", "待審核"
