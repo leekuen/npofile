@@ -8,6 +8,7 @@ from .models import (
     CRAWLABLE_FIELDS,
     AnnualFundraising,
     Donation,
+    FinancialReport,
     Grant,
     Donor,
     DonorListSummary,
@@ -138,6 +139,14 @@ class GrantAdmin(admin.ModelAdmin):
     list_display = ("organization", "year", "agency", "purpose", "amount", "approved_on")
     list_filter = ("year", "agency")
     search_fields = ("organization__name", "organization__ubn", "recipient", "purpose")
+    autocomplete_fields = ("organization",)
+
+
+@admin.register(FinancialReport)
+class FinancialReportAdmin(admin.ModelAdmin):
+    list_display = ("organization", "year", "donation_income", "income_total", "parse_method", "source_name")
+    list_filter = ("year", "source_name", "parse_method")
+    search_fields = ("organization__name", "organization__ubn", "filer_name", "external_id")
     autocomplete_fields = ("organization",)
 
 

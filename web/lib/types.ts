@@ -137,8 +137,22 @@ export interface Grant {
   source_url: string;
 }
 
+/** 組織年度財報（LK-25）：送主管機關備查後公開的決算；捐贈收入已含勸募與群眾集資 */
+export interface FinancialReport {
+  id: number;
+  year: number;
+  donation_income: number | null;
+  income_total: number | null;
+  statement: string;
+  parse_method: string;
+  filer_name: string;
+  source_name: string;
+  source_url: string;
+}
+
 export interface OrgDetail extends Omit<OrgSummary, "public_raised_5y"> {
   public_raised: PublicRaised;
+  financial_reports: FinancialReport[];
   representative: string;
   registered_address: string;
   contact_address: string;

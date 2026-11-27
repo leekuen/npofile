@@ -272,6 +272,31 @@ class Grant(SourceMixin):
         return f"{self.year} {self.agency} {self.purpose}"
 
 
+class FinancialReport(SourceMixin):
+    """組織自己的年度財報（LK-25）：送主管機關備查後公開的決算，一個組織一個來源一年一筆。
+    捐贈收入包含勸募與群眾集資的錢，不跟「近 5 年公開募款」相加。讀不到數字的留空，只給原始資料出處。"""
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="financial_reports", verbose_name="組織")
+    external_id = models.CharField("來源編號", max_length=50, db_index=True)
+    year = models.PositiveSmallIntegerField("年度（民國）", db_index=True)
+    donation_income = models.BigIntegerField("捐贈收入", null=True, blank=True)
+    income_total = models.BigIntegerField("收入合計", null=True, blank=True)
+    statement = models.CharField("出自哪份文件", max_length=50, blank=True)
+    parse_method = models.CharField(
+        "讀取方式", max_length=20, blank=True, help_text="文字＝PDF 直接讀；影像辨識＝掃描檔 OCR，可能有誤；空白＝衛福部決算總表或讀不到"
+    )
+    filer_name = models.CharField("文件上的名稱", max_length=200, blank=True)
+
+    class Meta:
+        verbose_name = "財報"
+        verbose_name_plural = "財報"
+        ordering = ["-year", "id"]
+        constraints = [models.UniqueConstraint(fields=["source_name", "external_id"], name="uniq_financial_source_id")]
+
+    def __str__(self):
+        return f"{self.organization} {self.year} 年度財報"
+
+
 class Penalty(SourceMixin):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="penalties", verbose_name="組織")
     external_id = models.CharField("來源編號", max_length=50, blank=True)

@@ -3,13 +3,13 @@ from django.db import transaction
 
 from crawling.models import ActivityProgress, CrawlRecord
 from orgs import period
-from orgs.models import AnnualFundraising, Donation, Grant, Organization, Project
+from orgs.models import AnnualFundraising, Donation, FinancialReport, Grant, Organization, Project
 from orgs.signals import suspend_scoring
 from orgs.scoring import recompute
 
 
 class Command(BaseCommand):
-    help = "刪掉近 5 年以前的年度募款、專案（連同捐款與清冊摘要）與手動捐款；裁罰一律不刪"
+    help = "刪掉近 5 年以前的年度募款、專案（連同捐款與清冊摘要）、手動捐款、政府補助與財報；裁罰一律不刪"
 
     def add_arguments(self, parser):
         parser.add_argument("--dry-run", action="store_true", help="只算會刪幾筆，不刪")
@@ -20,6 +20,7 @@ class Command(BaseCommand):
         projects = Project.objects.exclude(period.project_q())
         donations = Donation.objects.exclude(period.donation_q())
         grants = Grant.objects.exclude(period.grant_q())  # 政府補助（LK-19）
+        reports = FinancialReport.objects.exclude(period.financial_q())  # 組織財報（LK-25）
         # 舊清冊的原始內容也很佔空間；只刪清冊，團體頁其他紀錄留作歷史
         old_ids = list(projects.values_list("external_id", flat=True))
         records = CrawlRecord.objects.filter(kind="donor_list", external_id__in=old_ids) if old_ids else CrawlRecord.objects.none()
@@ -29,6 +30,7 @@ class Command(BaseCommand):
             "專案": projects.count(),
             "捐款紀錄": donations.count(),
             "政府補助": grants.count(),
+            "財報": reports.count(),
             "清冊原始紀錄": records.count(),
             "活動抓取進度": progress.count(),
         }
@@ -40,6 +42,7 @@ class Command(BaseCommand):
         with transaction.atomic(), suspend_scoring():
             donations.delete()
             grants.delete()
+            reports.delete()
             projects.delete()
             annual.delete()
             records.delete()

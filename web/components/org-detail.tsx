@@ -434,6 +434,62 @@ function fundedYears(org: OrgDetail) {
   return org.annual_records.filter((a) => a.raised > 0 || a.target > 0);
 }
 
+/** 組織財報（LK-25）：主管機關公開的年度決算或自律聯盟會員財務報告，捐贈收入已含勸募與群眾集資 */
+function FinancialReportsSection({ reports }: { reports: OrgDetail["financial_reports"] }) {
+  const ocr = reports.some((r) => r.parse_method === "影像辨識");
+  const sources = [...new Map(reports.map((r) => [r.source_name, r])).values()];
+  return (
+    <section>
+      <SectionTitle>組織財報</SectionTitle>
+      <Card className="overflow-x-auto p-0 sm:p-0">
+        <table className="w-full text-sm">
+          <thead className="bg-ink-50 text-ink-700">
+            <tr>
+              <th scope="col" className="px-2 py-2 text-left font-medium whitespace-nowrap sm:px-3">年度（民國）</th>
+              <th scope="col" className="px-2 py-2 text-right font-medium whitespace-nowrap sm:px-3">捐贈收入</th>
+              <th scope="col" className="hidden px-2 py-2 text-right font-medium whitespace-nowrap sm:table-cell sm:px-3">收入合計</th>
+              <th scope="col" className="px-2 py-2 text-right font-medium whitespace-nowrap sm:px-3">捐贈占收入</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-ink-100 font-num tabular-nums">
+            {reports.map((r) => (
+              <tr key={r.id}>
+                <td className="px-2 py-2 sm:px-3">
+                  {r.source_url ? (
+                    <TextLink href={r.source_url}>
+                      {r.year}
+                      <span className="sr-only"> 年度原始報告</span>
+                    </TextLink>
+                  ) : (
+                    r.year
+                  )}
+                </td>
+                <td className="px-2 py-2 text-right whitespace-nowrap sm:px-3">
+                  {formatMoney(r.donation_income)}
+                  {r.parse_method === "影像辨識" && r.donation_income != null && (
+                    <span className="ml-0.5 text-ink-500" title="由掃描檔影像辨識">＊</span>
+                  )}
+                </td>
+                <td className="hidden px-2 py-2 text-right whitespace-nowrap sm:table-cell sm:px-3">{formatMoney(r.income_total)}</td>
+                <td className="px-2 py-2 text-right sm:px-3">
+                  {r.donation_income != null && r.income_total ? `${((r.donation_income / r.income_total) * 100).toFixed(1)}%` : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="space-y-1 border-t border-ink-100 px-3 py-2 text-xs text-ink-600">
+          <p>財報的捐贈收入包含勸募與群眾集資，不跟上面的近 5 年公開募款相加。點年度看原始報告。</p>
+          {ocr && <p>＊由掃描的財務報告影像辨識，可能有誤，請以原始報告為準。</p>}
+          {sources.map((r) => (
+            <p key={r.source_name}>來源：{r.source_name}（{r.statement}）</p>
+          ))}
+        </div>
+      </Card>
+    </section>
+  );
+}
+
 function DonationsTab({ org }: { org: OrgDetail }) {
   const years = fundedYears(org);
   const maxRaised = Math.max(0, ...years.map((a) => a.raised));
@@ -469,6 +525,7 @@ function DonationsTab({ org }: { org: OrgDetail }) {
           </Card>
         </section>
       )}
+      {org.financial_reports.length > 0 && <FinancialReportsSection reports={org.financial_reports} />}
       <section>
         <SectionTitle>年度募款</SectionTitle>
         {years.length === 0 ? (

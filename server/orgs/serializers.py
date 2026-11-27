@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from . import category_api, donor_rules, period, scoring
-from .models import AnnualFundraising, Donation, Donor, Grant, Organization, Penalty, Project
+from .models import AnnualFundraising, Donation, Donor, FinancialReport, Grant, Organization, Penalty, Project
 
 RECENT_DONATIONS = 50
 DONOR_DETAIL_DONATIONS = 200
@@ -63,6 +63,30 @@ class GrantSerializer(serializers.ModelSerializer):
         )
 
 
+class FinancialReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FinancialReport
+        fields = (
+            "id", "year", "donation_income", "income_total", "statement", "parse_method", "filer_name",
+            "source_name", "source_url",
+        )
+
+
+# 同一年兩個來源都有時，只顯示一份：衛福部（主管機關公開、會計師查核）優先於自律聯盟會員自行上傳
+FINANCIAL_PRIORITY = ("衛生福利部", "台灣公益團體自律聯盟")
+
+
+def preferred_reports(reports) -> list:
+    def rank(r):
+        return next((i for i, p in enumerate(FINANCIAL_PRIORITY) if r.source_name.startswith(p)), len(FINANCIAL_PRIORITY))
+
+    best: dict[int, object] = {}
+    for r in reports:
+        if r.year not in best or rank(r) < rank(best[r.year]):
+            best[r.year] = r
+    return [best[y] for y in sorted(best, reverse=True)]
+
+
 class DonationSerializer(serializers.ModelSerializer):
     donor_name = serializers.CharField(source="public_donor_name")
     donor_id = serializers.SerializerMethodField()
@@ -88,6 +112,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     projects = ProjectSerializer(many=True)
     penalties = PenaltySerializer(many=True)
     grants = GrantSerializer(many=True)
+    financial_reports = serializers.SerializerMethodField()
     donations = serializers.SerializerMethodField()
     corporate_donors = serializers.SerializerMethodField()
     individual_donors = serializers.SerializerMethodField()
@@ -100,13 +125,16 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
         fields = (
             "ubn", "name", "org_type", "representative", "registered_address", "contact_address", "phone",
             "website", "city", "purposes", "status", "status_label", "source_links", "disclosure_score",
-            "penalty_count_5y", "score", "public_raised", "annual_records", "projects", "penalties", "grants", "donations",
+            "penalty_count_5y", "score", "public_raised", "annual_records", "projects", "penalties", "grants", "financial_reports", "donations",
             "corporate_donors", "individual_donors", "donor_summary", "since_roc_year", "categories",
             "updated_at",
         )
 
     def get_score(self, obj):
         return scoring.breakdown(obj)
+
+    def get_financial_reports(self, obj):
+        return FinancialReportSerializer(preferred_reports(obj.financial_reports.all()), many=True).data
 
     def get_public_raised(self, obj):
         return scoring.public_raised(list(obj.annual_records.all()), list(obj.projects.all()))

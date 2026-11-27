@@ -24,6 +24,7 @@ from orgs.models import (
     Donation,
     Donor,
     DonorListSummary,
+    FinancialReport,
     Grant,
     Organization,
     Penalty,
@@ -39,7 +40,7 @@ log = logging.getLogger(__name__)
 
 BATCH = 500
 STORE_EVERY = 60  # 秒
-KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4, "grant": 5}
+KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4, "grant": 5, "financial": 6}
 PROJECT_FIELDS = (
     "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
     "result_filed_on", "closed_filed_on", "description", "channel", "monthly_raised", "backers",
@@ -53,7 +54,7 @@ def record_source_name(source: CrawlerSource) -> str:
 
 
 # 新建來源時的「每次最多跑幾分鐘」：勸募活動與捐贈人清冊每晚接著抓，不讓一次跑整晚（已存在的來源照後台設定）
-DEFAULT_MINUTES = {"mohw_activities": 120}
+DEFAULT_MINUTES = {"mohw_activities": 120, "twnpos": 120}
 
 
 def ensure_sources() -> None:
@@ -103,6 +104,11 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
                         values["revisit"] = revisit_ids(source)
                     if "orgs" in src.options:  # 名稱對統編的名冊（約十萬筆，逐筆讀，不一次載入物件）
                         values["orgs"] = Organization.objects.values_list("ubn", "name").iterator(chunk_size=5000)
+                    if "have" in src.options:  # 已收過的財報不再下載（決算備查後不會變）
+                        values["have"] = set(
+                            FinancialReport.objects.filter(source_name=record_source_name(source))
+                            .values_list("external_id", flat=True)
+                        )
                     items = src.fetch(client, limit, **{k: values[k] for k in src.options})
                 org_ubns = None
                 if source.key in SOURCES and SOURCES[source.key].known_orgs_only:
@@ -343,6 +349,16 @@ def _apply_child(rec: CrawlRecord, org: Organization, source_name: str) -> None:
                 "recipient": (d.get("recipient") or "")[:300], "facility": (d.get("facility") or "")[:200],
                 "purpose": (d.get("purpose") or "")[:500], "approved_on": _date(d.get("approved_on")),
                 "amount": d.get("amount") or 0,
+            },
+        )
+    elif rec.kind == "financial":
+        FinancialReport.objects.update_or_create(
+            source_name=source_name, external_id=rec.external_id,
+            defaults={
+                "organization": org, "source_url": rec.source_url, "year": d["year"],
+                "donation_income": d.get("donation"), "income_total": d.get("income_total"),
+                "statement": (d.get("statement") or "")[:50], "filer_name": (d.get("filer_name") or "")[:200],
+                "parse_method": (d.get("method") or "")[:20],
             },
         )
     elif rec.kind == "donor_list":

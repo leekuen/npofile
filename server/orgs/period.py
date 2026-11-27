@@ -51,3 +51,8 @@ def donation_q(prefix: str = "") -> Q:
         Q(**{f"{p}project__isnull": True})
         & (Q(**{f"{p}donated_on__gte": window_start()}) | Q(**{f"{p}donated_on__isnull": True}))
     )
+
+
+def financial_q(prefix: str = "") -> Q:
+    """財報（LK-25）：財報年度在近 5 年內。"""
+    return Q(**{f"{prefix}year__gte": since_roc_year()})

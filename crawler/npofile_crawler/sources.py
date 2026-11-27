@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
-from . import fia, grants, mohw, violations, wabay
+from . import fia, grants, mohw, swft, twnpos, violations, wabay
 from .http import PoliteClient
 from .items import Item
 
@@ -21,7 +21,8 @@ class Source:
     # 寫進資料時掛的來源名稱；同一個網站的不同抓法共用一個，才不會把同一個專案存成兩份
     data_name: str = ""
     # fetch 另外收哪些參數（後端依設定給值）：threshold＝清冊個人門檻、since_roc＝只收這個民國年度起、
-    # plan＝記住抓到哪裡的 mohw.ActivityPlan（後端用資料庫版本）、revisit＝要回頭再看的專案編號、orgs＝（統編, 名稱）名冊
+    # plan＝記住抓到哪裡的 mohw.ActivityPlan（後端用資料庫版本）、revisit＝要回頭再看的專案編號、orgs＝（統編, 名稱）名冊、
+    # have＝已經收過的財報編號（不再下載）
     options: tuple[str, ...] = ()
     # 統編不在組織資料庫的資料不存（例：挖貝上公司提的商品集資），不進審核清單
     known_orgs_only: bool = False
@@ -56,5 +57,14 @@ SOURCES = {
                "政府公開資料：衛福部（含社家署、健保署、疾管署等）每季公開的補(捐)助核定案件；"
                "近 5 年每年取最新一季的累計表，受補助對象名稱跟組織名稱完全相同才收（「某某附設某某」算給上層法人）",
                options=("since_roc", "orgs")),
+        Source("swft", swft.SOURCE_NAME, swft.SITE_URL, True, swft.fetch,
+               "政府公開資料：全國性社會福利財團法人送衛福部備查的年度決算，從「年度決算總表」讀捐贈收入與收入合計；"
+               "近 5 年、到去年為止，已收過的年度不再下載；名稱跟組織完全相同才收；「每次最多抓幾筆」算的是決算份數",
+               options=("since_roc", "orgs", "have")),
+        Source("twnpos", twnpos.SOURCE_NAME, twnpos.SITE_URL, False, twnpos.fetch,
+               "自律聯盟會員自己上傳的年度財務報告（公開雲端資料夾的 PDF），讀出捐款收入與收入合計；掃描檔用影像辨識，"
+               "讀不到就只留報告連結；近 5 年，已收過的年度不再下載；名稱跟組織完全相同才收；"
+               "影像辨識很慢，每次最多跑的分鐘數到了就停，下次接著抓",
+               options=("since_roc", "orgs", "have"), known_orgs_only=True),
     )
 }

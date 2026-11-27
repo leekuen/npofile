@@ -9,7 +9,7 @@ from npofile_crawler.donors import identity_key
 from rest_framework.response import Response
 
 from . import category_api, donor_rules, period, scoring
-from .models import AnnualFundraising, Donor, Grant, Organization, Project
+from .models import AnnualFundraising, Donor, FinancialReport, Grant, Organization, Project
 from .serializers import (
     DonorDetailSerializer,
     DonorListSerializer,
@@ -55,6 +55,7 @@ def organization_detail(request, ubn):
             Prefetch("projects", queryset=Project.objects.filter(period.project_q())),
             "penalties",
             Prefetch("grants", queryset=Grant.objects.filter(period.grant_q())),
+            Prefetch("financial_reports", queryset=FinancialReport.objects.filter(period.financial_q())),
             "categories",
         )
     )
