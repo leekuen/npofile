@@ -231,3 +231,28 @@ class Penalty(SourceMixin):
 
     def __str__(self):
         return f"{self.decided_on or '日期不明'} {self.content[:20]}"
+
+
+class OrgCategory(models.Model):
+    """組織的分類（代號見 orgs/taxonomy.py）。管理員拿掉的保留成 excluded，自動分類不會再加回來。"""
+
+    class Source(models.TextChoices):
+        OFFICIAL = "official", "官方（勸募用途）"
+        INFERRED = "inferred", "依名稱推測"
+        ADMIN = "admin", "管理員指定"
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="categories", verbose_name="組織")
+    code = models.CharField("分類代號", max_length=40, db_index=True)
+    source = models.CharField("來源", max_length=10, choices=Source.choices)
+    excluded = models.BooleanField("管理員拿掉", default=False, help_text="勾選＝這個分類不適用，自動分類不會再加回來。")
+
+    class Meta:
+        verbose_name = "組織分類"
+        verbose_name_plural = "組織分類"
+        ordering = ["code"]
+        constraints = [models.UniqueConstraint(fields=["organization", "code"], name="uniq_org_category")]
+
+    def __str__(self):
+        from .taxonomy import LABELS
+
+        return LABELS.get(self.code, self.code)
