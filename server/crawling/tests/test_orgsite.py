@@ -96,8 +96,11 @@ class TargetsTests(TestCase):
 
     @override_settings(ANTHROPIC_API_KEY="test-key", FINANCIAL_EXTRACT_MODEL="claude-opus-5-5")
     def test_key_builds_extractor_without_calling_api(self):
-        with mock.patch("anthropic.Anthropic") as client:
+        # 用假的 anthropic 模組：沒裝這個套件的環境也能跑，也確定不會真的打 API
+        fake = mock.MagicMock()
+        with mock.patch.dict("sys.modules", {"anthropic": fake}):
             ex = orgsite_targets.extractor()
+        client = fake.Anthropic
         self.assertEqual(ex.model, "claude-opus-5-5")
         client.assert_called_once_with(api_key="test-key")
 
