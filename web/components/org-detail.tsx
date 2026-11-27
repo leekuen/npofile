@@ -530,37 +530,41 @@ function FinanceTab({ org }: { org: OrgDetail }) {
                 />
               </Card>
             )}
-            <Card className="overflow-x-auto p-0 sm:p-0">
+            <Card className="overflow-x-auto p-0! sm:p-0!">
               <table className="w-full text-sm">
                 <thead className="bg-ink-50 text-ink-700">
                   <tr>
-                    <th scope="col" className="px-3 py-2 text-left font-medium whitespace-nowrap">年度（民國）</th>
+                    <th scope="col" className="sticky left-0 bg-ink-50 px-2.5 py-2 text-left font-medium whitespace-nowrap">年度</th>
                     {FIN_COLUMNS.map((c) => (
-                      <th key={c.key} scope="col" className="px-3 py-2 text-right font-medium whitespace-nowrap">{c.label}</th>
+                      <th key={c.key} scope="col" className="px-2.5 py-2 text-right font-medium whitespace-nowrap">{c.label}</th>
                     ))}
-                    <th scope="col" className="px-3 py-2 text-left font-medium whitespace-nowrap">出處</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ink-100 tabular-nums">
                   {years.map((f) => (
                     <tr key={f.year}>
-                      <td className="px-3 py-2">{f.year}</td>
-                      {FIN_COLUMNS.map((c) => (
-                        <td key={c.key} className="px-3 py-2 text-right whitespace-nowrap">
-                          {c.key === "program_expense_ratio"
-                            ? f.program_expense_ratio === null ? "—" : `${f.program_expense_ratio}%`
-                            : formatMoney(f[c.key])}
-                        </td>
-                      ))}
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        {f.document_url ? <TextLink href={f.document_url}>{f.audited ? "會計師查核報告" : "原始報告"}</TextLink> : "—"}
+                      <td className="sticky left-0 bg-white px-2.5 py-2 whitespace-nowrap">
+                        {f.year}
+                        {f.document_url && (
+                          <span className="block text-xs">
+                            <TextLink href={f.document_url}>原始報告</TextLink>
+                          </span>
+                        )}
                       </td>
+                      {FIN_COLUMNS.map((c) => {
+                        const v = f[c.key];
+                        return (
+                          <td key={c.key} className="px-2.5 py-2 text-right align-top whitespace-nowrap">
+                            {v === null ? "—" : c.key === "program_expense_ratio" ? `${v}%` : formatNumber(v)}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </Card>
-            <p className="text-xs text-ink-600">業務支出占比＝業務（服務）支出 ÷ 總支出。報告沒有列的項目顯示「—」。</p>
+            <p className="text-xs text-ink-600">金額單位：元。業務支出占比＝業務（服務）支出 ÷ 總支出。報告沒有列的項目顯示「—」。</p>
           </div>
         )}
       </section>

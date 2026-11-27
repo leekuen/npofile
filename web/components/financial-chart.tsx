@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { formatMoney } from "@/lib/format";
 
@@ -16,9 +16,6 @@ const SERIES = [
 ] as const;
 type SeriesKey = (typeof SERIES)[number]["key"];
 
-const W = 640;
-const H = 260;
-const PAD = { top: 16, right: 96, bottom: 32, left: 64 };
 const SURFACE = "#ffffff";
 
 /** 軸與尾端標籤用的短寫法：1.2 億、3,400 萬 */
@@ -38,6 +35,19 @@ function niceMax(v: number): number {
 
 export function FinancialChart({ rows }: { rows: ChartRow[] }) {
   const [hover, setHover] = useState<number | null>(null);
+  // 依實際寬度畫，不用 viewBox 整張縮放：手機上字才不會縮到看不見
+  const ref = useRef<HTMLElement>(null);
+  const [W, setW] = useState(640);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setW(Math.max(280, Math.round(entry.contentRect.width))));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const narrow = W < 480;
+  const H = narrow ? 220 : 260;
+  const PAD = { top: 16, right: narrow ? 72 : 96, bottom: 32, left: narrow ? 52 : 64 };
   const data = [...rows].sort((a, b) => a.year - b.year);
   const values = data.flatMap((r) => SERIES.map((s) => r[s.key])).filter((v): v is number => v !== null);
   const minV = Math.min(0, ...values);
@@ -65,7 +75,7 @@ export function FinancialChart({ rows }: { rows: ChartRow[] }) {
   const hovered = hover === null ? null : data[hover];
 
   return (
-    <figure className="relative">
+    <figure ref={ref} className="relative">
       <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-700" aria-hidden>
         {SERIES.map((s) => (
           <li key={s.key} className="flex items-center gap-1.5">
@@ -77,8 +87,10 @@ export function FinancialChart({ rows }: { rows: ChartRow[] }) {
         ))}
       </ul>
       <svg
+        width={W}
+        height={H}
         viewBox={`0 0 ${W} ${H}`}
-        className="h-auto w-full"
+        className="block"
         role="img"
         aria-label={`近 ${data.length} 年總收入、總支出、年底淨資產折線圖，數字見下方表格`}
         onMouseLeave={() => setHover(null)}
@@ -147,7 +159,7 @@ export function FinancialChart({ rows }: { rows: ChartRow[] }) {
       </svg>
       {hovered && hover !== null && (
         <div
-          className="pointer-events-none absolute top-8 z-10 w-44 rounded-lg border border-ink-200 bg-white p-2.5 text-xs shadow-md"
+          className="pointer-events-none absolute top-8 z-10 w-56 rounded-lg border border-ink-200 bg-white p-2.5 text-xs shadow-md"
           style={{
             left: `${(x(hover) / W) * 100}%`,
             transform: x(hover) > W / 2 ? "translateX(calc(-100% - 12px))" : "translateX(12px)",
@@ -158,11 +170,11 @@ export function FinancialChart({ rows }: { rows: ChartRow[] }) {
           <dl className="space-y-0.5">
             {SERIES.map((s) => (
               <div key={s.key} className="flex items-center justify-between gap-2">
-                <dt className="flex items-center gap-1 text-ink-600">
+                <dt className="flex items-center gap-1 whitespace-nowrap text-ink-600">
                   <span className="inline-block h-2 w-2 rounded-full" style={{ background: s.color }} aria-hidden />
                   {s.label}
                 </dt>
-                <dd className="font-num tabular-nums text-ink-900">{formatMoney(hovered[s.key])}</dd>
+                <dd className="font-num whitespace-nowrap tabular-nums text-ink-900">{formatMoney(hovered[s.key])}</dd>
               </div>
             ))}
           </dl>
