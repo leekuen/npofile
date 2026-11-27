@@ -13,11 +13,11 @@ export function AuthStatus() {
 
   if (!user) {
     return (
-      <nav className="flex items-center gap-2 text-sm">
-        <Link href="/login" className="rounded-full px-3 py-2 text-ink-700 hover:bg-ink-100">
+      <nav className="flex items-center gap-1 text-sm whitespace-nowrap sm:gap-2">
+        <Link href="/login" className="rounded-full px-2 py-2 text-ink-700 hover:bg-ink-100 sm:px-3">
           登入
         </Link>
-        <Link href="/register" className="rounded-full border border-ink-300 px-3 py-2 font-medium text-ink-800 hover:bg-ink-50">
+        <Link href="/register" className="rounded-full border border-ink-300 px-2.5 py-2 font-medium text-ink-800 hover:bg-ink-50 sm:px-3">
           註冊
         </Link>
       </nav>

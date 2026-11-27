@@ -25,6 +25,8 @@ export interface Stats {
   with_fundraising: number;
   penalized_5y: number;
   since_roc_year: number;
+  /** 個人捐款人在同一活動累計達這個金額才顯示姓名（元） */
+  donor_individual_threshold: number;
 }
 
 export interface Filters {
@@ -119,6 +121,22 @@ export interface PublicRaised {
   crowdfunding_counted: number;
 }
 
+/** 政府對民間團體的補(捐)助（LK-19）：金額是核定金額（含累積） */
+export interface Grant {
+  id: number;
+  year: number;
+  quarter: number;
+  agency: string;
+  county: string;
+  recipient: string;
+  facility: string;
+  purpose: string;
+  approved_on: string | null;
+  amount: number;
+  source_name: string;
+  source_url: string;
+}
+
 export interface OrgDetail extends Omit<OrgSummary, "public_raised_5y"> {
   public_raised: PublicRaised;
   representative: string;
@@ -132,6 +150,8 @@ export interface OrgDetail extends Omit<OrgSummary, "public_raised_5y"> {
   annual_records: Annual[];
   projects: Project[];
   penalties: Penalty[];
+  /** 政府補助（LK-19），近 5 年，金額大的在前 */
+  grants: Grant[];
   donations: DonationRow[];
   corporate_donors: CorporateDonorRank[];
   individual_donors: { name: string; total: number; count: number }[];

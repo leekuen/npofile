@@ -11,6 +11,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
+from npofile_crawler import donors as donor_names
 from npofile_crawler.http import PoliteClient
 from npofile_crawler.items import Item
 from npofile_crawler.sources import SOURCES
@@ -23,6 +24,7 @@ from orgs.models import (
     Donation,
     Donor,
     DonorListSummary,
+    Grant,
     Organization,
     Penalty,
     Project,
@@ -36,7 +38,8 @@ from .progress import DbActivityPlan
 log = logging.getLogger(__name__)
 
 BATCH = 500
-KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4}
+STORE_EVERY = 60  # 秒
+KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4, "grant": 5}
 PROJECT_FIELDS = (
     "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
     "result_filed_on", "closed_filed_on", "description", "channel", "monthly_raised", "backers",
@@ -75,9 +78,13 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
     known = set(CrawlRecord.objects.filter(source=source).values_list("content_hash", flat=True))
     skipped = 0
 
+    last_store = time.monotonic()
+
     def store() -> None:
+        nonlocal last_store
         _store_batch(source, run, batch, known, touched)
         batch.clear()
+        last_store = time.monotonic()
         if plan is not None:
             plan.flush()  # 資料寫進去了，才把對應的活動記成已抓
 
@@ -94,6 +101,8 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
                               "plan": plan}
                     if "revisit" in src.options:
                         values["revisit"] = revisit_ids(source)
+                    if "orgs" in src.options:  # 名稱對統編的名冊（約十萬筆，逐筆讀，不一次載入物件）
+                        values["orgs"] = Organization.objects.values_list("ubn", "name").iterator(chunk_size=5000)
                     items = src.fetch(client, limit, **{k: values[k] for k in src.options})
                 org_ubns = None
                 if source.key in SOURCES and SOURCES[source.key].known_orgs_only:
@@ -104,7 +113,8 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
                         skipped += 1
                         continue
                     batch.append(item)
-                    if len(batch) >= BATCH:
+                    # 記進度的來源至少每分鐘存一次：程式中途被關掉（電腦重開、主機重啟），最多只白做一分鐘
+                    if len(batch) >= BATCH or (plan is not None and time.monotonic() - last_store >= STORE_EVERY):
                         store()
                     if deadline is not None and time.monotonic() >= deadline:
                         run.note = f"到達每次最多 {source.max_minutes} 分鐘的上限先停，下次接著抓"
@@ -324,6 +334,17 @@ def _apply_child(rec: CrawlRecord, org: Organization, source_name: str) -> None:
             if "violationDetails" in rec.source_url:
                 penalty.source_url = rec.source_url
             penalty.save()
+    elif rec.kind == "grant":
+        Grant.objects.update_or_create(
+            source_name=source_name, external_id=rec.external_id,
+            defaults={
+                "organization": org, "source_url": rec.source_url, "year": d["year"], "quarter": d.get("quarter") or 4,
+                "agency": (d.get("agency") or "")[:100], "county": (d.get("county") or "")[:20],
+                "recipient": (d.get("recipient") or "")[:300], "facility": (d.get("facility") or "")[:200],
+                "purpose": (d.get("purpose") or "")[:500], "approved_on": _date(d.get("approved_on")),
+                "amount": d.get("amount") or 0,
+            },
+        )
     elif rec.kind == "donor_list":
         _apply_donor_list(rec, org, source_name)
 
@@ -335,22 +356,30 @@ def _apply_donor_list(rec: CrawlRecord, org: Organization, source_name: str) -> 
         organization=org, source_name=source_name, external_id=rec.external_id,
         defaults={"name": d.get("project_name", "")[:300] or "（未命名活動）", "source_url": rec.source_url},
     )
-    kinds = {r["name"]: r["kind"] for r in d.get("rows", []) if r.get("name")}
+    # 用「比對用名稱」對到既有捐款人：台／臺、空白、(股) 不同的寫法都算同一位（LK-16）
+    first: dict[str, dict] = {}
+    for r in d.get("rows", []):
+        if r.get("name"):
+            first.setdefault(donor_names.identity_key(r["name"])[:200], r)
     donors: dict[str, Donor] = {}
-    names = sorted(kinds)
-    for i in range(0, len(names), 900):
-        donors.update(Donor.objects.in_bulk(names[i : i + 900], field_name="name"))
-    missing = [Donor(name=n[:200], kind=kinds[n]) for n in names if n not in donors]
+    keys = sorted(first)
+    for i in range(0, len(keys), 900):
+        donors.update(Donor.objects.in_bulk(keys[i : i + 900], field_name="name_key"))
+    missing = [
+        Donor(name=donor_names.normalize(first[k]["name"])[:200], name_key=k, kind=first[k]["kind"])
+        for k in keys if k not in donors
+    ]
     if missing:
         Donor.objects.bulk_create(missing, ignore_conflicts=True)
-        for i in range(0, len(names), 900):
-            donors.update(Donor.objects.in_bulk(names[i : i + 900], field_name="name"))
+        for i in range(0, len(keys), 900):
+            donors.update(Donor.objects.in_bulk(keys[i : i + 900], field_name="name_key"))
 
     Donation.objects.filter(project=project, source_name=source_name).delete()
     Donation.objects.bulk_create(
         [
             Donation(
-                organization=org, project=project, donor=donors.get(r["name"]), donor_name=r["name"][:200],
+                organization=org, project=project, donor=donors.get(donor_names.identity_key(r["name"])[:200]),
+                donor_name=donor_names.normalize(r["name"])[:200],
                 amount=r.get("amount") or 0, donated_on=_date(r.get("donated_on")),
                 receipt_no=(r.get("receipt_no") or "")[:50], purpose=(r.get("purpose") or "")[:200],
                 source_name=source_name, source_url=rec.source_url,

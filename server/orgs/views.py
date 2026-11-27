@@ -1,13 +1,15 @@
 import re
 
+from django.conf import settings
 from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.generics import ListAPIView
+from npofile_crawler.donors import identity_key
 from rest_framework.response import Response
 
 from . import category_api, donor_rules, period, scoring
-from .models import AnnualFundraising, Donor, Organization, Project
+from .models import AnnualFundraising, Donor, Grant, Organization, Project
 from .serializers import (
     DonorDetailSerializer,
     DonorListSerializer,
@@ -52,6 +54,7 @@ def organization_detail(request, ubn):
             Prefetch("annual_records", queryset=AnnualFundraising.objects.filter(period.annual_q())),
             Prefetch("projects", queryset=Project.objects.filter(period.project_q())),
             "penalties",
+            Prefetch("grants", queryset=Grant.objects.filter(period.grant_q())),
             "categories",
         )
     )
@@ -69,6 +72,8 @@ def stats(request):
                 period.annual_q("annual_records__") | (Q(projects__isnull=False) & period.project_q("projects__"))
             ).distinct().count(),
             "since_roc_year": period.since_roc_year(),
+            # 資料說明頁要寫個人捐款人的門檻：從設定讀，畫面不寫死（LK-22）
+            "donor_individual_threshold": settings.DONOR_INDIVIDUAL_THRESHOLD,
             "penalized_5y": orgs.filter(scoring.penalty_5y_filter("penalties__")).distinct().count(),
         }
     )
@@ -100,7 +105,8 @@ class DonorList(ListAPIView):
         qs = donor_rules.public_donors()
         q = params.get("q", "").strip()
         if q:
-            cond = Q(name__icontains=q) | Q(registered_name__icontains=q)
+            # 比對用名稱也查：打「台灣」找得到「臺灣」、打「(股)」找得到「股份有限公司」、不看空白與大小寫（LK-16）
+            cond = Q(name__icontains=q) | Q(registered_name__icontains=q) | Q(name_key__contains=identity_key(q))
             if re.fullmatch(r"\d{8}", q):
                 cond |= Q(ubn=q)
             qs = qs.filter(cond)

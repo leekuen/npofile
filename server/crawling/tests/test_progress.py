@@ -145,6 +145,24 @@ class RunTests(TestCase):
         self.assertIn("上限先停", run.note)
         self.assertTrue(0 < progress.summary()["done"] < 6)
 
+    def test_killed_midway_keeps_progress_saved_each_minute(self):
+        """程式中途被關掉（電腦重開）：至少每分鐘存過一次的進度要留著，下次不必從頭抓。"""
+        site = FakeMohw()
+        site.clock = 0
+        original = site.get
+
+        def get(url, **kw):
+            site.clock += 40  # 每個請求 40 秒：每兩個請求就超過一分鐘
+            if "fundactivityDetails" in url and site.details == 4:
+                raise KeyboardInterrupt  # 模擬被強制關掉（不是一般錯誤，不會走到最後的存檔）
+            return original(url, **kw)
+
+        site.get = get
+        with mock.patch("crawling.ingest.time.monotonic", side_effect=lambda: site.clock):
+            with self.assertRaises(KeyboardInterrupt):
+                self.run_once(site)
+        self.assertGreater(progress.summary()["done"], 0)
+
     def test_known_group_name_needs_no_search(self):
         mohw_source = CrawlerSource.objects.get(key="mohw")
         items = mohw.parse_group(read("group_clean.html"), mohw.GROUP_URL.format(gid="10057"))

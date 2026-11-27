@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('orgs', '0006_project_channel'),
+        ('orgs', '0008_donor_name_key'),
     ]
 
     operations = [

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { formatMoney, formatNumber, formatRocDate } from "@/lib/format";
 import { ApiUnavailableError, getOrg } from "@/lib/server-api";
-import type { OrgDetail, Project, ScoreBreakdown } from "@/lib/types";
+import type { Grant, OrgDetail, Project, ScoreBreakdown } from "@/lib/types";
 
 import { OrgCategoryTags } from "./categories";
 import { Comments } from "./comments";
@@ -23,6 +23,7 @@ import {
 const TABS = [
   { key: "donations", label: "募款與捐款人" },
   { key: "projects", label: "捐款專案" },
+  { key: "grants", label: "政府補助" },
   { key: "penalties", label: "受裁罰紀錄" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
@@ -60,6 +61,7 @@ export async function OrgDetailView({
   const counts: Record<TabKey, number | null> = {
     donations: null,
     projects: null,
+    grants: null,
     penalties: org.penalties.length || null,
   };
 
@@ -139,6 +141,7 @@ export async function OrgDetailView({
             </p>
             {tab === "donations" && <DonationsTab org={org} />}
             {tab === "projects" && <ProjectsTab org={org} />}
+            {tab === "grants" && <GrantsTab grants={org.grants} />}
             {tab === "penalties" && <PenaltiesTab org={org} />}
           </div>
         </div>
@@ -149,7 +152,7 @@ export async function OrgDetailView({
   );
 }
 
-/** 頁首摘要：裁罰、近 5 年公開募款、專案數，點了跳到對應分頁 */
+/** 頁首摘要：裁罰、近 5 年公開募款、專案數、政府補助，點了跳到對應分頁 */
 function OrgSummary({ org }: { org: OrgDetail }) {
   const raised = org.public_raised.total;
   const penalized = org.penalty_count_5y > 0;
@@ -179,9 +182,18 @@ function OrgSummary({ org }: { org: OrgDetail }) {
       tone: "border-ink-200 bg-white text-ink-900",
       icon: null,
     },
+    {
+      tab: "grants",
+      label: "政府補助",
+      value: org.grants.length
+        ? formatMoney(org.grants.reduce((sum, g) => sum + g.amount, 0))
+        : "沒有紀錄",
+      tone: "border-ink-200 bg-white text-ink-900",
+      icon: null,
+    },
   ];
   return (
-    <ul className="grid grid-cols-3 gap-2">
+    <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       {items.map((it) => (
         <li key={it.tab}>
           <Link
@@ -195,7 +207,11 @@ function OrgSummary({ org }: { org: OrgDetail }) {
           >
             <span className="text-xs text-ink-600">{it.label}</span>
             <span className="mt-0.5 flex items-center gap-x-1.5 font-num text-[0.8125rem] font-semibold whitespace-nowrap tabular-nums sm:text-base">
-              {it.icon && <span aria-hidden className="hidden sm:inline">{it.icon}</span>}
+              {it.icon && (
+                <span aria-hidden className="hidden sm:inline">
+                  {it.icon}
+                </span>
+              )}
               {it.value}
             </span>
           </Link>
@@ -500,7 +516,10 @@ function DonationsTab({ org }: { org: OrgDetail }) {
                 {years.map((a) => (
                   <tr key={`${a.year}-${a.source_name}`}>
                     <td className="px-2 py-2 sm:px-3">{a.year}</td>
-                    <td className="hidden px-2 py-2 sm:px-3 sm:table-cell" aria-hidden>
+                    <td
+                      className="hidden px-2 py-2 sm:px-3 sm:table-cell"
+                      aria-hidden
+                    >
                       <div
                         className="h-3 rounded-sm bg-brand-600"
                         style={{
@@ -855,6 +874,69 @@ function CrowdfundingCard({ p }: { p: Project }) {
         <SourceNote name={p.source_name} url={p.source_url} />
       </p>
     </Card>
+  );
+}
+
+/** 政府補助（LK-19）：依年度分組，組內金額大的在前；附設單位的補助標出是哪個單位。 */
+function GrantsTab({ grants }: { grants: Grant[] }) {
+  if (grants.length === 0) {
+    return (
+      <EmptyState title="近 5 年沒有收錄到政府補助">
+        目前收錄衛生福利部（含社會及家庭署等所屬機關）公開的補助名單；名單上的名稱要跟組織登記名稱相同才對得到。
+      </EmptyState>
+    );
+  }
+  const years = [...new Set(grants.map((g) => g.year))].sort((a, b) => b - a);
+  const total = (ys: Grant[]) => ys.reduce((sum, g) => sum + g.amount, 0);
+  return (
+    <div className="space-y-6">
+      {years.map((year) => {
+        const rows = grants.filter((g) => g.year === year);
+        const quarter = Math.max(...rows.map((g) => g.quarter));
+        return (
+          <section key={year} aria-labelledby={`grants-${year}`}>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-ink-200 pb-2">
+              <h3 id={`grants-${year}`} className="font-semibold text-ink-900">
+                民國 {year} 年
+                {quarter < 4 && (
+                  <span className="ml-1 text-sm font-normal text-ink-600">
+                    （截至第 {quarter} 季）
+                  </span>
+                )}
+              </h3>
+              <p className="font-num text-sm font-semibold tabular-nums text-ink-900">
+                {formatNumber(rows.length)} 筆・{formatMoney(total(rows))}
+              </p>
+            </div>
+            <ul className="divide-y divide-ink-100">
+              {rows.map((g) => (
+                <li
+                  key={g.id}
+                  className="flex items-start justify-between gap-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="break-words text-ink-900">{g.purpose}</p>
+                    <p className="mt-1 text-xs text-ink-600">
+                      {g.agency}
+                      {g.approved_on && (
+                        <>・核准 {formatRocDate(g.approved_on)}</>
+                      )}
+                      {g.facility && <>・附設單位：{g.facility}</>}
+                    </p>
+                  </div>
+                  <p className="shrink-0 font-num text-sm font-semibold tabular-nums text-ink-900">
+                    {formatMoney(g.amount)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+      <p>
+        <SourceNote name={grants[0].source_name} url={grants[0].source_url} />
+      </p>
+    </div>
   );
 }
 
