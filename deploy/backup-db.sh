@@ -26,7 +26,7 @@ remote_keep=$(setting BACKUP_REMOTE_KEEP_DAYS 60)
 
 case "$db_url" in
   postgres://* | postgresql://*) ;;
-  *) echo "DATABASE_URL 沒設或不是 PostgreSQL（$APP_ENV），沒有東西可備份" >&2; exit 1 ;;
+  *) echo "DATABASE_URL 沒設或不是 PostgreSQL（${APP_ENV}），沒有東西可備份" >&2; exit 1 ;;
 esac
 
 mkdir -p "$dir"

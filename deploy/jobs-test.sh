@@ -124,5 +124,5 @@ bash "$here/backup-db.sh" >/dev/null 2>&1
 check "沒設 DATABASE_URL（還在用 SQLite）：算失敗" '[ $? -ne 0 ]'
 
 echo
-echo "通過 $pass、失敗 $fail"
+echo "通過 ${pass}、失敗 ${fail}"
 [ "$fail" -eq 0 ]
