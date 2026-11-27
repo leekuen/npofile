@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { formatNumber } from "@/lib/format";
+import { formatCompact, formatNumber } from "@/lib/format";
 import { ApiUnavailableError, getFilters, getTaxonomy, listOrgs, type OrgQuery } from "@/lib/server-api";
 
 import { CategoryBrowser, CategoryChip } from "./categories";
@@ -214,6 +214,11 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
                       <span className="tabular-nums">統編 {org.ubn}</span>
                       {org.city && <span>{org.city}</span>}
                       {org.org_type && <span>{org.org_type}</span>}
+                      {org.latest_revenue && (
+                        <span className="tabular-nums">
+                          總收入 {formatCompact(org.latest_revenue.total_revenue)}（{org.latest_revenue.year} 年度）
+                        </span>
+                      )}
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:hidden">
                         <StatusBadge status={org.status} label={org.status_label} />
                         <PenaltyBadge count={org.penalty_count_5y} />

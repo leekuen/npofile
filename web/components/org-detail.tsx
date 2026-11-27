@@ -78,6 +78,7 @@ export async function OrgDetailView({
 
         <aside className="space-y-4 lg:sticky lg:top-6 lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <ScorePanel score={org.score} />
+          <FinanceSummaryCard org={org} />
           <ContactCard org={org} />
         </aside>
 
@@ -246,6 +247,38 @@ function ScorePanel({ score }: { score: ScoreBreakdown }) {
         )}
         <p className="text-xs text-ink-500">受裁罰紀錄不影響揭露指數，另外標示。</p>
       </div>
+    </section>
+  );
+}
+
+/** 右欄財務摘要（LK-17，參照 Candid 組織頁的 Financials 卡）：最近一年三個數字＋連到財務分頁；沒有數字就不出 */
+function FinanceSummaryCard({ org }: { org: OrgDetail }) {
+  const latest = [...org.financials].sort((a, b) => b.year - a.year)[0];
+  if (!latest) return null;
+  const rows = [
+    { label: "總收入", value: latest.total_revenue },
+    { label: "總支出", value: latest.total_expenses },
+    { label: "年底總資產", value: latest.total_assets },
+  ];
+  return (
+    <section aria-labelledby="finance-summary-title" className="rounded-2xl border border-ink-200 bg-white p-4 lg:p-5">
+      <h2 id="finance-summary-title" className="font-display text-lg font-bold text-ink-900">
+        財務摘要
+      </h2>
+      <p className="mt-0.5 text-xs text-ink-600">民國 {latest.year} 年度</p>
+      <dl className="mt-3 space-y-2 text-sm">
+        {rows.map((r) => (
+          <div key={r.label} className="flex items-baseline justify-between gap-3">
+            <dt className="text-ink-700">{r.label}</dt>
+            <dd className="font-num font-semibold tabular-nums text-ink-900">{formatMoney(r.value)}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-3 border-t border-ink-100 pt-3 text-sm">
+        <TextLink href={`/orgs/${org.ubn}?tab=finance`} scroll={false}>
+          看更多財務資料
+        </TextLink>
+      </p>
     </section>
   );
 }

@@ -10,6 +10,8 @@ export interface OrgSummary {
   disclosure_score: number;
   penalty_count_5y: number;
   tags: CategoryTag[];
+  /** 近 5 年內有總收入的最近一年（LK-17）；列表 API 才有，沒有財務數字是 null */
+  latest_revenue?: { year: number; total_revenue: number } | null;
 }
 
 export interface Page<T> {

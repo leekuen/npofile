@@ -1,6 +1,6 @@
 import re
 
-from django.db.models import Prefetch, Q
+from django.db.models import OuterRef, Prefetch, Q, Subquery
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.generics import ListAPIView
@@ -35,6 +35,13 @@ class OrganizationList(ListAPIView):
         if status := params.get("status", "").strip():
             qs = qs.filter(status=status)
         qs = category_api.filter_orgs(qs, params)
+        # 卡片上的「總收入（民國 N 年度）」：近 5 年內、有總收入的最近一年（LK-17）
+        latest = FinancialYear.objects.filter(
+            period.annual_q(), organization=OuterRef("pk"), total_revenue__isnull=False
+        ).order_by("-year")
+        qs = qs.annotate(
+            fin_year=Subquery(latest.values("year")[:1]), fin_revenue=Subquery(latest.values("total_revenue")[:1])
+        )
         ordering = ORDERINGS.get(params.get("ordering", "score"), ORDERINGS["score"])
         return scoring.with_penalty_count(qs).prefetch_related("categories").order_by(*ordering)
 

@@ -139,3 +139,67 @@ class PruneTests(TestCase):
         self.assertEqual(list(FinancialYear.objects.values_list("year", flat=True)), [new])
         self.assertEqual(list(OrgDocument.objects.values_list("year", flat=True)), [new])
         self.assertIn("年度財務 1 筆、官網報告 1 筆", out.getvalue())
+
+
+class ListAndReviewPageTests(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(ubn=UBN, name="自閉症基金會")
+        self.source = CrawlerSource.objects.get(key="orgsite")
+
+    def test_list_shows_latest_revenue_in_window(self):
+        new = period.since_roc_year() + 2
+        FinancialYear.objects.create(organization=self.org, year=new - 1, total_revenue=100)
+        FinancialYear.objects.create(organization=self.org, year=new, total_revenue=None)  # 沒有總收入的年度跳過
+        FinancialYear.objects.create(organization=self.org, year=period.since_roc_year() - 1, total_revenue=999)
+        Organization.objects.create(ubn="22222222", name="沒有財報")
+        rows = {o["ubn"]: o["latest_revenue"] for o in self.client.get("/api/orgs").json()["results"]}
+        self.assertEqual(rows[UBN], {"year": new - 1, "total_revenue": 100})
+        self.assertIsNone(rows["22222222"])
+
+    def test_review_page_shows_table_and_report_link(self):
+        user = get_user_model().objects.create_superuser("admin", "a@example.org", "pw-for-test-only")
+        self.client.force_login(user)
+        run_source(self.source, items=[fin(113), doc(113)])
+        fin_rec = CrawlRecord.objects.get(kind="financial")
+        page = self.client.get(f"/admin/crawling/crawlrecord/{fin_rec.pk}/change/").content.decode()
+        self.assertIn("36,914,991 元", page)
+        self.assertIn("總收入", page)
+        self.assertIn("—（報告沒列）", page)
+        self.assertIn(PDF, page)
+        self.assertIn("自閉症基金會", page)
+        doc_rec = CrawlRecord.objects.get(kind="document")
+        page = self.client.get(f"/admin/crawling/crawlrecord/{doc_rec.pk}/change/").content.decode()
+        self.assertIn("打開原始報告", page)
+        listing = self.client.get("/admin/crawling/crawlrecord/").content.decode()
+        self.assertIn("113 年 財務報告：113年度財務報告", listing)
+
+        apply_records([fin_rec], CrawlRecord.Status.APPROVED)
+        page = self.client.get(f"/admin/crawling/crawlrecord/{fin_rec.pk}/change/").content.decode()
+        self.assertIn("到這一年的年度財務修改", page)
+
+
+class ReviewButtonsTests(TestCase):
+    def setUp(self):
+        Organization.objects.create(ubn=UBN, name="自閉症基金會")
+        user = get_user_model().objects.create_superuser("admin", "a@example.org", "pw-for-test-only")
+        self.client.force_login(user)
+        run_source(CrawlerSource.objects.get(key="orgsite"), items=[fin(113), doc(113)])
+
+    def post(self, rec, button):
+        return self.client.post(f"/admin/crawling/crawlrecord/{rec.pk}/change/", {"review_note": "對過原檔", button: "1"})
+
+    def test_approve_button(self):
+        rec = CrawlRecord.objects.get(kind="financial")
+        self.assertIn("核准並上架", self.client.get(f"/admin/crawling/crawlrecord/{rec.pk}/change/").content.decode())
+        resp = self.post(rec, "_approve")
+        self.assertEqual(resp.status_code, 302)
+        rec.refresh_from_db()
+        self.assertEqual((rec.status, rec.review_note), ("approved", "對過原檔"))
+        self.assertEqual(FinancialYear.objects.get().total_revenue, 36914991)
+
+    def test_reject_button(self):
+        rec = CrawlRecord.objects.get(kind="document")
+        self.post(rec, "_reject")
+        rec.refresh_from_db()
+        self.assertEqual(rec.status, "rejected")
+        self.assertFalse(OrgDocument.objects.exists())

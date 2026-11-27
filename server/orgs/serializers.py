@@ -11,12 +11,18 @@ class OrganizationListSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source="get_status_display")
     penalty_count_5y = serializers.IntegerField()
     tags = serializers.SerializerMethodField()
+    latest_revenue = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
         fields = (
             "ubn", "name", "org_type", "city", "status", "status_label", "disclosure_score", "penalty_count_5y", "tags",
+            "latest_revenue",
         )
+
+    def get_latest_revenue(self, obj):
+        year = getattr(obj, "fin_year", None)
+        return {"year": year, "total_revenue": obj.fin_revenue} if year is not None else None
 
     def get_tags(self, obj):
         return category_api.short_tags(obj)

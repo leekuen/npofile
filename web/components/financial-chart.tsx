@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { formatMoney } from "@/lib/format";
+import { formatCompact, formatMoney } from "@/lib/format";
 
 /** 近 5 年財務趨勢折線圖（LK-17）：總收入、總支出、年底淨資產，一條 y 軸（都是元）。
  *  顏色經 dataviz validate_palette 檢查過（色盲可分）；每條線尾端直接標名稱，圖上方也有圖例，不只靠顏色。 */
@@ -18,13 +18,6 @@ type SeriesKey = (typeof SERIES)[number]["key"];
 
 const SURFACE = "#ffffff";
 
-/** 軸與尾端標籤用的短寫法：1.2 億、3,400 萬 */
-export function formatCompact(v: number): string {
-  const abs = Math.abs(v);
-  if (abs >= 1e8) return `${(v / 1e8).toFixed(abs >= 1e9 ? 0 : 1)} 億`;
-  if (abs >= 1e4) return `${Math.round(v / 1e4).toLocaleString("zh-TW")} 萬`;
-  return v.toLocaleString("zh-TW");
-}
 
 function niceMax(v: number): number {
   if (v <= 0) return 1;
