@@ -10,69 +10,59 @@ created: 2026-11-27
 updated: 2026-11-27
 ---
 
-<!-- roles 誰使用：填這個產品的角色，例 顧客 / 店員 / 管理員（清單見 docs/SPEC.md〈產品概述〉；可多個，未填 ticket-lint 會擋）；owner 動工時填；depends 填要用到哪幾張票的程式才做得出來／測得了（例：[AMY-03]，不是「主題相關」；做法見 tickets/README.md〈相依的票〉）；spec 換成這個功能在 SPEC 的章節錨點（SPEC 本身等合流 stage 那一次才寫，開票時不動它） -->
-
 ## 目的（要解決什麼問題）
 
-一句話說明為什麼要做。
+使用者 2026-11-27：DigitalOcean 512MB 那台「真的跑太慢」，改放到朋友（書）提供的主機。書要求 Docker Compose，規格（使用者貼上）：
+主機 Apple Silicon（linux/arm64）；PostgreSQL 資料與上傳檔案的 volume 路徑用 .env 變數（指到外接 APFS 硬碟）；cron 包成獨立 container 或寫進 backend；對外用 compose 裡的 cloudflared 指向內部 nginx:80（token 放 .env），主機不開 port。
 
 ## 使用角色與情境
 
-- 誰、在什麼場景、用什麼裝置操作。
+- 管理員／維運（書）：`cp .env.example .env` 填值 → `docker compose up -d --build`，網站經 Cloudflare Tunnel 對外。
+- 公眾／捐款人：網址改成 `npofile.leekuen.com`；行為不變。
 
 ## 逼問紀錄
 
-<!-- 開票前 grill 問過什麼。一題一行：問了什麼／對方怎麼答／因此推翻或確認了哪個假設。
-     看票的人不用翻對話，就知道開工前確認過哪些事。
-     框架票、只修錯字這類沒有要問的，寫「不適用：<理由>」。（源專案 v4.76.0） -->
-
-- 問：……／答：……／因此：……
+- 問：主機與對外方式？／答（書，使用者轉貼）：Apple Silicon、Docker Compose、cloudflared 指向 nginx:80／因此：映像檔要 arm64、主機不開 port。
+- 問（agent 代決）：排程放哪？／答：獨立的 `scheduler` container，跟 backend 同映像檔、用 supercronic／因此：backend 重啟不影響排程，時間表跟 `deploy/crontab` 一致。
+- 問（agent 代決）：上傳檔案的 volume？／答：程式沒有上傳功能（沒有 FileField／MEDIA），不做；資料庫、備份、紀錄各一個 .env 路徑。
+- 問（agent 代決）：ARM64 怎麼驗？／答：本機沒有 Docker，改用 GitHub Actions 的 `ubuntu-24.04-arm` 原生機器整套建起來測（repo 是公開的，免費）。
+- 誰看得到、誰能改：不涉及（沒有新的資料或欄位）。
 
 ## 需求細節
 
-- 與案主確認過的具體行為（含欄位、流程、規則）。
-- 欄位權限：……（照 AGENTS.md〈沒權限的欄位，哪裡都不出現〉：哪些欄位出現在新地方或開給新角色，各寫原本誰看得到 → 做完誰看得到；不改程式、不改開放對象寫「不涉及」）
+- `server/Dockerfile`（context＝repo 根目錄，帶 crawler/ 與 deploy/ 的排程腳本）、`web/Dockerfile`、`compose.yaml`、`.env.example`、`docker/`（nginx、crontab、entrypoint、README）。
+- 服務：db（postgres:16-alpine）、backend、web、nginx、scheduler、cloudflared（profile `tunnel`）。
+- `.env` 路徑變數：`PG_DATA_DIR`、`BACKUP_DIR_HOST`、`LOG_DIR_HOST`。
+- 對外只有 cloudflared；nginx 只綁 `127.0.0.1:8080` 供本機測試。
+- `.github/workflows/docker.yml`：x86 與 ARM64 各跑一次整套。
+- 不改產品程式行為。
+- 欄位權限：不涉及。
 
 ## 條件確認
 
-<!-- 你（agent）自己加的、案主沒講過，而且會讓資料「出現／消失／被一次改掉／被擋掉」的條件，一條一列（源專案 v5.5.0）。
-     例：某區塊至少要有一份附件才出現、舊資料一次回填、預設篩選掉某些資料、驗證擋送出。
-     純文字、版面、顏色這類沒有筆數的，照預設做、寫在〈需求細節〉，不進這張表。
-     符合／擋掉：開票時唯讀查 prod（正式環境）的筆數，寫「N 筆」；〈條件〉格要講清楚分母（哪一群資料、共幾筆）。
-       查不到就寫「查不到：<原因>」，不要用估的。
-     狀態有三種：已確認｜未確認｜待 prod 資料。只有案主在勾選清單裡回「同意」才是已確認（回答日填當天）；
-       「不同意」（照對方的改法改票、重查筆數再給對方看新筆數）、「先略過」「我看不懂」或還沒問，都是未確認——
-       開發中不等清單的回答，但**推 stage 前一定要問完**（推 stage／prod 前的條件確認檢查會擋，可先跑 make confirm-lint；源專案 v5.41.0）。
-       「待 prod 資料」只給「要看到 prod 筆數才答得出來」的列：〈符合〉或〈擋掉〉寫「查不到：<原因>」，
-       案主在推 stage 前那則清單選「等 prod 筆數再答」才能標，回答日填那天；推 prod 前還是要重查筆數再問。
-     這節沒有條件可列就整節改寫成「不適用：<理由>」。清單怎麼產生見 pm skill〈4b〉；表格怎麼填見 tickets/README.md〈條件確認〉。 -->
+不適用：沒有改變資料出現或消失的條件，只是換一種方式把既有程式跑起來。
 
-| 條件（含分母） | 符合 | 擋掉 | 狀態 | 回答日 |
-|---|---|---|---|---|
-| （例）已審核的申請單，附件區至少一份附件才出現確認勾選（分母：prod 已審核的申請單共 3707 筆） | 10 筆 | 3697 筆 | 未確認 | |
+## 數字口徑
+
+不適用：沒有新的數字。
 
 ## 這次可能會弄壞什麼
 
-<!-- 一行一個編號（W1、W2…）：這次改動有機會波及、但**不打算改**的頁面或功能，
-     **以及需求要求其他頁也要檢查或修的（不論寫成一併、同款、也要、一起；一頁一個編號）**。
-     推 stage 前每個 W 都要在〈開發備註〉（或〈走查〉節）交代「走查（…）W1 …」，或照 user-walkthrough〈跳過之後怎麼做〉的三行寫「沒走的是：W1 …」，
-     推 stage 前的走查紀錄檢查會擋（可先跑 make walkthrough-lint；源專案 v5.30.0）。
-     〈驗收標準〉或〈走查〉要有以同一個編號開頭的行。真的沒有就寫「不適用：<理由>」。
-     由來（源專案）：某張票的邊界寫了「不動隔壁那個畫面」，五條驗收標準卻沒有一條關於它，
-     三天後那個畫面的五個互動在整合環境壞了一整天。 -->
-
-- W1 例：某個清單頁
+- W1 既有的主機直裝部署（`deploy/`）：這次只新增檔案、`deploy/run-job.sh`／`backup-db.sh` 照原樣被 container 引用，不能改壞主機版的排程。
 
 ## 驗收標準
 
-- [ ] W1 那一頁的哪幾個互動要各按一次（風險編號要對得上）
-- [ ] 可驗證的條件一
-- [ ] 可驗證的條件二
+- [ ] W1 `deploy/` 的檔案沒有改動（diff 只有新增檔案與 `.gitignore`）。
+- [ ] GitHub Actions 在 x86 與 ARM64 兩台都綠：全部服務 healthy、經 nginx 打首頁／API／管理後台／靜態檔都 200、登入 CSRF 正確、後端測試在 PostgreSQL 上全過、排程 container 備份成功。
+- [ ] 書的主機上 `docker compose up -d --build` 起得來，`https://npofile.leekuen.com` 開得到。
 
 ## 邊界（明確不做什麼）
 
-- 這張票不包含的範圍，避免無限延伸。
+- 不改產品程式；不做上傳檔案的 volume（沒有這功能）。
+- 不替書或使用者建立 Cloudflare Tunnel（要在使用者的 Cloudflare 帳號操作）。
+- 不搬資料庫（說明寫在 docker/README.md，由有權限的人做）。
 
 ## 開發備註（/dev 填寫）
 
-- 實作決策、風險、對應 commit / PR。
+- supercronic v0.2.51（2026-10-21）、cloudflared 2026.11.0（2026-11-12），版本與 supercronic 的 SHA1 寫死在檔案裡。
+- 後端映像檔用 `python:3.12-slim-trixie`：Debian trixie 的 postgresql-client 是 17 版，pg_dump 可以備份 16 版的資料庫（bookworm 的 15 版不行）。

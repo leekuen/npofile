@@ -1,0 +1,17 @@
+# 後端映像檔的 build context 是 repo 根目錄，只需要 server/、crawler/、deploy/、docker/
+.git
+.github
+.claude
+cache
+tickets
+docs
+web
+scripts
+**/.venv
+**/node_modules
+**/__pycache__
+**/*.pyc
+server/db.sqlite3
+server/staticfiles
+**/.env
+**/.env.*
