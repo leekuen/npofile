@@ -11,7 +11,7 @@ from django.db.models import Count, Q, QuerySet
 from django.utils import timezone
 
 from . import period
-from .models import Organization
+from .models import Organization, Project
 
 BASIC_FIELDS = ("ubn", "org_type", "address", "phone", "website", "purposes")
 BASIC_POINTS = 5
@@ -45,7 +45,8 @@ def breakdown(org: Organization, annual=None, donations_exist=None, projects=Non
     annual = list(org.annual_records.all()) if annual is None else annual
     projects = list(org.projects.all()) if projects is None else projects
     since = period.since_roc_year(ref)
-    projects = [p for p in projects if period.in_window(p.period_year, ref)]
+    # 揭露指數的專案兩項是照政府勸募許可定義的：群眾集資專案沒有成果備查，不算（LK-15）
+    projects = [p for p in projects if period.in_window(p.period_year, ref) and p.channel == Project.Channel.PERMIT]
     if donations_exist is None:
         donations_exist = org.donations.exists()
 

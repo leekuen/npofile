@@ -5,10 +5,11 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Iterable
-from datetime import date
+from datetime import date, timedelta
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from npofile_crawler.http import PoliteClient
 from npofile_crawler.items import Item
@@ -38,7 +39,7 @@ BATCH = 500
 KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4}
 PROJECT_FIELDS = (
     "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
-    "result_filed_on", "closed_filed_on", "description",
+    "result_filed_on", "closed_filed_on", "description", "channel", "monthly_raised", "backers",
 )
 DATE_FIELDS = {"start_date", "end_date", "result_filed_on", "closed_filed_on"}
 
@@ -72,6 +73,7 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
     touched: set[str] = set()
     batch: list[Item] = []
     known = set(CrawlRecord.objects.filter(source=source).values_list("content_hash", flat=True))
+    skipped = 0
 
     def store() -> None:
         _store_batch(source, run, batch, known, touched)
@@ -90,9 +92,17 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
                         plan = DbActivityPlan()
                     values = {"threshold": settings.DONOR_INDIVIDUAL_THRESHOLD, "since_roc": period.since_roc_year(),
                               "plan": plan}
+                    if "revisit" in src.options:
+                        values["revisit"] = revisit_ids(source)
                     items = src.fetch(client, limit, **{k: values[k] for k in src.options})
+                org_ubns = None
+                if source.key in SOURCES and SOURCES[source.key].known_orgs_only:
+                    org_ubns = set(Organization.objects.values_list("ubn", flat=True))
                 for item in items:
                     run.fetched += 1
+                    if org_ubns is not None and item.ubn not in org_ubns:
+                        skipped += 1
+                        continue
                     batch.append(item)
                     if len(batch) >= BATCH:
                         store()
@@ -105,6 +115,8 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
                 run.status = CrawlRun.Status.FAILED
                 run.error = f"{type(exc).__name__}: {exc}"[:2000]
             store()
+            if skipped:
+                run.note = "；".join(x for x in (run.note, f"跳過 {skipped} 筆（提案者不是收錄的組織）") if x)[:300]
             if plan is not None:
                 run.note = "；".join(x for x in (run.note, progress.summary_text()) if x)[:300]
                 run.listed_cards = plan.listed_count  # 不存資料庫：給 crawl 指令判斷「來源網站是不是改版了」
@@ -119,6 +131,21 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
         source.last_run_at = run.finished_at
         source.save(update_fields=["last_run_at"])
     return run
+
+
+# 已收過的群眾集資專案：長期集資或結束未滿這麼多天的，列表上沒有也要回頭再看（記下結束時的金額）
+REVISIT_DAYS = 14
+
+
+def revisit_ids(source: CrawlerSource) -> list[str]:
+    since = timezone.localdate() - timedelta(days=REVISIT_DAYS)
+    return list(
+        Project.objects.filter(source_name=record_source_name(source), channel=Project.Channel.CROWDFUNDING)
+        .filter(Q(end_date__isnull=True) | Q(end_date__gte=since))
+        .exclude(external_id="")
+        .values_list("external_id", flat=True)
+        .distinct()
+    )
 
 
 def recompute_ubns(ubns: set[str], chunk: int = 900) -> None:
@@ -154,8 +181,29 @@ def _store_batch(source: CrawlerSource, run: CrawlRun, batch: list[Item], known:
         run.failed += failed
         touched.update(r.ubn for r in saved)
     else:
-        run.pending += len(saved)
+        updates = _approved_updates(source, saved)
+        if updates:
+            ok, failed = apply_records(updates, CrawlRecord.Status.AUTO)
+            run.applied += ok
+            run.failed += failed
+            touched.update(r.ubn for r in updates)
+        run.pending += len(saved) - len(updates)
     run.save(update_fields=["fetched", "created", "applied", "pending", "failed"])
+
+
+def _approved_updates(source: CrawlerSource, saved: list[CrawlRecord]) -> list[CrawlRecord]:
+    """來源設了 update_approved：同一筆（同類型、同編號、同統編）已核准過的，新版本直接上架。"""
+    src = SOURCES.get(source.key)
+    if not (src and src.update_approved):
+        return []
+    ids = {r.external_id for r in saved if r.external_id}
+    done = set(
+        CrawlRecord.objects.filter(
+            source=source, external_id__in=ids,
+            status__in=[CrawlRecord.Status.APPROVED, CrawlRecord.Status.AUTO],
+        ).values_list("kind", "external_id", "ubn")
+    )
+    return [r for r in saved if (r.kind, r.external_id, r.ubn) in done]
 
 
 @transaction.atomic
