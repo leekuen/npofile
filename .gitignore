@@ -22,6 +22,12 @@ __pycache__/
 venv/
 *.log
 
+# Next.js
+.next/
+out/
+.vercel
+*.tsbuildinfo
+
 # 備份檔（可能含正式資料）
 *.sql
 *.sql.gz
