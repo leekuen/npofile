@@ -7,7 +7,7 @@ from rest_framework.generics import ListAPIView
 from npofile_crawler.donors import identity_key
 from rest_framework.response import Response
 
-from . import category_api, donor_rules, period, scoring
+from . import category_api, donor_rules, home, period, scoring
 from .models import AnnualFundraising, Donor, Organization, Project
 from .serializers import (
     DonorDetailSerializer,
@@ -110,3 +110,15 @@ class DonorList(ListAPIView):
 def donor_detail(request, pk):
     donor = get_object_or_404(donor_rules.public_donors(), pk=pk)
     return Response(DonorDetailSerializer(donor).data)
+
+
+@api_view(["GET"])
+def home_discover(request):
+    """首頁探索區：快截止的募款、最新裁罰、企業捐款（LK-18）。"""
+    return Response(home.discover())
+
+
+@api_view(["GET"])
+def home_picks(request):
+    """首頁領域區：選了領域或服務對象時的組織（LK-18）；沒有可看的分類回 {"picks": null}。"""
+    return Response({"picks": home.field_picks(request.query_params)})
