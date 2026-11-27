@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <!--連續數個 < !---- > 的使用，僅為了提供套版時視覺上的區隔，無其他用途-->
+    <meta charset="UTF-8"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <!-- default header name is X-CSRF-TOKEN -->
+    <meta name="_csrf" content=""/>
+    <meta name="_csrf_header" content=""/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="build-date" content="2026-11-25 14:10:29">
+    <meta name="app-version" content="20230805">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="sitename">
+    <meta property="og:description" content="description">
+    <meta property="og:url" content="url">
+    <meta property="og:image" content="og-image.png">
+    <title>社團法人賦格行動音樂關懷協會 | 公益勸募管理系統</title>
+
+    <link rel="shortcut icon" href="/app39/assets/favicon-a4ee112453d7d8b891324cd5b5b20068.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="/app39/assets/apple-touch-icon-5579d5aa0fafb65397f8e98f6f1649f8.png">
+
+
+    
+    <script type="text/javascript" nonce="BM8IsHIp+6Q0RKE+98yojw">
+        window.appname = '/app39';
+    </script>
+
+
+    <link rel="stylesheet" href="/app39/assets/front-132715dd4883effed6df5960e19f011e.css" />
+    <script type="text/javascript" src="/app39/assets/front-0e92bbb33eba4d126921a5d26ad30d07.js" nonce="BM8IsHIp+6Q0RKE+98yojw"></script>
+
+
+
+
+
+    <!-- HTML5 shim and Respond.js 讓 IE8 支援 HTML5 元素與媒體查詢 -->
+    <!-- 警告：Respond.js 無法在 file:// 協定下運作 -->
+    <!--[if lt IE 9] -->
+    <script type="text/javascript" src="/app39/assets/vendor/respond.min-678d372b349e434d9923e1b591f14a1e.js" nonce="BM8IsHIp+6Q0RKE+98yojw"></script>
+    <script type="text/javascript" src="/app39/assets/vendor/html5shiv-7861771525b46abe3f2b6e323eaa6f82.js" nonce="BM8IsHIp+6Q0RKE+98yojw"></script>
+    <!--[endif] -->
+    
+    <meta name="layout" content="bootstrap">
+    
+    <script type="text/javascript" nonce="BM8IsHIp+6Q0RKE+98yojw">
+        $(document).ready(function () {
+
+            $('.bi-table-box').show(0);
+            $('.bi-table').hide(0);
+
+            //表格展開收合
+            var tableextend = true
+            $('.table-extend').click(
+                function(e){
+                    e.preventDefault()
+                    if(tableextend === true){
+                        $('.bi-table').slideDown('slow')
+                        $('.table-extend').html("收合歷年募款達成情形 <i class='fa-solid fa-minus-circle'></i>")
+                        tableextend = false
+                    }
+                    else{
+                        $('.bi-table').slideUp('slow')
+                        $('.table-extend').html("檢視歷年募款達成情形 <i class='fa-solid fa-circle-plus'></i>")
+                        tableextend = true
+                    }
+                }
+            )
+        });
+    </script>
+
+</head>
+
+<body>
+<noscript>偵測到您目前的瀏覽器未開啟JavaScript功能，在此情形下本網站無法正常使用，請開啟瀏覽器的JavaScript支援。</noscript>
+<!-- Body main wrapper start -->
+<script type="text/javascript" nonce="BM8IsHIp+6Q0RKE+98yojw">
+    //當滾動時關閉 datepicker
+    $(document).ready(function(){
+        $(window).scroll(
+            function(){
+                $(".datepicker").attr("style","display:none");
+            }
+        );
+
+        // 阻止 href="#" 的錨點跳頁頂行為
+        $(document).on('click', 'a.bi-item, a.table-extend', function(e){ e.preventDefault(); });
+
+        // 返回上一頁
+        $(document).on('click', '.goback', function(){ history.back(); });
+
+        // 清除查詢條件按鈕
+        $(document).on('click', '[data-action="clear-form"]', function(){ ClearForm(); });
+
+        // 觸發指定元素的 click（用於搜尋按鈕代理）
+        $(document).on('click', '[data-click-target]', function(){
+            var target = $(this).data('click-target');
+            $(target).trigger('click');
+        });
+
+        // 圖片載入失敗回退（error 事件不冒泡，必須直接綁定每個元素）
+        document.querySelectorAll('img[data-fallback-src]').forEach(function(img) {
+            if (img.complete && img.naturalHeight === 0) {
+                img.src = img.getAttribute('data-fallback-src');
+            } else {
+                img.addEventListener('error', function() {
+                    this.onerror = null;
+                    this.src = this.getAttribute('data-fallback-src');
+                });
+            }
+        });
+    });
+
+    //清除查詢條件
+    function ClearForm() {
+        jQuery('select').not(':disabled').not(':hidden').val('');
+        jQuery(':input[type=number]:not(:disabled):not(:hidden)').val('');
+        jQuery(':input[type=text]:not(:disabled):not(:hidden)').val('');
+        jQuery(':input[type=date]:not(:disabled):not(:hidden)').val('');
+        jQuery(':input[type=radio]:not(:disabled):not(:hidden)').removeAttr('checked');
+        jQuery(':input[type=checkbox]:not(:disabled)').removeAttr('checked');
+    }
+</script>
+<!-- header -->
+
+
+<!--網頁上方導覽區-->
+<a class="sr-only sr-only-focusable a18y-jump" href="#anchor-pageMain">跳到主要內容區塊</a>
+<nav class="navbar navbar-expand-xl navbar-light fixed-top" aria-label="主選單導覽">
+    <div class="container limited">
+        <h1 class="logo"><a class="navbar-brand" href="/app39/"><img src="/app39/assets/logo-f936dca3e426914cb305c9515b64e255.svg" alt=""><span class="sr-only">公益勸募管理系統</span></a></h1>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation"><span class="navbar-toggler-icon"></span></button>
+        <div class="collapse navbar-collapse" id="mainNavbar">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item ml-md-2">
+                    <a class="nav-link a11y-guidepoint" id="pageTop" href="#pageTop" accesskey="U" title="上方導覽連結區">:::</a>
+                </li>
+                <li class="nav-item ml-md-2 line-1 ">
+                    <a class="nav-link" href="/app39/">首頁</a>
+                </li>
+                <li class="nav-item ml-md-2 line-1 ">
+                    <a class="nav-link" href="/app39/sitemap/sitemapIndex">網站導覽</a>
+                </li>
+                <li class="nav-item ml-md-2 line-1 ">
+                    <a class="nav-link" href="/app39/faq/faqIndex">常見問題</a>
+                </li>
+                <li class="nav-item ml-md-2 line-1 ">
+                    <a class="nav-link" target="_blank" title="(另開新視窗)" href="https://pwfr.mohw.gov.tw/pwfr/register/index">帳號申請
+                        <span class="tip">另開新視窗</span>
+                    </a>
+                </li>
+                <li class="nav-item ml-md-2 line-1 login-btn">
+                    <a class="nav-link" target="_blank" title="(另開新視窗)" href="https://pwfr.mohw.gov.tw/pwfr/"><i class="mr-2 fa-regular fa-circle-user" aria-hidden="true"></i>帳號登入
+                        <span class="tip">另開新視窗</span>
+                    </a>
+                </li>
+                <li class="nav-item ml-md-2 line-2 ">
+                    <a class="nav-link" href="/app39/news/newsIndex">最新消息</a>
+                </li>
+                <li class="nav-item ml-md-2 line-2 ">
+                    <a class="nav-link" href="/app39/decree/decreeIndex">相關法令</a>
+                </li>
+                <li class="nav-item ml-md-2 dropdown line-2 ">
+                    <a class="nav-link dropdown-toggle" id="dropdown6" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">訊息公告</a>
+                    <div class="dropdown-menu" aria-labelledby="dropdown6">
+                        <a class="dropdown-item" href="/app39/training/trainingIndex">教育訓練</a>
+                        <a class="dropdown-item" href="/app39/disaster/disasterIndex">重大災害</a>
+                        <a class="dropdown-item" href="/app39/publicity/publicityIndex">宣導專區</a>
+                        <a class="dropdown-item" href="/app39/localinfo/localinfoIndex">直轄市、縣(市)主管機關</a>
+                        <a class="dropdown-item" href="/app39/statistics/statisticsIndex">統計資料</a>
+                    </div>
+                </li>
+                <li class="nav-item ml-md-2 dropdown line-2 ">
+                    <a class="nav-link dropdown-toggle" id="dropdown7" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">查詢專區</a>
+                    <div class="dropdown-menu" aria-labelledby="dropdown7">
+                        <a class="dropdown-item" href="/app39/fundactivity/fundactivityIndex">勸募活動</a>
+                        <a class="dropdown-item" href="/app39/fundgroup/fundgroupIndex">勸募團體</a>
+                        <a class="dropdown-item" href="/app39/ministryArea/ministryAreaIndex">相關部會專區</a>
+                    </div>
+                </li>
+                <li class="nav-item ml-md-2 line-2 ">
+                    <a class="nav-link" href="/app39/violation/violationIndex">違規公告</a>
+                </li>
+                <li class="nav-item ml-md-2 line-2 ">
+                    <a class="nav-link" href="/app39/datadl/datadlIndex">資料下載</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+<nav class="navbarline-secondary" aria-label="快捷連結導覽">
+    <div class="container limited-2">
+        <li class="nav-item ml-md-2 line-2">
+            <a class="nav-link" href="/app39/news/newsIndex">最新消息</a>
+        </li>
+        <li class="nav-item ml-md-2 line-2 ">
+            <a class="nav-link" href="/app39/decree/decreeIndex">相關法令</a>
+        </li>
+        <li class="nav-item ml-md-2 dropdown line-2">
+            <a class="nav-link dropdown-toggle" id="dropdown6" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">訊息公告</a>
+            <div class="dropdown-menu" aria-labelledby="dropdown6">
+                <a class="dropdown-item" href="/app39/training/trainingIndex">教育訓練</a>
+                <a class="dropdown-item" href="/app39/disaster/disasterIndex">重大災害</a>
+                <a class="dropdown-item" href="/app39/publicity/publicityIndex">宣導專區</a>
+                <a class="dropdown-item" href="/app39/localinfo/localinfoIndex">直轄市、縣(市)主管機關</a>
+                <a class="dropdown-item" href="/app39/statistics/statisticsIndex">統計資料</a>
+            </div>
+        </li>
+        <li class="nav-item ml-md-2 dropdown line-2"><a class="nav-link dropdown-toggle" id="dropdown7" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">查詢專區</a>
+            <div class="dropdown-menu" aria-labelledby="dropdown7">
+                <a class="dropdown-item" href="/app39/fundactivity/fundactivityIndex">勸募活動</a>
+                <a class="dropdown-item" href="/app39/fundgroup/fundgroupIndex">勸募團體</a>
+                <a class="dropdown-item" href="/app39/ministryArea/ministryAreaIndex">相關部會專區</a>
+            </div>
+        </li>
+        <li class="nav-item ml-md-2 line-2 ">
+            <a class="nav-link" href="/app39/violation/violationIndex">違規公告</a>
+        </li>
+        <li class="nav-item ml-md-2 line-2">
+            <a class="nav-link" href="/app39/datadl/datadlIndex">資料下載</a>
+        </li>
+    </div>
+</nav>
+<div class="navbarcover-top"></div>
+
+
+<main>
+    
+<!-- 社群媒體連結-->
+<div class="container-fluid container-lg">
+    <div class="sociallink">
+        <div class="sociallink-box">
+            <div class="sociallink-box2">
+                <a class="socialbox" href="https://social-plugins.line.me/lineit/share?url=https://www.google.com.tw/" target="_blank" title="line(另開新視窗)" aria-label="分享到 LINE（另開新視窗）">
+                    <img class="img-fluid" src="/app39/assets/line-976eb1e0388411fe1e9f6eac6d50ae8d.svg" alt="line">
+                    <span class="sr-only">分享到 LINE（另開新視窗）</span>
+                </a>
+                <a class="socialbox" href="https://www.facebook.com/sharer/sharer.php?u=https://www.google.com.tw/" target="_blank" title="fb(另開新視窗)" aria-label="分享到 Facebook（另開新視窗）">
+                    <img class="img-fluid" src="/app39/assets/fb-5ab433fc7cbdbe7ac06a4b878f06207b.svg" alt="fb">
+                    <span class="sr-only">分享到 Facebook（另開新視窗）</span>
+                </a>
+                <a class="socialbox" href="https://twitter.com/intent/tweet?url=https://www.google.com.tw/&text=Check%20out%20this%20link!" target="_blank" title="twitter(另開新視窗)" aria-label="分享到 X（另開新視窗）">
+                    <img class="img-fluid" src="/app39/assets/twitter_x-20838053ea7df30339d9ea7868c73975.svg" alt="twitter">
+                    <span class="sr-only">分享到 X（另開新視窗）</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="global-wrapper">
+    <div class="main-content inner-bg">
+        <div class="inner-box container">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a class="a11y-guidepoint" id="pageCenter" href="#pageCenter" accesskey="C" title="中央內容區塊">:::</a>
+                        <a href="/app39/">
+                            <img class="home-icon" src="/app39/assets/home-lg-67b0837f873f8d4e6da5403e2b0ef0c6.svg" alt="">首頁
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item">查詢專區</li>
+                    <li class="breadcrumb-item"> <a href="/app39/fundgroup/fundgroupIndex">勸募團體</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">社團法人賦格行動音樂關懷協會</li>
+                </ol>
+            </nav>
+            <div class="inner-ui-bg fundgroupinfo" id="anchor-pageMain">
+                <div class="inner-title title-box">
+                    <h2 class="title-main">
+                        <img class="t-icon mt-1" src="/app39/assets/group-2008b595fde472a05031064f5ce765ec.svg" alt="">
+                        <div class="title">社團法人賦格行動音樂關懷協會</div>
+                    </h2>
+                </div>
+                <div class="inner-content"></div>
+                <hr>
+                <div class="title-2">
+                    <div class="title-cover"> </div>
+                    <h3>團體資訊</h3>
+                    <div class="title-cover"></div>
+                </div>
+                <div class="inner-content inner-content-flex">
+                    <div class="item-box">
+                        <div class="left">統一編號</div>
+                        <div class="right">00570309</div>
+                    </div>
+                    <div class="item-box">
+                        <div class="left">團體類型</div>
+                        <div class="right">公益性社團法人</div>
+                    </div>
+                    <div class="item-box">
+                        <div class="left">團體電話</div>
+                        <div class="right">09-88581766</div>
+                    </div>
+                    <div class="item-box">
+                        <div class="left">團體網址</div>
+                        <div class="right">
+                            <a class="btn-go-group" href="https://fuguemusic.tw/association" target="_blank" title ='社團法人賦格行動音樂關懷協會(另開新視窗)'><i class="fas fa-arrow-alt-right" aria-hidden="true"></i> 前往團體網址（另開新視窗）</a>
+                        </div>
+                    </div>
+                    <div class="item-box">
+                        <div class="left">團體登記地址</div>
+                        <div class="right">臺北市中山區南京東路二段150號9樓</div>
+                    </div>
+                    <div class="item-box">
+                        <div class="left">團體聯絡地址</div>
+                        <div class="right">臺北市中山區南京東路二段150號9樓</div>
+                    </div>
+                    <div class="item-box">
+                        <div class="left">勸募用途</div>
+                        <div class="right">
+                            <div class="sg-labels">
+                                
+                                
+                                    <div class="sg-label">社會福利事業/社會慈善事業</div>
+                                
+                                    <div class="sg-label">教育事業</div>
+                                
+                                    <div class="sg-label">文化事業</div>
+                                
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <div class="title-2">
+                    <div class="title-cover"> </div>
+                    <h3>裁處資訊( 近五年 )</h3>
+                    <div class="title-cover"></div>
+                </div>
+                
+                
+                    <div class="search-no-result text-center">
+                        <i class="far fa-comment-dots" aria-hidden="true"></i>
+                        無裁處資訊~!!
+                    </div>
+                
+                <hr>
+
+                <div class="title-2">
+                    <div class="title-cover"> </div>
+                    <h3>年度查核</h3>
+                    <div class="title-cover"></div>
+                </div>
+                    <div class="inner-content">
+                        
+                            <div class="search-no-result text-center">
+                                <i class="far fa-comment-dots" aria-hidden="true"></i>
+                                無查核資訊~!!
+                            </div>
+                        
+                    </div>
+                <hr>
+
+                <div class="title-2">
+                    <div class="title-cover"> </div>
+                    <h3>統計資訊</h3>
+                    <div class="title-cover"></div>
+                </div>
+                <div class="inner-content">
+                    <div class="bi-content">
+                        <div id="chart_div"></div>
+                        <!-- google charts-->
+                        <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js" nonce="BM8IsHIp+6Q0RKE+98yojw"></script>
+                        <script type="text/javascript" nonce="BM8IsHIp+6Q0RKE+98yojw">
+                            // Visualization API 尚未載入完成前，resize 事件可能先呼叫 drawChart，
+                            // 此時 google.visualization 仍為 undefined，故先略過，待 API ready 後由下方 callback 補畫。
+                            var chartsApiReady = false;
+                            // Load the Visualization API and the corechart package.
+                            google.charts.load('current', { 'packages': ['corechart'] });
+                            // Set a callback to run when the Google Visualization API is loaded.
+                            google.charts.setOnLoadCallback(function () {
+                                chartsApiReady = true;
+                                drawChart();
+                            });
+                            // Callback that creates and populates a data table,
+                            // instantiates the pie chart, passes in the data and
+                            // draws it.
+                            function drawChart() {
+                                if (!chartsApiReady) {
+                                    return;
+                                }
+                                var data = '{"char":[["年度","實募金額",{"role":"style"}],["98年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["99年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["100年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["102年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["103年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["104年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["105年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["106年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["107年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["108年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["109年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["110年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["111年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["112年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["113年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["114年",66358,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["115年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["116年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"],["117年",0,"fill-color: #F6CF6B; fill-opacity: 0.6; stroke-color: #F6CF6B; stroke-width: 3;"]]}';
+                                var json = JSON.parse(data);
+                                // 實募/預募金額
+                                var dataTable = google.visualization.arrayToDataTable(json.char);
+                                var options = {
+                                    'width': '100%',
+                                    'height': 500,
+                                    legend: { position: 'top' },
+                                    series: {
+                                        0: { targetAxisIndex: 0, type: 'bars', color: '#F6CF6B'},    // Price
+                                        1: { targetAxisIndex: 1, type: 'bars', color: '#6DBDBF'},    // Volume
+                                        2: { targetAxisIndex: 2, type: 'bars', color: '#EB6D85'},    // Volume
+                                    },
+                                    vAxes: {
+                                        // Adds titles to each axis.
+                                        0: { minValue: 0, maxValue: 1000, title: '金額' },
+                                        1: { minValue: 0, maxValue: 1000, title: '', gridlines: { count: 0 } },
+                                        2: { minValue: 0, maxValue: 1000, title: '', gridlines: { count: 0 } }
+                                    },
+                                };
+                                var chart = new google.visualization.LineChart(document.getElementById('chart_div'));
+                                chart.draw(dataTable, options);
+                            }
+                            window.addEventListener('resize', function(event) {
+                                drawChart();
+                            }, true);
+                        </script>
+                    </div>
+                </div>
+                <hr class="hr-style">
+                <div class="bi-table-box">
+                    <a class="table-extend" href="#" title="">
+                        檢視歷年募款達成情形 <i class="fa-solid fa-circle-plus" aria-hidden="true"></i>
+                    </a>
+                    <div class="bi-table">
+                        <div class="frame stan">
+                            <div class="rwdTable">
+                                <div class="header">
+                                    <div class="th text-center">年度</div>
+                                    <div class="th text-right">實募金額</div>
+                                    <div class="th text-right">預募金額</div>
+                                    <div class="th text-right">勸募達成率</div>
+                                </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">98</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">99</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">100</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">102</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">103</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">104</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">105</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">106</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">107</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">108</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">109</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">110</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">111</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">112</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">113</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">114</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">66,358</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">1,500,000</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">4.42%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">115</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">1,500,000</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">116</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                                    <div class="item">
+                                        <div class="td text-center">
+                                            <div class="hidden-header">年度</div>
+                                            <div class="content">117</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">實募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">預募金額</div>
+                                            <div class="content">0</div>
+                                        </div>
+                                        <div class="td text-right">
+                                            <div class="hidden-header">勸募達成率</div>
+                                            <div class="content">0%</div>
+                                        </div>
+                                    </div>
+                                
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <div class="title-2">
+                    <div class="title-cover"> </div>
+                    <h3>歷年活動列表</h3>
+                    <div class="title-cover"></div>
+                </div>
+
+                
+                
+                
+                
+                    <div class="table-list-box">
+                        <div class="rwdTable">
+                            <div class="header">
+                                <div class="th">活動名稱</div>
+                                <div class="th">預募金額</div>
+                                <div class="th">實募金額</div>
+                                <div class="th">成果備查日期</div>
+                                <div class="th">結案備查日期</div>
+                                <div class="th">詳細資訊</div>
+                            </div>
+                            
+                                <div class="item">
+                                    <div class="td">
+                                        <div class="hidden-header">活動名稱</div>
+                                        <div class="content">115年度《行動音樂教室》兒童藝術平權公益計畫</div>
+                                    </div>
+                                    <div class="td">
+                                        <div class="hidden-header">預募金額</div>
+                                        <div class="content"> 1,500,000</div>
+                                    </div>
+                                    <div class="td">
+                                        <div class="hidden-header">實募金額</div>
+                                        <div class="content">0</div>
+                                    </div>
+                                    <div class="td text--center">
+                                        <div class="hidden-header">成果備查日期</div>
+                                        <div class="content"></div>
+                                    </div>
+                                    <div class="td text--center">
+                                        <div class="hidden-header">結案備查日期</div>
+                                        <div class="content"></div>
+                                    </div>
+                                    <div class="td">
+                                        <a class="content btn btn-warning rounded-pill" id="card_sa_22539399" href="/app39/fundactivity/fundactivityDetails/22539399" title="115年度《行動音樂教室》兒童藝術平權公益計畫">
+                                            <i class="fas fa-search" aria-hidden="true"></i>
+                                            詳細資訊
+                                        </a>
+                                    </div>
+                                </div>
+                            
+                                <div class="item">
+                                    <div class="td">
+                                        <div class="hidden-header">活動名稱</div>
+                                        <div class="content">114年度《行動音樂教室》兒童藝術平權公益計畫</div>
+                                    </div>
+                                    <div class="td">
+                                        <div class="hidden-header">預募金額</div>
+                                        <div class="content"> 1,500,000</div>
+                                    </div>
+                                    <div class="td">
+                                        <div class="hidden-header">實募金額</div>
+                                        <div class="content">66,358</div>
+                                    </div>
+                                    <div class="td text--center">
+                                        <div class="hidden-header">成果備查日期</div>
+                                        <div class="content">115/02/25</div>
+                                    </div>
+                                    <div class="td text--center">
+                                        <div class="hidden-header">結案備查日期</div>
+                                        <div class="content">115/04/21</div>
+                                    </div>
+                                    <div class="td">
+                                        <a class="content btn btn-warning rounded-pill" id="card_sa_6380987" href="/app39/fundactivity/fundactivityDetails/6380987" title="114年度《行動音樂教室》兒童藝術平權公益計畫">
+                                            <i class="fas fa-search" aria-hidden="true"></i>
+                                            詳細資訊
+                                        </a>
+                                    </div>
+                                </div>
+                            
+                        </div>
+                    </div>
+                
+                    <div class="more-btn-box">
+                        <a class="btn btn-warning more-btn" title="" href="/app39/fundactivity/fundactivityIndex?qorg=%E7%A4%BE%E5%9C%98%E6%B3%95%E4%BA%BA%E8%B3%A6%E6%A0%BC%E8%A1%8C%E5%8B%95%E9%9F%B3%E6%A8%82%E9%97%9C%E6%87%B7%E5%8D%94%E6%9C%83">
+                            <i class="fa-solid fa-arrow-right" aria-hidden="true"></i> 更多歷年活動
+                        </a>
+                    </div>
+                
+                <div class="inner-bottom">
+                    <button class="goback">
+                        <img src="/app39/assets/return-028d367b3a52843299fd2427a7af84bc.svg" alt="">返回
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</main>
+
+<!-- footer -->
+
+
+<!--頁尾區域-網站聯絡資訊-->
+<footer class="footer">
+    <div class="info container">
+        <div class="title">
+            <a class="a11y-guidepoint mr-2" id="pageBottom" href="#pageBottom" accesskey="Z" title="頁尾網站資訊">:::</a>
+            衛生福利部 | 公益勸募管理系統
+        </div>
+        <div class="relevant">
+            <div class="Views">總瀏覽人次：15,736,147</div>
+            <div class="address">地址：11558台北市南港區忠孝東路6段488號</div>
+        </div>
+        <div class="content mw-limited">
+            <div class="content-box">
+                <div class="content-info">勸募活動案件申請/審查進度、計畫變更、法令諮詢、系統報修，及相關通案性問題</div>
+                <div class="content-connect">
+                    <div class="phone connect"><i class="icon-circle fa-solid fa-phone-flip" aria-hidden="true"></i>
+                        (02)8590-6991</div>
+                    <div class="email connect"><i class="icon-circle fa-solid fa-envelope" aria-hidden="true"></i>
+                        donate&#64;wezoomtek.com.tw</div>
+                </div>
+            </div>
+            <div class="content-box">
+                <div class="content-info">會計師查核、專戶/成果/結案備查、勸募所得財物之會計帳務等問題，請洽資誠聯合會計師事務所</div>
+                <div class="content-connect">
+                    <div class="phone connect"><i class="icon-circle fa-solid fa-phone-flip" aria-hidden="true"></i>
+                        (02)2729-6666#22003 周小姐 / (02)2729-6666#23648 張小姐</div>
+                    <div class="email connect"><i class="icon-circle fa-solid fa-envelope" aria-hidden="true"></i>
+                        janice.chou&#64;pwc.com / olive.chang&#64;pwc.com</div>
+                </div>
+            </div>
+            
+
+
+
+
+
+
+
+            
+            <a class="cert" href="https://accessibility.moda.gov.tw/Applications/Detail?category=20241113135240" target="_blank" title="無障礙網站(另開新視窗)" aria-label="AAA 無障礙標章（另開新視窗）"><img src="/app39/assets/cert-AAA-526bac8037b74c22796631109bf4df94.svg" alt="AAA無障礙標章"><span class="sr-only">AAA 無障礙標章（另開新視窗）</span></a>
+        </div>
+    </div>
+    <div class="copyright">
+        <div class="content mw-limited">瀏覽器建議使用 Google Chrome, Microsoft Edge 或 FireFox 最新版本</div>
+    </div>
+</footer>
+
+
+
+
+</body>
+</html>
