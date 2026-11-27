@@ -35,6 +35,7 @@ updated: 2026-11-27
 - `.env` 路徑變數：`PG_DATA_DIR`、`BACKUP_DIR_HOST`、`LOG_DIR_HOST`。
 - 對外只有 cloudflared；nginx 只綁 `127.0.0.1:8080` 供本機測試。
 - `.github/workflows/docker.yml`：x86 與 ARM64 各跑一次整套。
+- 自動更新（使用者 2026-11-27 追加：「要自動更新」）：`updater` 服務（profile `autoupdate`）每 5 分鐘看 GitHub 的 `prod`，有新版就 git 快轉並 `docker compose up -d --build` 重建其他服務；本機有改過的檔案或分岔時停下不更新。書那邊不用給任何人主機權限。
 - 不改產品程式行為。
 - 欄位權限：不涉及。
 
@@ -54,6 +55,7 @@ updated: 2026-11-27
 
 - [ ] W1 `deploy/` 的檔案沒有改動（diff 只有新增檔案與 `.gitignore`）。
 - [ ] GitHub Actions 在 x86 與 ARM64 兩台都綠：全部服務 healthy、經 nginx 打首頁／API／管理後台／靜態檔都 200、登入 CSRF 正確、後端測試在 PostgreSQL 上全過、排程 container 備份成功。
+- [ ] CI 的自動更新測試：退回上一個 commit 後 updater 會快轉到最新、重建後首頁與 API 仍 200；已是最新時再跑不做事。
 - [ ] 書的主機上 `docker compose up -d --build` 起得來，`https://npofile.leekuen.com` 開得到。
 
 ## 邊界（明確不做什麼）
