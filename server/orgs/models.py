@@ -395,3 +395,55 @@ class FinancialYear(models.Model):
         if not self.total_expenses or self.program_expenses is None:
             return None
         return round(self.program_expenses * 100 / self.total_expenses)
+
+
+class CourtRegistration(models.Model):
+    """司法院法人登記公告（LK-31）：法院公告的設立、變更、解散、清算登記，一個公告一筆（法院＋登記案號）。
+
+    對不到組織的也存（organization 空白、前台不顯示），後台可手動指定；指定過的重新比對不會改掉。
+    董事、監察人等人名一律不存；營運狀態欄位不受這裡影響（財政部名冊說了算），解散只另外標示。"""
+
+    class CaseType(models.TextChoices):
+        SETUP = "setup", "設立登記"
+        CHANGE = "change", "變更登記"
+        DISSOLUTION = "dissolution", "解散登記"
+        LIQUIDATOR = "liquidator", "清算人任免或變更登記"
+        LIQUIDATION_END = "liquidation_end", "清算終結登記"
+
+    class Category(models.TextChoices):
+        ASSOCIATION = "association", "社團"
+        FOUNDATION = "foundation", "財團"
+
+    # 最新一筆是這兩種 → 組織頁頁首標示「已向法院辦理解散」
+    DISSOLVED_TYPES = (CaseType.DISSOLUTION, CaseType.LIQUIDATION_END)
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.SET_NULL, null=True, blank=True, related_name="court_registrations",
+        verbose_name="組織",
+    )
+    org_manual = models.BooleanField(
+        "組織由管理員指定", default=False, help_text="管理員指定（或清掉）過組織就會勾起；重新比對時不會改掉。"
+    )
+    court = models.CharField("法院", max_length=50, db_index=True)
+    case_no = models.CharField("登記案號", max_length=80)
+    reg_no = models.CharField("登記號數", max_length=30, blank=True)
+    category = models.CharField("類別", max_length=12, choices=Category.choices, blank=True)
+    name = models.CharField("公告上的法人名稱", max_length=200, db_index=True)
+    case_type = models.CharField("案由", max_length=20, choices=CaseType.choices, db_index=True)
+    posted_on = models.DateField("公告日期", null=True, blank=True, db_index=True)
+    registered_on = models.DateField("登記日期", null=True, blank=True)
+    property_total = models.BigIntegerField("財產總額", null=True, blank=True)
+    change_items = models.JSONField("變更事項", default=list, blank=True, help_text="只存類別（例：董監事、主事務所），不存原文。")
+    detail_fetched = models.BooleanField("已讀過公告內頁", default=False)
+    source_name = models.CharField("來源名稱", max_length=100, blank=True)
+    source_url = models.URLField("公告網址", max_length=500, blank=True)
+    updated_at = models.DateTimeField("更新時間", auto_now=True)
+
+    class Meta:
+        verbose_name = "法院登記公告"
+        verbose_name_plural = "法院登記公告"
+        ordering = ["-posted_on", "-id"]
+        constraints = [models.UniqueConstraint(fields=["court", "case_no"], name="uniq_court_registration")]
+
+    def __str__(self):
+        return f"{self.posted_on or '日期不明'} {self.court} {self.name} {self.get_case_type_display()}"

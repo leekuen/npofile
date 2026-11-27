@@ -9,7 +9,7 @@ from npofile_crawler.donors import identity_key
 from rest_framework.response import Response
 
 from . import category_api, donor_rules, home, period, scoring
-from .models import AnnualFundraising, Donor, FinancialYear, Grant, OrgDocument, Organization, Project
+from .models import AnnualFundraising, CourtRegistration, Donor, FinancialYear, Grant, OrgDocument, Organization, Project
 from .serializers import (
     DonorDetailSerializer,
     DonorListSerializer,
@@ -64,6 +64,8 @@ def organization_detail(request, ubn):
             Prefetch("projects", queryset=Project.objects.filter(period.project_q())),
             "penalties",
             Prefetch("grants", queryset=Grant.objects.filter(period.grant_q())),
+            # 法院登記公告全部保留（組織歷史，跟裁罰一樣不篩年度）；新到舊，第一筆決定頁首的解散標示
+            Prefetch("court_registrations", queryset=CourtRegistration.objects.order_by("-posted_on", "-id")),
             "categories",
         )
     )

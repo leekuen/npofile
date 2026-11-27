@@ -7,6 +7,7 @@ from . import taxonomy
 from .models import (
     CRAWLABLE_FIELDS,
     AnnualFundraising,
+    CourtRegistration,
     Donation,
     Donor,
     DonorListSummary,
@@ -282,3 +283,57 @@ class DonorAdmin(admin.ModelAdmin):
     @admin.action(description="取消隱藏")
     def unhide(self, request, queryset):
         self.message_user(request, f"已取消隱藏 {queryset.update(hidden=False)} 位捐款人", messages.SUCCESS)
+
+
+class MatchedFilter(admin.SimpleListFilter):
+    title = "對到組織"
+    parameter_name = "matched"
+
+    def lookups(self, request, model_admin):
+        return (("yes", "對到"), ("no", "沒對到"))
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.filter(organization__isnull=False)
+        if self.value() == "no":
+            return queryset.filter(organization__isnull=True)
+        return queryset
+
+
+@admin.register(CourtRegistration)
+class CourtRegistrationAdmin(admin.ModelAdmin):
+    """法院登記公告（LK-31）：公告內容來自法院、不能改；只能指定（或清掉）對到的組織。"""
+
+    list_display = ("posted_on", "court", "name", "case_type", "organization", "org_manual", "property_total")
+    list_filter = ("case_type", MatchedFilter, "org_manual", "category", "court")
+    search_fields = ("name", "case_no", "organization__name", "organization__ubn")
+    autocomplete_fields = ("organization",)
+    date_hierarchy = "posted_on"
+    list_select_related = ("organization",)
+    readonly_fields = (
+        "court", "case_no", "reg_no", "category", "name", "case_type", "posted_on", "registered_on",
+        "property_total", "change_items", "detail_fetched", "source_name", "source_link", "updated_at",
+    )
+    fields = ("organization", "org_manual", *readonly_fields)
+    actions = ["rematch"]
+
+    @admin.display(description="公告網址")
+    def source_link(self, obj):
+        from django.utils.html import format_html
+
+        return format_html('<a href="{}" target="_blank" rel="noopener">{}</a>', obj.source_url, obj.source_url) if obj.source_url else "—"
+
+    def has_add_permission(self, request):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        if "organization" in form.changed_data:
+            obj.org_manual = True  # 管理員指定（或清掉）過，重新比對不改
+        super().save_model(request, obj, form, change)
+
+    @admin.action(description="重新比對組織（管理員指定過的不動）")
+    def rematch(self, request, queryset):
+        from .court_match import rematch
+
+        n = rematch(queryset)
+        self.message_user(request, f"重新比對完成：{n} 筆的組織有變動。內頁還沒讀過的，下次排程會用 match_court_registrations 補抓。", messages.SUCCESS)
