@@ -129,6 +129,7 @@
 - 祕密走環境變數（`server/.env.example`）；正式環境沒設 `DJANGO_SECRET_KEY` 拒絕啟動。登入／註冊檢查 CSRF，前台經同源 `/api/*` 轉給後端。
 - 正式環境資料庫為 PostgreSQL（`DATABASE_URL`），目前只驗過設定解析，尚未實際連 PostgreSQL 跑過；本機用 SQLite。
 - 部署：DigitalOcean 單機（nginx → Next.js＋gunicorn／Django＋PostgreSQL＋cron），伺服器只拉 `prod`，更新跑 `deploy/deploy.sh`；步驟見 `deploy/README.md`（LK-10）。2026-11-27 起正式站 https://npofile-kuen.duckdns.org，與 LINE CRM 共用同一台 512MB Droplet（CRM 的 Caddy 轉到主機 nginx :8080），做法見 `deploy/README.md`〈與 LINE CRM 共用主機〉。
+- Docker Compose 部署（LK-14）：`compose.yaml`（db、backend、web、nginx、scheduler、cloudflared），映像檔支援 linux/arm64 與 amd64；資料路徑用 `.env` 變數（`PG_DATA_DIR`、`BACKUP_DIR_HOST`、`LOG_DIR_HOST`）；對外走 Cloudflare Tunnel 指向 `nginx:80`，主機不開 port；每次推送 GitHub Actions 在 x86 與 ARM64 各整套測一次。步驟見 `docker/README.md`。
 - 排程失敗通知：每天的備份、爬蟲、重算都經過 `deploy/run-job.sh`，回報 Healthchecks.io；工作失敗、沒準時開始或沒跑完都會寄信（要設 `HEALTHCHECKS_PING_KEY`，沒設只寫紀錄）（LK-12）。
 - 資料庫備份：每天 02:00（爬蟲前）`deploy/backup-db.sh` 用 `pg_dump` 存一份，檢查讀得回來且有組織資料，本機留 14 天；可選用 rclone 複製到機器外（例 DigitalOcean Spaces）留 60 天。還原與每月演練步驟在 `deploy/README.md`（LK-12）。尚未在伺服器上跑過。
 - 「近 5 年」只定義在 `server/orgs/period.py`（民國年度今年往前 4 年的 1 月 1 日起），隨日期移動：每天跑 `recompute_scores`、`prune_old_records`。
@@ -142,6 +143,7 @@
 
 | 日期 | 變更內容 | 對應功能 | 原因 / 來源 | 狀態 |
 |------|----------|----------|-------------|------|
+| 2026-11-27 | Docker Compose 打包：ARM64／x86 映像檔、排程 container、Cloudflare Tunnel、CI 整套測試 | 4 | DigitalOcean 512MB 太慢，改放朋友提供的 Apple Silicon 主機（LK-14） | 🚧 |
 | 2026-11-27 | 捐贈人清冊完整抓取：勸募活動依年度列出、每晚接著上次進度抓（預設 120 分鐘）、只抓新的與金額有變的；後台抓取進度 | 3.2、4 | 使用者：把捐贈人清冊抓完整，先做這個（LK-13） | 🚧 |
 | 2026-11-27 | 上線保命：排程失敗通知（Healthchecks.io）、爬蟲抓到 0 筆算失敗、資料庫每日備份與還原步驟 | 3.2、4 | 使用者：排程失敗只寫 log 沒人知道；正式資料庫壞了要重爬好幾天（LK-12） | 🚧 |
 | 2026-11-27 | 組織分類：兩層領域＋服務對象、首頁依領域瀏覽與篩選、領域頁、組織與企業頁顯示分類 | 3.6 | 使用者：要用 TAG 區分組織（例：動保、環保），並能組合「原住民文化」「原住民教育」（LK-09） | 🚧 |
