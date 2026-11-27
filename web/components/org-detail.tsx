@@ -9,7 +9,7 @@ import type { Grant, OrgDetail, Project, ScoreBreakdown } from "@/lib/types";
 
 import { OrgCategoryTags } from "./categories";
 import { Comments } from "./comments";
-import { FinancialChart } from "./financial-chart";
+import { FinancialChart, TrendChart } from "./financial-chart";
 import { HashHighlight } from "./hash-highlight";
 import {
   Card,
@@ -473,12 +473,44 @@ function fundedYears(org: OrgDetail) {
   return org.annual_records.filter((a) => a.raised > 0 || a.target > 0);
 }
 
+// 顏色跟著種類走（勸募藍、集資橘、補助綠），某種沒有資料時其他線不換色
+const DONATION_SERIES = [
+  { key: "permit", label: "公益勸募", styleIndex: 0 },
+  { key: "crowdfunding", label: "群眾集資", styleIndex: 1 },
+  { key: "grants", label: "政府補助", styleIndex: 2 },
+] as const;
+
+/** 近 5 年受捐款趨勢（LK-33）：至少 2 個年度有金額才畫；只畫有錢的線 */
+function DonationTrend({ org }: { org: OrgDetail }) {
+  const rows = org.donation_trend ?? [];
+  const funded = rows.filter((r) => r.permit > 0 || r.crowdfunding > 0 || r.grants > 0);
+  if (funded.length < 2) return null;
+  const series = DONATION_SERIES.filter((s) => rows.some((r) => r[s.key] > 0)).map((s) => ({ ...s }));
+  return (
+    <section>
+      <SectionTitle>近 5 年受捐款趨勢</SectionTitle>
+      <Card>
+        <TrendChart
+          rows={rows}
+          series={series}
+          label={`近 ${rows.length} 年${series.map((s) => s.label).join("、")}金額折線圖，數字見下方表格與政府補助分頁`}
+          partialYear={org.since_roc_year + 4}
+        />
+        <p className="mt-3 text-xs text-ink-600">
+          三種錢來源不同、可能重疊，所以分開畫、不相加；沒有收錄到的年度畫成 0。
+        </p>
+      </Card>
+    </section>
+  );
+}
+
 function DonationsTab({ org }: { org: OrgDetail }) {
   const years = fundedYears(org);
   const maxRaised = Math.max(0, ...years.map((a) => a.raised));
   const pr = org.public_raised;
   return (
     <div className="space-y-6">
+      <DonationTrend org={org} />
       {pr.crowdfunding > 0 && (
         <section>
           <SectionTitle>近 5 年公開募款</SectionTitle>

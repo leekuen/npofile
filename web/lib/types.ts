@@ -177,6 +177,13 @@ export interface Grant {
   source_url: string;
 }
 
+export interface DonationTrendRow {
+  year: number;
+  permit: number;
+  crowdfunding: number;
+  grants: number;
+}
+
 export interface OrgDetail extends Omit<OrgSummary, "public_raised_5y"> {
   public_raised: PublicRaised;
   representative: string;
@@ -194,6 +201,8 @@ export interface OrgDetail extends Omit<OrgSummary, "public_raised_5y"> {
   penalties: Penalty[];
   /** 政府補助（LK-19），近 5 年，金額大的在前 */
   grants: Grant[];
+  /** 近 5 年受捐款趨勢（LK-33）：每年勸募實募、群眾集資、政府補助（元），不相加；今年都是 0 時不列 */
+  donation_trend: DonationTrendRow[];
   donations: DonationRow[];
   corporate_donors: CorporateDonorRank[];
   individual_donors: { name: string; total: number; count: number }[];
