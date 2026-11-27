@@ -70,3 +70,4 @@ updated: 2026-11-27
 - 後端映像檔用 `python:3.12-slim-trixie`：Debian trixie 的 postgresql-client 是 17 版，pg_dump 可以備份 16 版的資料庫（bookworm 的 15 版不行）。
 - 走查（HTTP 腳本）W1 `git diff origin/stage -- deploy/` 沒有輸出（主機版部署檔沒動，container 只是引用 run-job.sh、backup-db.sh）。
 - CI 驗收（2026-11-27，run 45963324143）：`ubuntu-24.04-arm` 與 `ubuntu-24.04` 都綠。ARM64 那台 backend／web container 都是 aarch64；經 nginx 打 `/`、`/login`、`/api/stats`、`/admin/login/`、`/static/admin/css/base.css` 都 200；登入 API 帶 CSRF token 回 invalid_credentials、不帶回 403；`manage.py test` 97 個在 PostgreSQL 上全過；scheduler 跑 backup 產生 88KB、24 張表的 dump。第一次 run 因為沒開 tunnel 也要求 CLOUDFLARE_TUNNEL_TOKEN 而失敗，已改成選填。
+- CI 驗收（2026-11-27，run 45964803471，x86 與 ARM64 都綠）自動更新：ARM64 那台退回 127ff94 後 updater 偵測到 31953af、重建並重啟 db／backend／web／nginx／scheduler（19 秒）、HEAD 快轉到最新，之後首頁與 `/api/stats` 200；已是最新時再跑不做事。
