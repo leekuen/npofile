@@ -27,7 +27,7 @@ class SourceSeedTests(TestCase):
         self.assertEqual(
             dict(CrawlerSource.objects.values_list("key", "auto_approve")),
             {"fia": True, "mohw": True, "mohw_activities": True, "mohw_violations": True, "wabay": False,
-             "mohw_grants": True, "esf_grants": True, "orgsite": False},
+             "mohw_grants": True, "esf_grants": True, "orgsite": False, "moe_registry": True, "einvoice_codes": True},
         )
 
 

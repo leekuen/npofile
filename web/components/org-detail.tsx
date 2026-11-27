@@ -4,7 +4,13 @@ import type { ReactNode } from "react";
 
 import { formatMoney, formatNumber, formatRocDate } from "@/lib/format";
 import { ApiUnavailableError, getOrg } from "@/lib/server-api";
-import type { Grant, OrgDetail, Project, ScoreBreakdown } from "@/lib/types";
+import type {
+  Grant,
+  OrgDetail,
+  Project,
+  RegistryEntry,
+  ScoreBreakdown,
+} from "@/lib/types";
 
 import { OrgCategoryTags } from "./categories";
 import { Comments } from "./comments";
@@ -379,6 +385,16 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function ContactFields({ org }: { org: OrgDetail }) {
   const sameAddress =
     org.contact_address && org.contact_address === org.registered_address;
+  // 名冊與捐贈碼的出處接在財政部等來源後面（同名的只列一次）
+  const sources = [
+    ...org.source_links,
+    ...[...org.registries, ...org.donation_codes].map((x) => ({
+      name: x.source_name,
+      url: x.source_url,
+    })),
+  ].filter(
+    (src, i, all) => src.name && all.findIndex((s) => s.name === src.name) === i,
+  );
   return (
     <dl className="mt-3 space-y-3 text-sm">
       <Field label="電話">
@@ -402,6 +418,16 @@ function ContactFields({ org }: { org: OrgDetail }) {
           NA
         )}
       </Field>
+      {org.donation_codes.length > 0 && (
+        <Field label="發票捐贈碼">
+          <span className="font-mono text-base font-bold tracking-wider">
+            {org.donation_codes.map((c) => c.code).join("、")}
+          </span>
+          <span className="mt-0.5 block text-xs text-ink-600">
+            結帳時說出或掃描這個碼，就能把發票捐給這個組織
+          </span>
+        </Field>
+      )}
       <Field label={sameAddress ? "地址" : "聯絡地址"}>
         {org.contact_address || org.registered_address || NA}
       </Field>
@@ -410,10 +436,13 @@ function ContactFields({ org }: { org: OrgDetail }) {
       )}
       <Field label="負責人">{org.representative || NA}</Field>
       <Field label="勸募用途">{org.purposes || NA}</Field>
+      {org.registries.map((r) => (
+        <RegistryFields key={r.source_name} entry={r} />
+      ))}
       <Field label="資料來源">
-        {org.source_links.length ? (
+        {sources.length ? (
           <ul className="space-y-1">
-            {org.source_links.map((src) => (
+            {sources.map((src) => (
               <li key={src.name}>
                 <TextLink href={src.url}>{src.name}</TextLink>
               </li>
@@ -424,6 +453,27 @@ function ContactFields({ org }: { org: OrgDetail }) {
         )}
       </Field>
     </dl>
+  );
+}
+
+/** 主管機關名冊那幾行（LK-32）：每一行都是有資料才出現 */
+function RegistryFields({ entry }: { entry: RegistryEntry }) {
+  const year = entry.data_date
+    ? Number(entry.data_date.slice(0, 4)) - 1911
+    : null;
+  return (
+    <>
+      {entry.authority && <Field label="主管機關">{entry.authority}</Field>}
+      {entry.registered_assets !== null && (
+        <Field label="登記財產總額">
+          {formatMoney(entry.registered_assets)}
+          <span className="ml-1 text-xs text-ink-500">
+            （{entry.authority}名冊{year ? `，${year} 年` : ""}）
+          </span>
+        </Field>
+      )}
+      {entry.status && <Field label="名冊狀態">{entry.status}</Field>}
+    </>
   );
 }
 

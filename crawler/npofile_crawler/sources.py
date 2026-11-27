@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
-from . import fia, grants, mohw, orgsite, violations, wabay
+from . import fia, grants, mohw, orgsite, registries, violations, wabay
 from .http import PoliteClient
 from .items import Item
 
@@ -28,6 +28,8 @@ class Source:
     known_orgs_only: bool = False
     # 先審核的來源：同一筆（同編號）核准過之後，數字更新直接上架，不再每天進審核清單
     update_approved: bool = False
+    # 整份重新下載的年更資料（LK-32）：「crawl all」距上次成功不到這麼多天就略過（0＝每次都跑）；指名跑不受限
+    every_days: int = 0
 
     @property
     def record_name(self) -> str:
@@ -65,5 +67,15 @@ SOURCES = {
                "組織自己官網公開的近 5 年財務報告、年報、工作／成果報告；設了 ANTHROPIC_API_KEY 才會讀出報告裡的數字"
                "（會產生 API 費用）。「每次最多抓幾筆」算的是組織數",
                data_name=orgsite.SOURCE_NAME, options=("since_roc", "targets", "extractor", "seen_docs")),
+        Source("moe_registry", registries.MOE_NAME, registries.DATASET_PAGE.format(id=registries.MOE_DATASET), True,
+               registries.fetch_moe,
+               "政府公開資料：教育部主管的教育財團法人名冊（主管機關、登記財產、成立宗旨、服務對象、基金會狀態）；"
+               "每月檢查一次。名稱跟組織名稱完全相同且唯一才連起來，對不上的記在「主管機關名冊」等管理員指定；"
+               "董事長、執行長、聯絡人的姓名與聯絡方式不存",
+               options=("orgs",), every_days=30),
+        Source("einvoice_codes", registries.EINVOICE_NAME, registries.DATASET_PAGE.format(id=registries.EINVOICE_DATASET),
+               True, registries.fetch_einvoice,
+               "政府公開資料：電子發票受捐贈機關或團體的捐贈碼；每月檢查一次。用統一編號對組織，統編不在組織名冊的不顯示",
+               every_days=30),
     )
 }

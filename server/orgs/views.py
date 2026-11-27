@@ -65,6 +65,7 @@ def organization_detail(request, ubn):
             "penalties",
             Prefetch("grants", queryset=Grant.objects.filter(period.grant_q())),
             "categories",
+            "registry_entries",
         )
     )
     org = get_object_or_404(qs, ubn=ubn)
