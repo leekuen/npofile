@@ -128,6 +128,10 @@ server/.venv/Scripts/python server/manage.py runserver 127.0.0.1:8000   # 後端
 npm --prefix web run dev             # 前台 http://localhost:3000（/api/* 轉給後端）
 server/.venv/Scripts/python server/manage.py crawl fia               # 匯入財政部非營利名冊（約十萬筆）
 server/.venv/Scripts/python server/manage.py crawl mohw --limit 50   # 抓公益勸募團體（每秒一個請求）
+server/.venv/Scripts/python server/manage.py crawl mohw_activities --limit 20          # 團體的所有勸募活動＋捐贈人清冊
+server/.venv/Scripts/python server/manage.py crawl mohw_activities --group 7210       # 只抓指定團體（網址 fundgroupDetails/ 後的數字）
+server/.venv/Scripts/python server/manage.py match_companies --limit 200   # 企業捐款人對商工登記統編（名稱完全相同才連）
+server/.venv/Scripts/python server/manage.py reclassify_donors             # 分類規則改了之後重新分類（管理員指定過的不動）
 server/.venv/Scripts/python server/manage.py recompute_scores        # 重算揭露指數（「近五年」隨日期移動，每天跑）
 make test-crawler / make test-server / make lint-web / make build-web
 ```

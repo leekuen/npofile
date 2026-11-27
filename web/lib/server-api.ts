@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { Filters, OrgDetail, OrgSummary, Page, Stats } from "./types";
+import type { DonorDetail, DonorSummaryRow, Filters, OrgDetail, OrgSummary, Page, Stats } from "./types";
 
 const API_BASE = process.env.API_BASE ?? "http://127.0.0.1:8000";
 
@@ -45,4 +45,22 @@ export async function listOrgs(query: OrgQuery) {
 export async function getOrg(ubn: string) {
   if (!/^\d{8}$/.test(ubn)) return null;
   return get<OrgDetail>(`/api/orgs/${ubn}`);
+}
+
+export interface DonorQuery {
+  q?: string;
+  kind?: string;
+  page?: string;
+}
+
+export async function listDonors(query: DonorQuery) {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(query)) if (v) params.set(k, v);
+  const page = await get<Page<DonorSummaryRow>>(`/api/donors?${params}`);
+  return page ?? { count: 0, next: null, previous: null, results: [] };
+}
+
+export async function getDonor(id: string) {
+  if (!/^\d+$/.test(id)) return null;
+  return get<DonorDetail>(`/api/donors/${id}`);
 }

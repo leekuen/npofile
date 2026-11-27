@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { formatMoney, formatRocDate } from "@/lib/format";
+import { formatMoney, formatNumber, formatRocDate } from "@/lib/format";
 import { ApiUnavailableError, getOrg } from "@/lib/server-api";
 import type { OrgDetail, ScoreBreakdown } from "@/lib/types";
 
@@ -39,11 +39,12 @@ export async function OrgDetailView({
   }
   if (!org) notFound();
 
+  // 只有裁罰需要一眼看到筆數；其他分頁的數字不會改變點不點進去
   const counts: Record<TabKey, number | null> = {
     basic: null,
-    donations: fundedYears(org).length + org.donations.length,
-    projects: org.projects.length,
-    penalties: org.penalties.length,
+    donations: null,
+    projects: null,
+    penalties: org.penalties.length || null,
   };
 
   return (
@@ -82,11 +83,7 @@ export async function OrgDetailView({
                   >
                     {t.label}
                     {counts[t.key] !== null && (
-                      <span
-                        className={`rounded-full px-1.5 text-xs tabular-nums ${
-                          t.key === "penalties" && counts[t.key]! > 0 ? "bg-red-100 text-red-800" : "bg-slate-100 text-slate-700"
-                        }`}
-                      >
+                      <span className="rounded-full bg-red-100 px-1.5 text-xs tabular-nums text-red-800">
                         {counts[t.key]}
                       </span>
                     )}
@@ -255,44 +252,31 @@ function DonationsTab({ org }: { org: OrgDetail }) {
         )}
       </section>
 
-      <section>
-        <SectionTitle>大額捐款人排行</SectionTitle>
-        {org.top_donors.length === 0 ? (
-          <EmptyState title="目前沒有收錄到具名的捐款紀錄">組織公開徵信的捐款清冊經管理員整理後會出現在這裡。</EmptyState>
-        ) : (
-          <Card className="p-0 sm:p-0">
-            <ol className="divide-y divide-slate-100">
-              {org.top_donors.map((d, i) => (
-                <li key={d.donor_name} className="flex items-center gap-3 px-4 py-2 text-sm">
-                  <span className="w-6 text-right font-semibold tabular-nums text-slate-500">{i + 1}</span>
-                  <span className="flex-1 break-words">{d.donor_name}</span>
-                  <span className="tabular-nums">{formatMoney(d.total)}</span>
-                </li>
-              ))}
-            </ol>
-          </Card>
-        )}
-      </section>
+      <DonorRankings org={org} />
 
       {org.donations.length > 0 && (
         <section>
-          <SectionTitle>捐款清單（最近 {org.donations.length} 筆）</SectionTitle>
+          <SectionTitle>捐款明細（最近 {org.donations.length} 筆）</SectionTitle>
           <Card className="overflow-x-auto p-0 sm:p-0">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-700">
                 <tr>
-                  <th scope="col" className="px-3 py-2 text-left font-medium">日期</th>
+                  <th scope="col" className="px-3 py-2 text-left font-medium whitespace-nowrap">日期</th>
                   <th scope="col" className="px-3 py-2 text-left font-medium">捐款人</th>
                   <th scope="col" className="px-3 py-2 text-right font-medium">金額</th>
+                  <th scope="col" className="px-3 py-2 text-left font-medium">用途</th>
                   <th scope="col" className="px-3 py-2 text-left font-medium">來源</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {org.donations.map((d) => (
                   <tr key={d.id}>
-                    <td className="px-3 py-2 tabular-nums">{formatRocDate(d.donated_on)}</td>
-                    <td className="px-3 py-2">{d.donor_name}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatMoney(d.amount)}</td>
+                    <td className="px-3 py-2 tabular-nums whitespace-nowrap">{formatRocDate(d.donated_on)}</td>
+                    <td className="px-3 py-2">
+                      {d.donor_id ? <TextLink href={`/donors/${d.donor_id}`}>{d.donor_name}</TextLink> : d.donor_name}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{formatMoney(d.amount)}</td>
+                    <td className="px-3 py-2 text-slate-700">{d.purpose || "—"}</td>
                     <td className="px-3 py-2">{d.source_url ? <TextLink href={d.source_url}>{d.source_name || "原始資料"}</TextLink> : d.source_name || "—"}</td>
                   </tr>
                 ))}
@@ -302,6 +286,95 @@ function DonationsTab({ org }: { org: OrgDetail }) {
         </section>
       )}
     </div>
+  );
+}
+
+function DonorRankings({ org }: { org: OrgDetail }) {
+  const summary = org.donor_summary;
+  if (!org.corporate_donors.length && !org.individual_donors.length && !summary) {
+    return (
+      <section>
+        <SectionTitle>捐款人</SectionTitle>
+        <EmptyState title="目前沒有收錄到具名的捐款人">這個組織的勸募活動還沒有公開捐贈人清冊，或還沒有抓取。</EmptyState>
+      </section>
+    );
+  }
+  return (
+    <>
+      <section>
+        <SectionTitle>企業與團體捐款人</SectionTitle>
+        {org.corporate_donors.length === 0 ? (
+          <EmptyState title="清冊上沒有企業或團體捐款人" />
+        ) : (
+          <Card className="p-0 sm:p-0">
+            <ol className="divide-y divide-slate-100">
+              {org.corporate_donors.map((d, i) => (
+                <li key={d.donor_id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
+                  <span className="w-6 text-right font-semibold tabular-nums text-slate-500">{i + 1}</span>
+                  <span className="min-w-0 flex-1 break-words">
+                    <TextLink href={`/donors/${d.donor_id}`}>{d.name}</TextLink>
+                    <span className="ml-2 inline-block rounded bg-slate-100 px-1.5 text-xs text-slate-700">{d.kind_label}</span>
+                  </span>
+                  <span className="tabular-nums font-medium">{formatMoney(d.total)}</span>
+                </li>
+              ))}
+            </ol>
+          </Card>
+        )}
+      </section>
+
+      <section>
+        <SectionTitle>大額個人捐款人</SectionTitle>
+        {summary && (
+          <p className="-mt-2 mb-3 text-xs text-slate-600">
+            個人只列出在同一個勸募活動累計捐款 {formatMoney(summary.threshold)}以上者。
+          </p>
+        )}
+        {org.individual_donors.length === 0 ? (
+          <EmptyState title="沒有達到門檻的個人捐款人" />
+        ) : (
+          <Card className="p-0 sm:p-0">
+            <ol className="divide-y divide-slate-100">
+              {org.individual_donors.map((d, i) => (
+                <li key={d.name} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                  <span className="w-6 text-right font-semibold tabular-nums text-slate-500">{i + 1}</span>
+                  <span className="flex-1 break-words">{d.name}</span>
+                  <span className="tabular-nums font-medium">{formatMoney(d.total)}</span>
+                </li>
+              ))}
+            </ol>
+          </Card>
+        )}
+      </section>
+
+      {summary && (
+        <section>
+          <SectionTitle>捐贈人清冊摘要</SectionTitle>
+          <Card>
+            <dl className="grid gap-3 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="text-slate-600">清冊合計（{formatNumber(summary.lists)} 份）</dt>
+                <dd className="font-semibold tabular-nums">
+                  {formatNumber(summary.total_rows)} 筆，{formatMoney(summary.total_amount)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-600">其他個人捐款</dt>
+                <dd className="font-semibold tabular-nums">
+                  {formatNumber(summary.small_individual_count)} 人次，{formatMoney(summary.small_individual_amount)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-600">匿名或不公開</dt>
+                <dd className="font-semibold tabular-nums">
+                  {formatNumber(summary.anonymous_rows)} 筆，{formatMoney(summary.anonymous_amount)}
+                </dd>
+              </div>
+            </dl>
+          </Card>
+        </section>
+      )}
+    </>
   );
 }
 
@@ -339,6 +412,12 @@ function ProjectsTab({ org }: { org: OrgDetail }) {
                   <dd className="tabular-nums">
                     {formatRocDate(p.start_date)} ～ {formatRocDate(p.end_date)}
                   </dd>
+                </div>
+              )}
+              {p.region && (
+                <div className="col-span-2">
+                  <dt className="text-slate-600">活動地區</dt>
+                  <dd>{p.region}</dd>
                 </div>
               )}
               {p.permit_no && (

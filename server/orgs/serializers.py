@@ -1,11 +1,10 @@
-from django.db.models import Sum
 from rest_framework import serializers
 
-from . import scoring
-from .models import AnnualFundraising, Donation, Organization, Penalty, Project
+from . import donor_rules, scoring
+from .models import AnnualFundraising, Donation, Donor, Organization, Penalty, Project
 
-TOP_DONORS = 10
 RECENT_DONATIONS = 50
+DONOR_DETAIL_DONATIONS = 200
 
 
 class OrganizationListSerializer(serializers.ModelSerializer):
@@ -34,7 +33,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = (
-            "id", "name", "category", "start_date", "end_date", "target", "raised", "permit_no",
+            "id", "name", "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
             "result_filed_on", "closed_filed_on", "description", "source_name", "source_url",
         )
 
@@ -47,10 +46,18 @@ class PenaltySerializer(serializers.ModelSerializer):
 
 class DonationSerializer(serializers.ModelSerializer):
     donor_name = serializers.CharField(source="public_donor_name")
+    donor_id = serializers.SerializerMethodField()
+    donor_kind = serializers.SerializerMethodField()
 
     class Meta:
         model = Donation
-        fields = ("id", "donor_name", "amount", "donated_on", "source_name", "source_url")
+        fields = ("id", "donor_name", "donor_id", "donor_kind", "amount", "donated_on", "purpose", "source_name", "source_url")
+
+    def get_donor_id(self, obj):
+        return obj.donor_id if obj.donor_id and obj.donor.is_public else None
+
+    def get_donor_kind(self, obj):
+        return obj.donor.kind if obj.donor_id else ("individual" if obj.donor_name.strip() else None)
 
 
 class OrganizationDetailSerializer(serializers.ModelSerializer):
@@ -61,14 +68,17 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     projects = ProjectSerializer(many=True)
     penalties = PenaltySerializer(many=True)
     donations = serializers.SerializerMethodField()
-    top_donors = serializers.SerializerMethodField()
+    corporate_donors = serializers.SerializerMethodField()
+    individual_donors = serializers.SerializerMethodField()
+    donor_summary = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
         fields = (
             "ubn", "name", "org_type", "representative", "registered_address", "contact_address", "phone",
             "website", "city", "purposes", "status", "status_label", "source_links", "disclosure_score",
-            "penalty_count_5y", "score", "annual_records", "projects", "penalties", "donations", "top_donors",
+            "penalty_count_5y", "score", "annual_records", "projects", "penalties", "donations",
+            "corporate_donors", "individual_donors", "donor_summary",
             "updated_at",
         )
 
@@ -76,14 +86,52 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
         return scoring.breakdown(obj)
 
     def get_donations(self, obj):
-        return DonationSerializer(obj.donations.all()[:RECENT_DONATIONS], many=True).data
+        qs = donor_rules.visible_donations(obj.donations.select_related("donor"))[:RECENT_DONATIONS]
+        return DonationSerializer(qs, many=True).data
 
-    def get_top_donors(self, obj):
-        rows = (
-            obj.donations.filter(is_anonymous=False)
-            .exclude(donor_name="")
-            .values("donor_name")
-            .annotate(total=Sum("amount"))
-            .order_by("-total", "donor_name")[:TOP_DONORS]
+    def get_corporate_donors(self, obj):
+        return donor_rules.corporate_ranking(obj)
+
+    def get_individual_donors(self, obj):
+        return donor_rules.individual_ranking(obj)
+
+    def get_donor_summary(self, obj):
+        return donor_rules.org_summary(obj)
+
+
+class DonorListSerializer(serializers.ModelSerializer):
+    kind_label = serializers.CharField(source="get_kind_display")
+    total = serializers.IntegerField()
+    org_count = serializers.IntegerField()
+    donation_count = serializers.IntegerField()
+
+    class Meta:
+        model = Donor
+        fields = ("id", "name", "kind", "kind_label", "ubn", "total", "org_count", "donation_count")
+
+
+class DonorDonationSerializer(serializers.ModelSerializer):
+    org_ubn = serializers.CharField(source="organization.ubn")
+    org_name = serializers.CharField(source="organization.name")
+    project_name = serializers.CharField(source="project.name", default="")
+
+    class Meta:
+        model = Donation
+        fields = ("id", "donated_on", "amount", "purpose", "org_ubn", "org_name", "project_name", "source_name", "source_url")
+
+
+class DonorDetailSerializer(DonorListSerializer):
+    organizations = serializers.SerializerMethodField()
+    donations = serializers.SerializerMethodField()
+
+    class Meta(DonorListSerializer.Meta):
+        fields = DonorListSerializer.Meta.fields + (
+            "registered_name", "representative", "capital", "address", "organizations", "donations",
         )
-        return [{"donor_name": r["donor_name"], "total": r["total"]} for r in rows]
+
+    def get_organizations(self, obj):
+        return donor_rules.donor_by_org(obj)
+
+    def get_donations(self, obj):
+        qs = obj.donations.select_related("organization", "project").order_by("-donated_on", "-amount")
+        return DonorDonationSerializer(qs[:DONOR_DETAIL_DONATIONS], many=True).data

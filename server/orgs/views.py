@@ -6,9 +6,14 @@ from rest_framework.decorators import api_view
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 
-from . import scoring
-from .models import Organization
-from .serializers import OrganizationDetailSerializer, OrganizationListSerializer
+from . import donor_rules, scoring
+from .models import Donor, Organization
+from .serializers import (
+    DonorDetailSerializer,
+    DonorListSerializer,
+    OrganizationDetailSerializer,
+    OrganizationListSerializer,
+)
 
 ORDERINGS = {"score": ("-disclosure_score", "name"), "name": ("name",)}
 
@@ -36,7 +41,7 @@ class OrganizationList(ListAPIView):
 @api_view(["GET"])
 def organization_detail(request, ubn):
     qs = scoring.with_penalty_count(
-        Organization.objects.prefetch_related("annual_records", "projects", "penalties")
+        Organization.objects.prefetch_related("annual_records", "projects", "penalties", "projects__donor_summary")
     )
     org = get_object_or_404(qs, ubn=ubn)
     return Response(OrganizationDetailSerializer(org).data)
@@ -65,3 +70,32 @@ def filters(request):
             "statuses": [{"value": v, "label": label} for v, label in Organization.Status.choices],
         }
     )
+
+
+DONOR_ORDERINGS = {"total": ("-total", "name"), "name": ("name",)}
+
+
+class DonorList(ListAPIView):
+    """捐款企業與團體排行（個人不在這裡：見 donor_rules）。"""
+
+    serializer_class = DonorListSerializer
+
+    def get_queryset(self):
+        params = self.request.query_params
+        qs = donor_rules.public_donors()
+        q = params.get("q", "").strip()
+        if q:
+            cond = Q(name__icontains=q) | Q(registered_name__icontains=q)
+            if re.fullmatch(r"\d{8}", q):
+                cond |= Q(ubn=q)
+            qs = qs.filter(cond)
+        kind = params.get("kind", "").strip()
+        if kind in Donor.PUBLIC_KINDS:
+            qs = qs.filter(kind=kind)
+        return qs.order_by(*DONOR_ORDERINGS.get(params.get("ordering", "total"), DONOR_ORDERINGS["total"]))
+
+
+@api_view(["GET"])
+def donor_detail(request, pk):
+    donor = get_object_or_404(donor_rules.public_donors(), pk=pk)
+    return Response(DonorDetailSerializer(donor).data)

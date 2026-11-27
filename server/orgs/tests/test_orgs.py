@@ -115,7 +115,11 @@ class ApiTests(TestCase):
         r = self.client.get("/api/orgs/11111111").json()
         self.assertEqual(r["penalty_count_5y"], 1)
         self.assertEqual(len(r["penalties"]), 2)
-        self.assertEqual(r["top_donors"], [{"donor_name": "王大明", "total": 1200}, {"donor_name": "陳小華", "total": 1000}])
+        self.assertEqual(
+            [(d["name"], d["total"]) for d in r["individual_donors"]], [("王大明", 1200), ("陳小華", 1000)]
+        )
+        self.assertEqual(r["corporate_donors"], [])
+        self.assertIsNone(r["donor_summary"])
         names = {d["donor_name"] for d in r["donations"]}
         self.assertIn("匿名", names)
         self.assertNotIn("秘密捐款人", str(r))

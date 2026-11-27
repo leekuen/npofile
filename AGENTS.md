@@ -35,7 +35,7 @@ web/              # Next.js 16 前台（App Router、Cache Components）
   components/     # ui.tsx 是共用元件（TextLink、徽章、空／錯誤狀態），畫面一律沿用
   lib/            # server-api.ts（伺服器端讀 Django）、client-api.ts（瀏覽器端，帶 CSRF）、types.ts
 server/           # Django 專案 npofile/
-  orgs/           # 組織與四類資料、揭露指數（scoring.py 是唯一算分處）、公開 API
+  orgs/           # 組織與四類資料、揭露指數（scoring.py 是唯一算分處）、捐款人可見規則（donor_rules.py 是唯一出處）、公開 API
   crawling/       # 爬蟲來源設定、執行紀錄、審核佇列；ingest.py 把爬蟲結果寫進組織資料
   community/      # 捐款人帳號、留言（需審核）
 crawler/          # 純 Python 套件 npofile_crawler：只負責抓與解析，不碰資料庫；一個來源一個模組
@@ -351,7 +351,8 @@ crawler/          # 純 Python 套件 npofile_crawler：只負責抓與解析，
   （**兩道確認閘**，授權單次有效、不跨票延續）。
 - ❌ 在閘門（票務 / 畫面 / git 同步 / git 波及範圍 / 部署檢查）失敗時繞過硬上；放行檔（`cache/*-override`）用完不刪。
 - ❌ 把檢查指令的輸出接管線、或只看到 `OK (skipped=N)` 就宣稱通過。
-- ❌ 手改已提交的 migration；揭露指數在 `orgs/scoring.py` 以外的地方另算一套。
+- ❌ 手改已提交的 migration；揭露指數在 `orgs/scoring.py` 以外的地方另算一套；捐款人誰看得到在 `orgs/donor_rules.py` 以外另寫判斷。
+- ❌ 把清冊上未達門檻的個人捐款人姓名存進資料庫或送到前台（`DONOR_INDIVIDUAL_THRESHOLD`，見 LK-06）。
 - ❌ 前台直接打外部網站或資料庫（一律經後端 API）；爬蟲繞過網站的登入、驗證碼或使用條款。
 
 ## 部署
