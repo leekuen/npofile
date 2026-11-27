@@ -55,3 +55,17 @@ class SinceFilterTests(unittest.TestCase):
         self.assertEqual(mohw.name_roc_year("114年度《行動音樂教室》"), 114)
         self.assertEqual(mohw.name_roc_year(" 98年 春節"), 98)
         self.assertIsNone(mohw.name_roc_year("行動音樂教室"))
+
+
+class AuthorityTests(unittest.TestCase):
+    def detail_with_doc(self, doc: str) -> dict:
+        html = read("violation_detail.html").replace("新北市政府新北府社團字第1151950240號", doc)
+        return violations.parse_detail(html, violations.DETAIL_URL.format(vid="1"))
+
+    def test_ministry_abbreviation(self):
+        self.assertEqual(self.detail_with_doc("衛部救字第1071362978號")["authority"], "衛生福利部")
+
+    def test_unknown_short_prefix_left_blank(self):
+        d = self.detail_with_doc("府社團字第1150000000號")
+        self.assertEqual(d["authority"], "")
+        self.assertEqual(d["document_no"], "府社團字第1150000000號")

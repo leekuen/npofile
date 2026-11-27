@@ -23,6 +23,8 @@ DETAIL_URL = mohw.BASE + "/app39/violation/violationDetails/{vid}"
 GROUP_SEARCH_URL = mohw.BASE + "/app39/fundgroup/fundgroupIndex?qdisplayName={name}"
 # 「新北市政府新北府社團字第…號」「衛生福利部衛部救字第…號」→ 開頭的機關名稱
 AUTHORITY_RE = re.compile(r"^(.+?(?:政府|部|署|局|委員會))")
+# 文號開頭常是機關簡稱：「衛部救字第…號」＝衛生福利部
+AUTHORITY_ABBR = {"衛部": "衛生福利部"}
 
 
 def parse_index(html: str) -> list[str]:
@@ -60,12 +62,15 @@ def parse_detail(html: str, url: str) -> dict | None:
     fine = mohw._text(content_block.select_one(".bg-red")) if content_block else ""
     document_no = fields.get("文號", "")
     auth = AUTHORITY_RE.match(document_no)
+    authority = AUTHORITY_ABBR.get(auth.group(1), auth.group(1)) if auth else ""
+    if len(authority) < 3:  # 認不出的簡稱（例「府社」）寧可留空，文號本身照樣顯示
+        authority = ""
     return {
         "id": m.group(1),
         "group_name": name,
         "decided_on": roc_date(date_text),
         "document_no": document_no,
-        "authority": auth.group(1) if auth else "",
+        "authority": authority,
         "content": section("處分內容") or mohw._text(soup.select_one(".inner-box-content .bottom")),
         "fine_text": fine,
         "reason": section("處分理由"),
