@@ -147,14 +147,19 @@ def official_codes(purposes: str) -> set[str]:
     return {OFFICIAL_PURPOSES[p.strip()] for p in (purposes or "").split("、") if p.strip() in OFFICIAL_PURPOSES}
 
 
+NAME_ONLY_FIELDS = {"other"}  # 「這是哪種組織」只看組織名稱：活動名稱寫「社區發展計畫」不代表它是社區團體
+
+
 def infer_codes(texts: list[str]) -> set[str]:
-    """名稱類的短文字逐段比對（不把好幾段串起來，避免跨段湊出關鍵字）。"""
+    """名稱類的短文字逐段比對（不把好幾段串起來，避免跨段湊出關鍵字）。texts[0] 是組織名稱。"""
     codes: set[str] = set()
-    for text in texts:
+    for i, text in enumerate(texts):
         text = (text or "").strip()
         if not text:
             continue
         for f in FIELDS:
+            if i > 0 and f.code in NAME_ONLY_FIELDS:
+                continue
             for s in f.subs:
                 if s.rule and s.rule.match(text):
                     codes.add(s.code)

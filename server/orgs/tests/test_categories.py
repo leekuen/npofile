@@ -47,6 +47,10 @@ class RuleTests(SimpleTestCase):
     def test_project_names_are_used(self):
         self.assertIn("target.children", codes("某某協會", projects=["115年偏鄉兒童課輔計畫"]))
 
+    def test_org_kind_buckets_use_org_name_only(self):
+        got = codes("財團法人台灣世界展望會", projects=["115年 兒童資助計畫暨社區發展", "115年 運動會"])
+        self.assertFalse({c for c in got if c.startswith("other")})
+
     def test_unknown_name_gets_nothing(self):
         self.assertEqual(codes("中華民國擊劍協會") & {c for c in taxonomy.LABELS if not c.startswith("other")}, set())
 

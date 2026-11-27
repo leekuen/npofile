@@ -9,6 +9,7 @@ export interface OrgSummary {
   status_label: string;
   disclosure_score: number;
   penalty_count_5y: number;
+  tags: CategoryTag[];
 }
 
 export interface Page<T> {
@@ -119,6 +120,7 @@ export interface OrgDetail extends OrgSummary {
   individual_donors: { name: string; total: number; count: number }[];
   donor_summary: DonorSummary | null;
   since_roc_year: number;
+  categories: OrgCategories;
   updated_at: string;
 }
 
@@ -181,6 +183,7 @@ export interface DonorDetail extends DonorSummaryRow {
   capital: number | null;
   address: string;
   organizations: { ubn: string; name: string; total: number; count: number }[];
+  fields_breakdown: { code: string; label: string; total: number }[];
   donations: {
     id: number;
     donated_on: string | null;
@@ -192,4 +195,45 @@ export interface DonorDetail extends DonorSummaryRow {
     source_name: string;
     source_url: string;
   }[];
+}
+
+export type CategorySource = "official" | "inferred" | "admin";
+
+export interface CategoryTag {
+  code: string;
+  label: string;
+  source: CategorySource;
+}
+
+export interface OrgCategories {
+  fields: (CategoryTag & { subs: CategoryTag[] })[];
+  targets: CategoryTag[];
+}
+
+export interface TaxonomyNode {
+  code: string;
+  label: string;
+  count: number;
+}
+
+export interface Taxonomy {
+  fields: (TaxonomyNode & { subs: TaxonomyNode[] })[];
+  targets: TaxonomyNode[];
+}
+
+export interface CategoryOverview {
+  code: string;
+  label: string;
+  dimension: "field" | "target";
+  parent: { code: string; label: string } | null;
+  subs: { code: string; label: string }[];
+  since_roc_year: number;
+  org_count: number;
+  raised_5y: number;
+  penalized_5y: number;
+  top_score: { ubn: string; name: string; city: string; disclosure_score: number }[];
+  top_raised: { ubn: string; name: string; city: string; disclosure_score: number; raised_5y: number }[];
+  top_donors: { donor_id: number; name: string; kind_label: string; total: number; org_count: number }[];
+  penalties: { id: number; decided_on: string | null; content: string; fine_text: string; org_ubn: string; org_name: string }[];
+  penalty_total: number;
 }

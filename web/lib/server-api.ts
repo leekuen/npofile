@@ -1,6 +1,16 @@
 import "server-only";
 
-import type { DonorDetail, DonorSummaryRow, Filters, OrgDetail, OrgSummary, Page, Stats } from "./types";
+import type {
+  CategoryOverview,
+  DonorDetail,
+  DonorSummaryRow,
+  Filters,
+  OrgDetail,
+  OrgSummary,
+  Page,
+  Stats,
+  Taxonomy,
+} from "./types";
 
 const API_BASE = process.env.API_BASE ?? "http://127.0.0.1:8000";
 
@@ -31,6 +41,9 @@ export interface OrgQuery {
   city?: string;
   status?: string;
   ordering?: string;
+  field?: string;
+  sub?: string;
+  target?: string;
   page?: string;
 }
 
@@ -63,4 +76,13 @@ export async function listDonors(query: DonorQuery) {
 export async function getDonor(id: string) {
   if (!/^\d+$/.test(id)) return null;
   return get<DonorDetail>(`/api/donors/${id}`);
+}
+
+export async function getTaxonomy() {
+  return (await get<Taxonomy>("/api/taxonomy"))!;
+}
+
+export async function getCategory(code: string) {
+  if (!/^[a-z.]+$/.test(code)) return null;
+  return get<CategoryOverview>(`/api/categories/${code}`);
 }

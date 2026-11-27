@@ -351,7 +351,7 @@ crawler/          # 純 Python 套件 npofile_crawler：只負責抓與解析，
   （**兩道確認閘**，授權單次有效、不跨票延續）。
 - ❌ 在閘門（票務 / 畫面 / git 同步 / git 波及範圍 / 部署檢查）失敗時繞過硬上；放行檔（`cache/*-override`）用完不刪。
 - ❌ 把檢查指令的輸出接管線、或只看到 `OK (skipped=N)` 就宣稱通過。
-- ❌ 手改已提交的 migration；揭露指數在 `orgs/scoring.py` 以外的地方另算一套；捐款人誰看得到在 `orgs/donor_rules.py` 以外另寫判斷。
+- ❌ 手改已提交的 migration；揭露指數在 `orgs/scoring.py` 以外的地方另算一套；捐款人誰看得到在 `orgs/donor_rules.py` 以外另寫判斷；組織分類規則在 `orgs/taxonomy.py` 以外另寫一套。
 - ❌ 把清冊上未達門檻的個人捐款人姓名存進資料庫或送到前台（`DONOR_INDIVIDUAL_THRESHOLD`，見 LK-06）。
 - ❌ 前台直接打外部網站或資料庫（一律經後端 API）；爬蟲繞過網站的登入、驗證碼或使用條款。
 
