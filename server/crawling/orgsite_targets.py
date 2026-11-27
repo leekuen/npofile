@@ -6,7 +6,7 @@ import logging
 from collections.abc import Iterator
 
 from django.conf import settings
-from django.db.models import OuterRef, Subquery
+from django.db.models import F, OuterRef, Subquery
 from django.utils import timezone
 from npofile_crawler import orgsite
 
@@ -23,7 +23,8 @@ def targets() -> Iterator[tuple[str, str]]:
     qs = (
         Organization.objects.exclude(website="")
         .annotate(last_checked=Subquery(last))
-        .order_by("last_checked", "-disclosure_score", "ubn")  # 沒爬過的（NULL）排最前面
+        # 沒爬過的（NULL）排最前面：PostgreSQL 預設把 NULL 排最後、SQLite 排最前，要明講
+        .order_by(F("last_checked").asc(nulls_first=True), "-disclosure_score", "ubn")
         .values_list("ubn", "website")
     )
     for ubn, website in qs.iterator():
