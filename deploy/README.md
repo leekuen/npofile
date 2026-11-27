@@ -159,6 +159,9 @@ crontab -u npofile /home/npofile/app/deploy/crontab
 sudo -iu npofile ~/app/deploy/deploy.sh
 ```
 
+`deploy.sh` 在服務重啟、印出「後端 OK」「前台 OK」之後，會把所有組織的分類重算一次（`classify_orgs`），
+讓分類規則的修改套到舊資料上。十萬筆組織在本機約 11 秒，期間網站照常可用；看到「==> 完成」才算跑完。
+
 ## 上線後檢查
 
 - `curl -I https://你的網域/` 回 200。

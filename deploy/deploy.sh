@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 更新正式環境：在伺服器上用 npofile 帳號執行
 #   sudo -iu npofile ~/app/deploy/deploy.sh
-# 拉 prod → 裝套件 → migrate → collectstatic → 建前台 → 重啟服務
+# 拉 prod → 裝套件 → migrate → collectstatic → 建前台 → 重啟服務 → 重算組織分類
 set -euo pipefail
 
 APP="${APP:-$HOME/app}"
@@ -34,4 +34,10 @@ sleep 3
 systemctl is-active --quiet npofile-api && systemctl is-active --quiet npofile-web
 curl -fsS -o /dev/null "$API_BASE/api/stats" && echo "    後端 OK"
 curl -fsS -o /dev/null http://127.0.0.1:3000/ && echo "    前台 OK"
+
+# 分類規則寫在程式裡（server/orgs/taxonomy.py），改規則一定要部署；每天的爬蟲只重分「資料有變」的組織，
+# 所以部署完把全部重算一次，舊組織才會換上新標籤。放在重啟之後：服務先起來，重算期間網站照常可用。
+echo "==> 重算組織分類"
+cd "$APP/server"
+.venv/bin/python manage.py classify_orgs
 echo "==> 完成"
