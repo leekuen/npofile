@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 
 INDEX_URL = mohw.BASE + "/app39/violation/violationIndex?offset={offset}&max={size}"
 DETAIL_URL = mohw.BASE + "/app39/violation/violationDetails/{vid}"
-GROUP_SEARCH_URL = mohw.BASE + "/app39/fundgroup/fundgroupIndex?qdisplayName={name}"
+GROUP_SEARCH_URL = mohw.GROUP_SEARCH_URL
 # 「新北市政府新北府社團字第…號」「衛生福利部衛部救字第…號」→ 開頭的機關名稱
 AUTHORITY_RE = re.compile(r"^(.+?(?:政府|部|署|局|委員會))")
 # 文號開頭常是機關簡稱：「衛部救字第…號」＝衛生福利部

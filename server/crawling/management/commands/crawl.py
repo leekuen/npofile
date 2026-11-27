@@ -48,6 +48,7 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"{run.get_status_display()}：抓到 {run.fetched}、新資料 {run.created}、上架 {run.applied}、"
                 f"待審核 {run.pending}、失敗 {run.failed}" + (f"\n錯誤：{run.error}" if run.error else "")
+                + (f"\n{run.note}" if run.note else "")
             )
             failed |= run.status != run.Status.SUCCESS
         if failed:

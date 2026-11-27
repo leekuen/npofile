@@ -180,6 +180,106 @@ class FetchActivitiesTests(unittest.TestCase):
         self.assertGreater(kinds.count("project"), 6)  # 團體頁的專案＋6 個活動頁都還在
 
 
+ORG = "社團法人台灣收容動物關懷協會"  # activity_index.html 六張卡片的申請單位
+
+
+def search_html(*gids, name=ORG):
+    return "".join(f'<a class="card-style card-sg" href="/app39/fundgroup/fundgroupDetails/{g}" title="{name}">x</a>' for g in gids)
+
+
+class ActivityCardTests(unittest.TestCase):
+    def test_cards(self):
+        cards = mohw.parse_activity_cards(read("activity_index.html"), 114)
+        self.assertEqual(len(cards), 6)
+        self.assertEqual({c.org_name for c in cards}, {ORG})
+        self.assertEqual(cards[0].raised, 47244)
+        self.assertEqual(cards[0].year, 114)
+        self.assertTrue(cards[0].name)
+
+    def test_exact_group_ids(self):
+        self.assertEqual(mohw.exact_group_ids(search_html("1", "2"), ORG), ["1", "2"])
+        self.assertEqual(mohw.exact_group_ids(search_html("1", name="社團法人台灣收容動物關懷協會分會"), ORG), [])
+
+
+class FetchByYearTests(unittest.TestCase):
+    """依年度列活動 → plan 挑 → 活動頁＋清冊；第一次遇到的申請單位查一次團體。"""
+
+    FakeResp = FetchActivitiesTests.FakeResp
+
+    def make_client(self, search=None, log=None):
+        test = self
+        search = search if search is not None else search_html("10057")
+
+        class FakeClient:
+            def get(self, url, **kw):
+                (log if log is not None else []).append(url)
+                if "qdisplayName" in url:
+                    return test.FakeResp(search)
+                if "fundgroupDetails" in url:
+                    return test.FakeResp(read("group_clean.html"))
+                if "fundactivityIndex" in url:
+                    return test.FakeResp(read("activity_index.html") if "qyyy=114" in url and "offset=0&" in url else "")
+                if "fundactivityDetails" in url:
+                    return test.FakeResp(read("activity_with_donors.html"))
+                if "downloadDonors" in url:
+                    return test.FakeResp(content=(FX / "donors_sample.ods").read_bytes())
+                raise AssertionError(url)
+
+        return FakeClient()
+
+    def test_lists_years_and_fetches_every_card(self):
+        log = []
+        items = list(mohw.fetch_activities(self.make_client(log=log), since_roc=113, this_roc=115))
+        years = sorted({u.split("qyyy=")[1].split("&")[0] for u in log if "qyyy=" in u})
+        self.assertEqual(years, ["113", "114", "115", "116"])  # 起始年度到明年
+        kinds = [i.kind for i in items]
+        self.assertEqual(kinds.count("donor_list"), 6)
+        self.assertEqual(kinds.count("org"), 1)
+        self.assertEqual(sum("qdisplayName" in u for u in log), 1)  # 同一個申請單位只查一次
+
+    def test_limit_counts_activities(self):
+        items = list(mohw.fetch_activities(self.make_client(), limit=2, since_roc=114, this_roc=114))
+        self.assertEqual([i.kind for i in items].count("donor_list"), 2)
+
+    def test_unmatched_names_are_reported_and_skipped(self):
+        class Plan(mohw.ActivityPlan):
+            def __init__(self):
+                self.unmatched_reasons = []
+
+            def unmatched(self, card, reason):
+                self.unmatched_reasons.append(reason)
+
+        for search, reason in ((search_html(), "團體列表查無此名稱"), (search_html("1", "2"), "同名團體不只一個")):
+            plan = Plan()
+            items = list(mohw.fetch_activities(self.make_client(search=search), since_roc=114, this_roc=114, plan=plan))
+            self.assertEqual(items, [])
+            self.assertEqual(plan.unmatched_reasons, [reason] * 6)
+
+    def test_plan_controls_order_ubn_and_downloads(self):
+        log = []
+
+        class Plan(mohw.ActivityPlan):
+            done_calls = []
+
+            def select(self, cards):
+                return cards[:2]
+
+            def ubn_for(self, name):
+                return "12345678"
+
+            def need_donors(self, card):
+                return False
+
+            def done(self, card, ubn, **kw):
+                self.done_calls.append((card.aid, ubn, kw["donors_fetched"]))
+
+        plan = Plan()
+        items = list(mohw.fetch_activities(self.make_client(log=log), since_roc=114, this_roc=114, plan=plan))
+        self.assertEqual([i.kind for i in items], ["project", "project"])
+        self.assertFalse(any("qdisplayName" in u or "downloadDonors" in u for u in log))
+        self.assertEqual([(ubn, fetched) for _, ubn, fetched in plan.done_calls], [("12345678", False)] * 2)
+
+
 class FetchActivitiesSinceTests(unittest.TestCase):
     FakeResp = FetchActivitiesTests.FakeResp
     make_client = FetchActivitiesTests.make_client

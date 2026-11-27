@@ -137,10 +137,14 @@ cd ~/app/server
 .venv/bin/python manage.py crawl fia                       # 財政部名冊約 10 萬筆
 .venv/bin/python manage.py crawl mohw                      # 公益勸募團體
 .venv/bin/python manage.py crawl mohw_violations           # 違規公告（全部年度的裁罰）
-.venv/bin/python manage.py crawl mohw_activities --limit 50 # 勸募活動＋捐贈人清冊（先抓一部分）
+.venv/bin/python manage.py crawl mohw_activities          # 勸募活動＋捐贈人清冊：先跑 120 分鐘，之後每晚排程接著抓
 .venv/bin/python manage.py match_companies
 .venv/bin/python manage.py recompute_scores
 ```
+
+近 5 年的勸募活動約 4,700 個，每晚排程最多抓 120 分鐘（後台「爬蟲來源設定」的「每次最多跑幾分鐘」），
+大約三、四個晚上補齊；之後每天只抓新的與金額有變的。想一次補齊，就把那個欄位改成 0、在 `tmux` 裡跑上面那行（約需半天），
+跑完再改回 120。進度看後台「勸募活動抓取進度」，或執行後最後一行印的「近 5 年活動 N 個，已抓 M 個…」。
 
 ### 10. 排程（root）
 

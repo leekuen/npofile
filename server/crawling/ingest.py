@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Iterable
 from datetime import date
 
@@ -27,7 +28,9 @@ from orgs.models import (
 )
 from orgs.signals import suspend_scoring
 
+from . import progress
 from .models import CrawlerSource, CrawlRecord, CrawlRun
+from .progress import DbActivityPlan
 
 log = logging.getLogger(__name__)
 
@@ -45,44 +48,69 @@ def record_source_name(source: CrawlerSource) -> str:
     return s.record_name if s else source.name
 
 
+# 新建來源時的「每次最多跑幾分鐘」：勸募活動與捐贈人清冊每晚接著抓，不讓一次跑整晚（已存在的來源照後台設定）
+DEFAULT_MINUTES = {"mohw_activities": 120}
+
+
 def ensure_sources() -> None:
     for s in SOURCES.values():
         CrawlerSource.objects.get_or_create(
             key=s.key,
-            defaults={"name": s.name, "url": s.url, "auto_approve": s.official, "description": s.description},
+            defaults={"name": s.name, "url": s.url, "auto_approve": s.official, "description": s.description,
+                      "max_minutes": DEFAULT_MINUTES.get(s.key, 0)},
         )
 
 
 def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[Item] | None = None,
-               min_interval: float = 1.0) -> CrawlRun:
+               min_interval: float = 1.0, client=None) -> CrawlRun:
+    """client：測試可塞假的；不給就照來源設定開一個每秒最多一個請求的。"""
     run = CrawlRun.objects.create(source=source)
     limit = limit if limit is not None else (source.max_items or None)
-    client = None
+    deadline = time.monotonic() + source.max_minutes * 60 if source.max_minutes else None
+    own_client = False
+    plan = None
     touched: set[str] = set()
     batch: list[Item] = []
     known = set(CrawlRecord.objects.filter(source=source).values_list("content_hash", flat=True))
+
+    def store() -> None:
+        _store_batch(source, run, batch, known, touched)
+        batch.clear()
+        if plan is not None:
+            plan.flush()  # 資料寫進去了，才把對應的活動記成已抓
+
     try:
         with suspend_scoring():
             try:
                 if items is None:
-                    client = PoliteClient(min_interval=min_interval)
+                    if client is None:
+                        client, own_client = PoliteClient(min_interval=min_interval), True
                     src = SOURCES[source.key]
-                    values = {"threshold": settings.DONOR_INDIVIDUAL_THRESHOLD, "since_roc": period.since_roc_year()}
+                    if "plan" in src.options:
+                        plan = DbActivityPlan()
+                    values = {"threshold": settings.DONOR_INDIVIDUAL_THRESHOLD, "since_roc": period.since_roc_year(),
+                              "plan": plan}
                     items = src.fetch(client, limit, **{k: values[k] for k in src.options})
                 for item in items:
                     run.fetched += 1
                     batch.append(item)
                     if len(batch) >= BATCH:
-                        _store_batch(source, run, batch, known, touched)
-                        batch = []
+                        store()
+                    if deadline is not None and time.monotonic() >= deadline:
+                        run.note = f"到達每次最多 {source.max_minutes} 分鐘的上限先停，下次接著抓"
+                        break
                 run.status = CrawlRun.Status.SUCCESS
             except Exception as exc:  # 抓到一半失敗：已抓到的照樣存，錯誤記進執行紀錄
                 log.exception("crawl %s failed", source.key)
                 run.status = CrawlRun.Status.FAILED
                 run.error = f"{type(exc).__name__}: {exc}"[:2000]
-            _store_batch(source, run, batch, known, touched)
+            store()
+            if plan is not None:
+                run.note = "；".join(x for x in (run.note, progress.summary_text()) if x)[:300]
     finally:
-        if client is not None:
+        if hasattr(items, "close"):
+            items.close()
+        if own_client:
             client.close()
         recompute_ubns(touched)
         run.finished_at = timezone.now()

@@ -11,6 +11,9 @@ class CrawlerSource(models.Model):
         "自動上架", default=False, help_text="勾選：抓到就直接上架。不勾：先進待審核清單，管理員核准後才上架。"
     )
     max_items = models.PositiveIntegerField("每次最多抓幾筆", default=0, help_text="0 表示不限制。")
+    max_minutes = models.PositiveIntegerField(
+        "每次最多跑幾分鐘", default=0, help_text="0 表示不限制。到時間就停，下次接著抓（目前只有勸募活動與捐贈人清冊會接著抓）。"
+    )
     description = models.TextField("說明", blank=True)
     last_run_at = models.DateTimeField("最近執行", null=True, blank=True)
 
@@ -39,6 +42,7 @@ class CrawlRun(models.Model):
     pending = models.PositiveIntegerField("待審核筆數", default=0)
     failed = models.PositiveIntegerField("失敗筆數", default=0)
     error = models.TextField("錯誤訊息", blank=True)
+    note = models.CharField("備註", max_length=300, blank=True)
 
     class Meta:
         verbose_name = "爬蟲執行紀錄"
@@ -89,3 +93,29 @@ class CrawlRecord(models.Model):
 
     def __str__(self):
         return f"{self.get_kind_display()} {self.ubn}"
+
+
+class ActivityProgress(models.Model):
+    """衛福部勸募活動的抓取進度：每晚接著抓、只抓新的與有變動的（規則在 crawling/progress.py）。"""
+
+    activity_id = models.CharField("活動編號", max_length=20, unique=True)
+    name = models.CharField("活動名稱", max_length=300, blank=True)
+    org_name = models.CharField("申請單位", max_length=200, db_index=True)
+    ubn = models.CharField("統一編號", max_length=8, blank=True, db_index=True)
+    roc_year = models.PositiveSmallIntegerField("勸募年度", db_index=True)
+    end_date = models.DateField("活動結束", null=True, blank=True)
+    listed_raised = models.BigIntegerField("列表上的實募金額", null=True, blank=True)
+    checked_raised = models.BigIntegerField("上次檢查時的實募金額", null=True, blank=True)
+    donors_raised = models.BigIntegerField("清冊抓到時的實募金額", null=True, blank=True)
+    has_donor_link = models.BooleanField("活動頁有清冊", default=False)
+    has_donor_list = models.BooleanField("清冊已寫進資料庫", default=False)
+    unmatched_reason = models.CharField("對不到的原因", max_length=100, blank=True)
+    checked_at = models.DateTimeField("最近檢查", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "勸募活動抓取進度"
+        verbose_name_plural = "勸募活動抓取進度"
+        ordering = ["-roc_year", "activity_id"]
+
+    def __str__(self):
+        return f"{self.activity_id} {self.name}"

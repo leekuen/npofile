@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from crawling.models import CrawlRecord
+from crawling.models import ActivityProgress, CrawlRecord
 from orgs import period
 from orgs.models import AnnualFundraising, Donation, Organization, Project
 from orgs.signals import suspend_scoring
@@ -22,11 +22,13 @@ class Command(BaseCommand):
         # 舊清冊的原始內容也很佔空間；只刪清冊，團體頁其他紀錄留作歷史
         old_ids = list(projects.values_list("external_id", flat=True))
         records = CrawlRecord.objects.filter(kind="donor_list", external_id__in=old_ids) if old_ids else CrawlRecord.objects.none()
+        progress = ActivityProgress.objects.filter(roc_year__lt=since)  # 舊活動的抓取進度（LK-13）
         counts = {
             "年度募款": annual.count(),
             "專案": projects.count(),
             "捐款紀錄": donations.count(),
             "清冊原始紀錄": records.count(),
+            "活動抓取進度": progress.count(),
         }
         summary = "、".join(f"{k} {v} 筆" for k, v in counts.items())
         if dry_run:
@@ -38,5 +40,6 @@ class Command(BaseCommand):
             projects.delete()
             annual.delete()
             records.delete()
+            progress.delete()
         recompute(Organization.objects.filter(pk__in=touched))
         self.stdout.write(f"已刪除民國 {since} 年以前：{summary}；裁罰紀錄不動")
