@@ -41,7 +41,7 @@ class DatasetSpec:
     title_re: re.Pattern | None = None  # 資料集裡只拿標題符合的檔（None＝全部）
     agency: str = ""                    # 表上沒有「補(捐)助機關」欄時用這個
     variant_re: re.Pattern | None = None  # 同一年有幾份不同的表：標題裡符合的字當成「哪一份」，每份各取季數最大的
-    prefix_re: re.Pattern | None = None   # 受補助對象前面黏著承辦單位（例：「北基宜花金馬分署某某協會」）：切下來接到機關後面
+    prefix_re: re.Pattern | None = None   # 受補助對象前面黏著承辦單位（例：「北基宜花金馬分署某某協會」）：切下來當補助機關（跟就業安定基金的寫法一樣）
     index: bool = False                   # 資料集只有一份清單 CSV（名稱、連結、期間），每季的表要照連結再抓
 
 
@@ -289,7 +289,7 @@ def to_items(f: GrantFile, rows: Iterable[dict], matcher: OrgMatcher, agency: st
         if not row["agency"] and agency:
             row = {**row, "agency": agency}
         if prefix_re is not None and (m := prefix_re.match(row["recipient"])):
-            row = {**row, "recipient": row["recipient"][m.end():].strip(), "agency": row["agency"] + m.group(0)}
+            row = {**row, "recipient": row["recipient"][m.end():].strip(), "agency": m.group(0)}
         hit = matcher.match(row["recipient"])
         if hit is None:
             continue

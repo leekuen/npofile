@@ -212,7 +212,7 @@ class MoreAgenciesParseTests(unittest.TestCase):
         by_ubn = {i.ubn: i.data for i in items}
         self.assertEqual(set(by_ubn), {"10000002", "05557110"})
         self.assertEqual(by_ubn["10000002"]["recipient"], "社團法人中華民國全國中小企業總會")
-        self.assertEqual(by_ubn["10000002"]["agency"], "勞動部勞動力發展署北基宜花金馬分署")
+        self.assertEqual(by_ubn["10000002"]["agency"], "北基宜花金馬分署")
         self.assertEqual(by_ubn["10000002"]["approved_on"], date(2026, 5, 27))
         self.assertEqual(by_ubn["05557110"]["agency"], "勞動部勞動力發展署")
 

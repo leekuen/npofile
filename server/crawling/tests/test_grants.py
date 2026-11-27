@@ -89,7 +89,7 @@ class MoreAgenciesTests(TestCase):
         run = run_source(CrawlerSource.objects.get(key="wda_grants"), items=self.wda_items())
         self.assertEqual((run.created, run.applied), (2, 2))
         g = Grant.objects.get(organization=self.union)
-        self.assertEqual(g.agency, "勞動部勞動力發展署北基宜花金馬分署")
+        self.assertEqual(g.agency, "北基宜花金馬分署")
         self.assertEqual(g.recipient, "社團法人中華民國全國中小企業總會")
         self.assertEqual(g.source_url, "https://data.gov.tw/dataset/143623")
 
