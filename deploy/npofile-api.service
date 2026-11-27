@@ -1,0 +1,16 @@
+# Django（gunicorn）：只聽本機 8000，外面進不來；對外一律經過 nginx 或 Next.js
+# 放到 /etc/systemd/system/npofile-api.service
+[Unit]
+Description=NPOFile API (Django + gunicorn)
+After=network.target postgresql.service
+
+[Service]
+User=npofile
+Group=npofile
+WorkingDirectory=/home/npofile/app/server
+ExecStart=/home/npofile/app/server/.venv/bin/gunicorn npofile.wsgi --bind 127.0.0.1:8000 --workers 3 --timeout 60 --access-logfile -
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
