@@ -12,7 +12,7 @@ def merge(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("orgs", "0006_project_channel"),
+        ("orgs", "0007_grants"),
     ]
 
     operations = [
