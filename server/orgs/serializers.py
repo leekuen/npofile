@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from . import donor_rules, period, scoring
+from . import category_api, donor_rules, period, scoring
 from .models import AnnualFundraising, Donation, Donor, Organization, Penalty, Project
 
 RECENT_DONATIONS = 50
@@ -10,10 +10,16 @@ DONOR_DETAIL_DONATIONS = 200
 class OrganizationListSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source="get_status_display")
     penalty_count_5y = serializers.IntegerField()
+    tags = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
-        fields = ("ubn", "name", "org_type", "city", "status", "status_label", "disclosure_score", "penalty_count_5y")
+        fields = (
+            "ubn", "name", "org_type", "city", "status", "status_label", "disclosure_score", "penalty_count_5y", "tags",
+        )
+
+    def get_tags(self, obj):
+        return category_api.short_tags(obj)
 
 
 class AnnualSerializer(serializers.ModelSerializer):
@@ -74,6 +80,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     individual_donors = serializers.SerializerMethodField()
     donor_summary = serializers.SerializerMethodField()
     since_roc_year = serializers.SerializerMethodField()
+    categories = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
@@ -81,7 +88,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
             "ubn", "name", "org_type", "representative", "registered_address", "contact_address", "phone",
             "website", "city", "purposes", "status", "status_label", "source_links", "disclosure_score",
             "penalty_count_5y", "score", "annual_records", "projects", "penalties", "donations",
-            "corporate_donors", "individual_donors", "donor_summary", "since_roc_year",
+            "corporate_donors", "individual_donors", "donor_summary", "since_roc_year", "categories",
             "updated_at",
         )
 
@@ -103,6 +110,9 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
 
     def get_since_roc_year(self, obj):
         return period.since_roc_year()
+
+    def get_categories(self, obj):
+        return category_api.org_categories(obj)
 
 
 class DonorListSerializer(serializers.ModelSerializer):
@@ -129,11 +139,15 @@ class DonorDonationSerializer(serializers.ModelSerializer):
 class DonorDetailSerializer(DonorListSerializer):
     organizations = serializers.SerializerMethodField()
     donations = serializers.SerializerMethodField()
+    fields_breakdown = serializers.SerializerMethodField()
 
     class Meta(DonorListSerializer.Meta):
         fields = DonorListSerializer.Meta.fields + (
-            "registered_name", "representative", "capital", "address", "organizations", "donations",
+            "registered_name", "representative", "capital", "address", "organizations", "donations", "fields_breakdown",
         )
+
+    def get_fields_breakdown(self, obj):
+        return category_api.donor_field_breakdown(obj)
 
     def get_organizations(self, obj):
         return donor_rules.donor_by_org(obj)
