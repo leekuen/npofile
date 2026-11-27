@@ -44,6 +44,15 @@ class RuleTests(SimpleTestCase):
         self.assertNotIn("environment.ocean", codes("宜蘭縣潛水協會"))
         self.assertIn("other.trade", codes("瑋懋營造有限公司勞工退休準備金監督委員會"))
 
+    def test_research_only_academic(self):
+        """LK-21：「研究」單獨出現不算學術研究；醫療、命理類的研究會不算教育。"""
+        self.assertIn("education.research", codes("財團法人梅貽琦先生紀念學術基金會"))
+        self.assertIn("education.research", codes("財團法人環境資源研究中心"))
+        self.assertNotIn("education", codes("財團法人台灣癌症臨床研究發展基金會"))
+        self.assertIn("health", codes("財團法人台灣癌症臨床研究發展基金會"))
+        self.assertNotIn("education", codes("台灣紫微斗數哲理研究學會"))
+        self.assertNotIn("education.research", codes("社團法人國際咖啡研究學會"))
+
     def test_project_names_are_used(self):
         self.assertIn("target.children", codes("某某協會", projects=["115年偏鄉兒童課輔計畫"]))
 
