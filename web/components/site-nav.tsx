@@ -19,7 +19,7 @@ function NavLinks({ pathname }: { pathname: string | null }) {
               <Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`rounded px-3 py-2 ${active ? "bg-teal-50 font-semibold text-teal-900" : "text-slate-700 hover:bg-slate-100"}`}
+                className={`rounded-full px-3 py-2 ${active ? "bg-brand-50 font-semibold text-brand-900" : "text-ink-700 hover:bg-ink-100"}`}
               >
                 {item.label}
               </Link>

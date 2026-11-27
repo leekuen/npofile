@@ -31,7 +31,7 @@ function href(query: DonorQuery, patch: Partial<DonorQuery>) {
 }
 
 const inputCls =
-  "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-teal-600 focus:outline-none";
+  "w-full rounded-xl border border-ink-300 bg-white px-3 py-2 text-sm text-ink-900 focus:border-brand-600 focus:outline-none";
 
 export async function DonorSearch({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
@@ -61,11 +61,11 @@ export async function DonorSearch({ searchParams }: { searchParams: Promise<Sear
       <Card>
         <form action="/donors" method="get" className="grid gap-3 sm:grid-cols-[2fr_1fr_auto] sm:items-end">
           <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-700">企業或團體名稱、統一編號</span>
+            <span className="mb-1 block font-medium text-ink-700">企業或團體名稱、統一編號</span>
             <input type="search" name="q" defaultValue={query.q} placeholder="例：銀行、22099131" className={inputCls} />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-700">類型</span>
+            <span className="mb-1 block font-medium text-ink-700">類型</span>
             <select name="kind" defaultValue={query.kind} className={inputCls}>
               {KINDS.map((k) => (
                 <option key={k.value} value={k.value}>
@@ -74,25 +74,25 @@ export async function DonorSearch({ searchParams }: { searchParams: Promise<Sear
               ))}
             </select>
           </label>
-          <button type="submit" className="h-10 rounded-md bg-teal-700 px-5 text-sm font-semibold text-white hover:bg-teal-800">
+          <button type="submit" className="h-10 rounded-xl bg-brand-700 px-5 text-sm font-semibold text-white hover:bg-brand-800">
             查詢
           </button>
         </form>
       </Card>
 
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-slate-700">
+        <span className="text-ink-700">
           共 <strong className="tabular-nums">{formatNumber(page.count)}</strong> 個，依捐款總額排序
         </span>
         {chips.map((c) => (
           <Link
             key={c.label}
             href={href(query, { ...c.clear, page: "1" })}
-            className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-3 py-1 text-slate-800 hover:bg-slate-100"
+            className="inline-flex items-center gap-1 rounded-full border border-ink-300 bg-white px-3 py-1 text-ink-800 hover:bg-ink-100"
             aria-label={`移除條件：${c.label}`}
           >
             {c.label}
-            <span aria-hidden className="text-slate-500">
+            <span aria-hidden className="text-ink-500">
               ×
             </span>
           </Link>
@@ -102,20 +102,20 @@ export async function DonorSearch({ searchParams }: { searchParams: Promise<Sear
       {page.results.length === 0 ? (
         <EmptyState title="找不到符合條件的企業或團體">換個關鍵字，或移除上面的條件再試一次。</EmptyState>
       ) : (
-        <ol className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <ol className="divide-y divide-ink-200 overflow-hidden rounded-2xl border border-ink-200 bg-white">
           {page.results.map((d, i) => (
             <li key={d.id}>
-              <Link href={`/donors/${d.id}`} className="group flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
-                <span className="w-8 shrink-0 text-right font-semibold tabular-nums text-slate-500">{rankBase + i + 1}</span>
+              <Link href={`/donors/${d.id}`} className="group flex items-center gap-3 px-4 py-3 hover:bg-ink-50">
+                <span className="w-8 shrink-0 text-right font-semibold tabular-nums text-ink-500">{rankBase + i + 1}</span>
                 <div className="min-w-0 flex-1">
-                  <p className="break-words font-semibold text-teal-900 underline-offset-2 group-hover:underline">{d.name}</p>
-                  <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-slate-600">
-                    <span className="rounded bg-slate-100 px-1.5 text-slate-700">{d.kind_label}</span>
+                  <p className="break-words font-semibold text-brand-900 underline-offset-2 group-hover:underline">{d.name}</p>
+                  <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-ink-600">
+                    <span className="rounded bg-ink-100 px-1.5 text-ink-700">{d.kind_label}</span>
                     {d.ubn && <span className="tabular-nums">統編 {d.ubn}</span>}
                     <span>捐給 {formatNumber(d.org_count)} 個組織</span>
                   </p>
                 </div>
-                <span className="shrink-0 text-right font-semibold tabular-nums text-slate-900">{formatMoney(d.total)}</span>
+                <span className="shrink-0 text-right font-semibold tabular-nums text-ink-900">{formatMoney(d.total)}</span>
               </Link>
             </li>
           ))}
@@ -125,17 +125,17 @@ export async function DonorSearch({ searchParams }: { searchParams: Promise<Sear
       {lastPage > 1 && (
         <nav aria-label="分頁" className="flex items-center justify-between text-sm">
           {current > 1 ? (
-            <Link href={href(query, { page: String(current - 1) })} className="rounded-md border border-slate-300 bg-white px-4 py-2 hover:bg-slate-50">
+            <Link href={href(query, { page: String(current - 1) })} className="rounded-xl border border-ink-300 bg-white px-4 py-2 hover:bg-ink-50">
               ‹ 上一頁
             </Link>
           ) : (
             <span />
           )}
-          <span className="tabular-nums text-slate-600">
+          <span className="tabular-nums text-ink-600">
             第 {formatNumber(current)} / {formatNumber(lastPage)} 頁
           </span>
           {current < lastPage ? (
-            <Link href={href(query, { page: String(current + 1) })} className="rounded-md border border-slate-300 bg-white px-4 py-2 hover:bg-slate-50">
+            <Link href={href(query, { page: String(current + 1) })} className="rounded-xl border border-ink-300 bg-white px-4 py-2 hover:bg-ink-50">
               下一頁 ›
             </Link>
           ) : (
@@ -153,7 +153,7 @@ export function DonorSearchSkeleton() {
       <Card>
         <Skeleton className="h-10 w-full" />
       </Card>
-      <div className="space-y-px overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="space-y-px overflow-hidden rounded-2xl border border-ink-200 bg-white">
         {Array.from({ length: 6 }, (_, i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3">
             <Skeleton className="h-4 w-6" />
