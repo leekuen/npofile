@@ -162,6 +162,35 @@ export interface PublicRaised {
 }
 
 /** 政府對民間團體的補(捐)助（LK-19）：金額是核定金額（含累積） */
+/** 司法院法人登記公告（LK-31）：只有組織層級的欄位 */
+export type CourtCaseType = "setup" | "change" | "dissolution" | "liquidator" | "liquidation_end";
+
+export interface CourtRegistration {
+  id: number;
+  posted_on: string | null;
+  registered_on: string | null;
+  court: string;
+  case_no: string;
+  reg_no: string;
+  category: "association" | "foundation" | "";
+  category_label: string;
+  case_type: CourtCaseType;
+  case_label: string;
+  property_total: number | null;
+  change_items: string[];
+  source_name: string;
+  source_url: string;
+}
+
+export interface CourtDissolution {
+  posted_on: string | null;
+  registered_on: string | null;
+  court: string;
+  case_type: "dissolution" | "liquidation_end";
+  case_label: string;
+  source_url: string;
+}
+
 export interface Grant {
   id: number;
   year: number;
@@ -184,6 +213,30 @@ export interface DonationTrendRow {
   grants: number;
 }
 
+/** 主管機關名冊（LK-32）：名稱對到這個組織的那一列；個人姓名與聯絡方式不存 */
+export interface RegistryEntry {
+  authority: string;
+  registry_name: string;
+  permit_no: string;
+  founded_on: string | null;
+  registered_assets: number | null;
+  status: string;
+  service_targets: string;
+  business_category: string;
+  /** 資料集最近更新日 */
+  data_date: string | null;
+  source_name: string;
+  source_url: string;
+}
+
+/** 電子發票捐贈碼（LK-32）：用統編對到這個組織 */
+export interface DonationCode {
+  code: string;
+  short_name: string;
+  source_name: string;
+  source_url: string;
+}
+
 export interface OrgDetail extends Omit<OrgSummary, "public_raised_5y"> {
   public_raised: PublicRaised;
   representative: string;
@@ -203,6 +256,11 @@ export interface OrgDetail extends Omit<OrgSummary, "public_raised_5y"> {
   grants: Grant[];
   /** 近 5 年受捐款趨勢（LK-33）：每年勸募實募、群眾集資、政府補助（元），不相加；今年都是 0 時不列 */
   donation_trend: DonationTrendRow[];
+  court_registrations: CourtRegistration[];
+  court_dissolution: CourtDissolution | null;
+  /** 主管機關名冊與發票捐贈碼（LK-32）：沒有資料是空陣列 */
+  registries: RegistryEntry[];
+  donation_codes: DonationCode[];
   donations: DonationRow[];
   corporate_donors: CorporateDonorRank[];
   individual_donors: { name: string; total: number; count: number }[];

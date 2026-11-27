@@ -1,11 +1,25 @@
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone
 from npofile_crawler import mohw
 from npofile_crawler.http import PoliteClient
+from npofile_crawler.sources import SOURCES
 
 from crawling.ingest import ensure_sources, run_source
-from crawling.models import CrawlerSource
+from crawling.models import CrawlerSource, CrawlRun
 from orgs import period
+
+
+def recent_success_days(source: CrawlerSource) -> int | None:
+    """設了 every_days 的來源（每月檢查的名冊，LK-32）：上次成功距今還不到 every_days 天就回傳隔了幾天，否則 None。"""
+    src = SOURCES.get(source.key)
+    if not (src and src.every_days):
+        return None
+    last = source.runs.filter(status=CrawlRun.Status.SUCCESS).order_by("-started_at").first()
+    if last is None:
+        return None
+    days = (timezone.now() - last.started_at).days
+    return days if days < src.every_days else None
 
 
 class Command(BaseCommand):
@@ -14,7 +28,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("sources", nargs="+", help="來源代號（fia、mohw）或 all")
         parser.add_argument("--limit", type=int, default=None, help="最多抓幾筆（覆蓋後台設定）")
-        parser.add_argument("--force", action="store_true", help="停用的來源也照跑")
+        parser.add_argument("--force", action="store_true", help="停用的來源、每月檢查還沒到期的也照跑")
         parser.add_argument(
             "--group", action="append", default=[],
             help="只抓指定的公益勸募團體編號（網址 fundgroupDetails/ 後面的數字，可重複；限 mohw_activities）",
@@ -30,6 +44,9 @@ class Command(BaseCommand):
         for source in qs:
             if not source.enabled and not force:
                 self.stdout.write(f"略過（已停用）：{source.name}")
+                continue
+            if sources == ["all"] and not force and (days := recent_success_days(source)) is not None:
+                self.stdout.write(f"略過（{days} 天內檢查過，每 {SOURCES[source.key].every_days} 天檢查一次）：{source.name}")
                 continue
             self.stdout.write(f"開始：{source.name}")
             items, client = None, None

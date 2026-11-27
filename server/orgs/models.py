@@ -395,3 +395,115 @@ class FinancialYear(models.Model):
         if not self.total_expenses or self.program_expenses is None:
             return None
         return round(self.program_expenses * 100 / self.total_expenses)
+
+
+class CourtRegistration(models.Model):
+    """司法院法人登記公告（LK-31）：法院公告的設立、變更、解散、清算登記，一個公告一筆（法院＋登記案號）。
+
+    對不到組織的也存（organization 空白、前台不顯示），後台可手動指定；指定過的重新比對不會改掉。
+    董事、監察人等人名一律不存；營運狀態欄位不受這裡影響（財政部名冊說了算），解散只另外標示。"""
+
+    class CaseType(models.TextChoices):
+        SETUP = "setup", "設立登記"
+        CHANGE = "change", "變更登記"
+        DISSOLUTION = "dissolution", "解散登記"
+        LIQUIDATOR = "liquidator", "清算人任免或變更登記"
+        LIQUIDATION_END = "liquidation_end", "清算終結登記"
+
+    class Category(models.TextChoices):
+        ASSOCIATION = "association", "社團"
+        FOUNDATION = "foundation", "財團"
+
+    # 最新一筆是這兩種 → 組織頁頁首標示「已向法院辦理解散」
+    DISSOLVED_TYPES = (CaseType.DISSOLUTION, CaseType.LIQUIDATION_END)
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.SET_NULL, null=True, blank=True, related_name="court_registrations",
+        verbose_name="組織",
+    )
+    org_manual = models.BooleanField(
+        "組織由管理員指定", default=False, help_text="管理員指定（或清掉）過組織就會勾起；重新比對時不會改掉。"
+    )
+    court = models.CharField("法院", max_length=50, db_index=True)
+    case_no = models.CharField("登記案號", max_length=80)
+    reg_no = models.CharField("登記號數", max_length=30, blank=True)
+    category = models.CharField("類別", max_length=12, choices=Category.choices, blank=True)
+    name = models.CharField("公告上的法人名稱", max_length=200, db_index=True)
+    case_type = models.CharField("案由", max_length=20, choices=CaseType.choices, db_index=True)
+    posted_on = models.DateField("公告日期", null=True, blank=True, db_index=True)
+    registered_on = models.DateField("登記日期", null=True, blank=True)
+    property_total = models.BigIntegerField("財產總額", null=True, blank=True)
+    change_items = models.JSONField("變更事項", default=list, blank=True, help_text="只存類別（例：董監事、主事務所），不存原文。")
+    detail_fetched = models.BooleanField("已讀過公告內頁", default=False)
+    source_name = models.CharField("來源名稱", max_length=100, blank=True)
+    source_url = models.URLField("公告網址", max_length=500, blank=True)
+    updated_at = models.DateTimeField("更新時間", auto_now=True)
+
+    class Meta:
+        verbose_name = "法院登記公告"
+        verbose_name_plural = "法院登記公告"
+        ordering = ["-posted_on", "-id"]
+        constraints = [models.UniqueConstraint(fields=["court", "case_no"], name="uniq_court_registration")]
+
+    def __str__(self):
+        return f"{self.posted_on or '日期不明'} {self.court} {self.name} {self.get_case_type_display()}"
+
+
+class RegistryEntry(SourceMixin):
+    """主管機關名冊上的一家（LK-32；目前只有教育部主管的教育財團法人）。
+
+    名冊沒有統編：名稱跟組織名稱完全相同且唯一才自動連起來，對不上的照樣存（organization 留空、前台不顯示），
+    管理員在後台指定組織後勾 org_manual，之後重新匯入不再改它對到哪個組織。
+    名冊上的董事長、執行長、聯絡人姓名與聯絡方式不存。"""
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.SET_NULL, null=True, blank=True, related_name="registry_entries",
+        verbose_name="對應組織",
+    )
+    org_manual = models.BooleanField(
+        "組織由管理員指定", default=False, help_text="管理員改過對應組織就會勾起；重新匯入不會改掉。"
+    )
+    external_id = models.CharField("來源編號", max_length=50)
+    authority = models.CharField("主管機關", max_length=50)
+    registry_name = models.CharField("名冊上的名稱", max_length=200, db_index=True)
+    permit_no = models.CharField("設立許可文號", max_length=100, blank=True)
+    founded_on = models.DateField("設立日期", null=True, blank=True)
+    permitted_assets = models.BigIntegerField("許可設立財產總額", null=True, blank=True)
+    registered_assets = models.BigIntegerField("最新登記財產總額", null=True, blank=True)
+    purpose = models.TextField("成立宗旨", blank=True)
+    main_business = models.TextField("主要業務", blank=True)
+    service_targets = models.CharField("服務對象", max_length=300, blank=True)
+    business_category = models.CharField("主要業務類別", max_length=300, blank=True)
+    status = models.CharField("名冊狀態", max_length=20, blank=True)
+    data_date = models.DateField("名冊資料日期", null=True, blank=True, help_text="資料集最近更新日。")
+    updated_at = models.DateTimeField("更新時間", auto_now=True)
+
+    class Meta:
+        verbose_name = "主管機關名冊"
+        verbose_name_plural = "主管機關名冊"
+        ordering = ["authority", "registry_name"]
+        constraints = [models.UniqueConstraint(fields=["source_name", "external_id"], name="uniq_registry_source_id")]
+
+    def __str__(self):
+        return f"{self.authority} {self.registry_name}"
+
+
+class DonationCode(SourceMixin):
+    """電子發票捐贈碼（LK-32）：用清單上的統編對組織（讀的時候才對，財政部名冊之後才出現的組織也對得到）；
+    統編不在組織名冊的照樣存、前台不顯示。"""
+
+    code = models.CharField("捐贈碼", max_length=10)
+    ubn = models.CharField("清單上的統編", max_length=8, blank=True, db_index=True)
+    registered_name = models.CharField("清單上的名稱", max_length=200)
+    short_name = models.CharField("簡稱", max_length=100, blank=True)
+    county = models.CharField("縣市", max_length=10, blank=True)
+    updated_at = models.DateTimeField("更新時間", auto_now=True)
+
+    class Meta:
+        verbose_name = "發票捐贈碼"
+        verbose_name_plural = "發票捐贈碼"
+        ordering = ["code"]
+        constraints = [models.UniqueConstraint(fields=["source_name", "code"], name="uniq_donation_code_source")]
+
+    def __str__(self):
+        return f"{self.code} {self.registered_name}"
