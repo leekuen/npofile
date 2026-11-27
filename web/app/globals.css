@@ -1,7 +1,50 @@
 @import "tailwindcss";
 
+/*
+ * 設計語言（LK-11 方向 C「溫暖親切」）
+ * - brand：靛藍，連結、主色、圓環
+ * - ink：帶一點靛藍的冷灰，文字、框線、底色
+ * - sun：暖黃，只給主要按鈕（搜尋）與揭露指數面板底色
+ * - 語意色沿用 Tailwind：red＝裁罰、emerald＝營運中
+ * - 字型：內文思源黑體、標題昭源圓體、數字 Inter
+ */
 @theme {
-  --font-sans: system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+  --font-sans: var(--font-noto-sans-tc), "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-display: var(--font-goround), var(--font-noto-sans-tc), "Microsoft JhengHei", sans-serif;
+  --font-num: var(--font-inter), var(--font-noto-sans-tc), system-ui, sans-serif;
+
+  /* 中文最小 13px，12px 在 Windows 上會發虛 */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.25rem;
+
+  --color-brand-50: #f1f3fc;
+  --color-brand-100: #e3e7f8;
+  --color-brand-200: #c8cff1;
+  --color-brand-300: #a2ade6;
+  --color-brand-400: #7783d6;
+  --color-brand-500: #5562c6;
+  --color-brand-600: #4150b6;
+  --color-brand-700: #3443a6;
+  --color-brand-800: #2b3787;
+  --color-brand-900: #26306b;
+  --color-brand-950: #181d42;
+
+  --color-ink-50: #f7f8fc;
+  --color-ink-100: #eef0f7;
+  --color-ink-200: #e1e4f0;
+  --color-ink-300: #c9cde0;
+  --color-ink-400: #9ca2bf;
+  --color-ink-500: #737a9c;
+  --color-ink-600: #5a6083;
+  --color-ink-700: #454b6b;
+  --color-ink-800: #2f3453;
+  --color-ink-900: #1c2140;
+  --color-ink-950: #11142a;
+
+  --color-sun-50: #fff7e3;
+  --color-sun-100: #ffefc4;
+  --color-sun-400: #f2b632;
+  --color-sun-500: #e5a51c;
 }
 
 html {
@@ -9,11 +52,11 @@ html {
 }
 
 body {
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--color-ink-50);
+  color: var(--color-ink-900);
 }
 
 :focus-visible {
-  outline: 2px solid #0f766e;
+  outline: 2px solid var(--color-brand-600);
   outline-offset: 2px;
 }

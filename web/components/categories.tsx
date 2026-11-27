@@ -7,12 +7,12 @@ import type { CategoryTag, OrgCategories, Taxonomy } from "@/lib/types";
 export function CategoryChip({ tag, link = true }: { tag: CategoryTag; link?: boolean }) {
   const inferred = tag.source === "inferred";
   const cls = `inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs ${
-    inferred ? "border border-dashed border-slate-400 text-slate-700" : "border border-teal-600/40 bg-teal-50 text-teal-900"
+    inferred ? "border border-dashed border-ink-400 text-ink-700" : "border border-brand-600/40 bg-brand-50 text-brand-900"
   }`;
   const body = (
     <>
       {tag.label}
-      {inferred && <span className="text-[10px] text-slate-500">推測</span>}
+      {inferred && <span className="text-[10px] text-ink-500">推測</span>}
     </>
   );
   if (!link) {
@@ -37,7 +37,7 @@ export function OrgCategoryTags({ categories }: { categories: OrgCategories }) {
           ))}
         </span>
       ))}
-      {categories.targets.length > 0 && <span className="mx-1 text-xs text-slate-500">服務對象</span>}
+      {categories.targets.length > 0 && <span className="mx-1 text-xs text-ink-500">服務對象</span>}
       {categories.targets.map((t) => (
         <CategoryChip key={t.code} tag={t} />
       ))}
@@ -72,14 +72,14 @@ export function CategoryBrowser({
                 aria-current={active ? "true" : undefined}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm ${
                   active
-                    ? "border-teal-700 bg-teal-700 text-white"
+                    ? "border-brand-700 bg-brand-700 text-white"
                     : muted
-                      ? "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
-                      : "border-slate-300 bg-white text-slate-800 hover:border-teal-600"
+                      ? "border-ink-200 bg-ink-50 text-ink-600 hover:bg-ink-100"
+                      : "border-ink-300 bg-white text-ink-800 hover:border-brand-600"
                 }`}
               >
                 {f.label}
-                <span className={`tabular-nums text-xs ${active ? "text-teal-100" : "text-slate-500"}`}>
+                <span className={`tabular-nums text-xs ${active ? "text-brand-100" : "text-ink-500"}`}>
                   {formatNumber(f.count)}
                 </span>
               </Link>
@@ -88,7 +88,7 @@ export function CategoryBrowser({
         })}
       </ul>
       {selected && selected.subs.length > 0 && (
-        <ul className="flex flex-wrap gap-x-4 gap-y-1 border-l-2 border-teal-700 pl-3 text-sm">
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 border-l-2 border-brand-700 pl-3 text-sm">
           {selected.subs.map((s) => {
             const active = s.code === sub;
             return (
@@ -96,15 +96,15 @@ export function CategoryBrowser({
                 <Link
                   href={hrefFor({ field: selected.code, sub: active ? "" : s.code })}
                   aria-current={active ? "true" : undefined}
-                  className={active ? "font-semibold text-teal-900 underline underline-offset-4" : "text-slate-700 hover:text-teal-900 hover:underline"}
+                  className={active ? "font-semibold text-brand-900 underline underline-offset-4" : "text-ink-700 hover:text-brand-900 hover:underline"}
                 >
-                  {s.label} <span className="tabular-nums text-xs text-slate-500">{formatNumber(s.count)}</span>
+                  {s.label} <span className="tabular-nums text-xs text-ink-500">{formatNumber(s.count)}</span>
                 </Link>
               </li>
             );
           })}
           <li>
-            <Link href={`/categories/${sub || selected.code}`} className="text-teal-800 underline underline-offset-2">
+            <Link href={`/categories/${sub || selected.code}`} className="text-brand-800 underline underline-offset-2">
               看「{selected.subs.find((s) => s.code === sub)?.label ?? selected.label}」領域總覽 ›
             </Link>
           </li>

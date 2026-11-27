@@ -28,7 +28,7 @@ export async function CategoryOverviewView({ params }: { params: Promise<{ code:
 
   return (
     <div className="space-y-8">
-      <nav className="flex flex-wrap gap-x-2 text-sm text-slate-600" aria-label="位置">
+      <nav className="flex flex-wrap gap-x-2 text-sm text-ink-600" aria-label="位置">
         <TextLink href="/">首頁</TextLink>
         <span aria-hidden>›</span>
         {c.dimension === "target" ? (
@@ -41,7 +41,7 @@ export async function CategoryOverviewView({ params }: { params: Promise<{ code:
       </nav>
 
       <header className="space-y-4">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+        <h1 className="font-display text-3xl font-extrabold text-ink-900">
           {c.dimension === "target" ? `服務${c.label}的組織` : c.label}
         </h1>
         <dl className="grid grid-cols-3 gap-2 sm:max-w-2xl sm:gap-3">
@@ -50,12 +50,12 @@ export async function CategoryOverviewView({ params }: { params: Promise<{ code:
           <Stat label="近五年受裁罰" value={formatNumber(c.penalized_5y)} alert={c.penalized_5y > 0} />
         </dl>
         <p className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-          <Link href={listHref(c)} className="rounded-md bg-teal-700 px-4 py-2 font-semibold text-white hover:bg-teal-800">
+          <Link href={listHref(c)} className="rounded-xl bg-brand-700 px-4 py-2 font-semibold text-white hover:bg-brand-800">
             看全部 {formatNumber(c.org_count)} 個組織
           </Link>
           {c.subs.length > 0 && (
             <span className="flex flex-wrap gap-x-3 gap-y-1">
-              <span className="text-slate-600">細分：</span>
+              <span className="text-ink-600">細分：</span>
               {c.subs.map((s) => (
                 <TextLink key={s.code} href={`/categories/${s.code}`}>
                   {s.label}
@@ -64,7 +64,7 @@ export async function CategoryOverviewView({ params }: { params: Promise<{ code:
             </span>
           )}
         </p>
-        <p className="text-xs text-slate-600">分類依官方勸募用途與組織名稱推測，可能有誤。</p>
+        <p className="text-xs text-ink-600">分類依官方勸募用途與組織名稱推測，可能有誤。</p>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -91,14 +91,14 @@ export async function CategoryOverviewView({ params }: { params: Promise<{ code:
           <EmptyState title="還沒有收錄到這個分類的捐贈人清冊" />
         ) : (
           <Card className="p-0 sm:p-0">
-            <ol className="divide-y divide-slate-100">
+            <ol className="divide-y divide-ink-100">
               {c.top_donors.map((d, i) => (
                 <li key={d.donor_id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
-                  <span className="w-6 text-right font-semibold tabular-nums text-slate-500">{i + 1}</span>
+                  <span className="w-6 text-right font-semibold tabular-nums text-ink-500">{i + 1}</span>
                   <span className="min-w-0 flex-1 break-words">
                     <TextLink href={`/donors/${d.donor_id}`}>{d.name}</TextLink>
-                    <span className="ml-2 inline-block rounded bg-slate-100 px-1.5 text-xs text-slate-700">{d.kind_label}</span>
-                    <span className="ml-2 text-xs text-slate-500">捐給 {formatNumber(d.org_count)} 個組織</span>
+                    <span className="ml-2 inline-block rounded bg-ink-100 px-1.5 text-xs text-ink-700">{d.kind_label}</span>
+                    <span className="ml-2 text-xs text-ink-500">捐給 {formatNumber(d.org_count)} 個組織</span>
                   </span>
                   <span className="font-medium tabular-nums">{formatMoney(d.total)}</span>
                 </li>
@@ -120,8 +120,8 @@ export async function CategoryOverviewView({ params }: { params: Promise<{ code:
                     <span className="font-semibold tabular-nums text-red-900">{formatRocDate(p.decided_on)}</span>
                     <TextLink href={`/orgs/${p.org_ubn}?tab=penalties`}>{p.org_name}</TextLink>
                   </p>
-                  <p className="mt-1 text-sm break-words text-slate-800">{p.content}</p>
-                  {p.fine_text && <p className="mt-1 text-xs text-slate-600">{p.fine_text}</p>}
+                  <p className="mt-1 text-sm break-words text-ink-800">{p.content}</p>
+                  {p.fine_text && <p className="mt-1 text-xs text-ink-600">{p.fine_text}</p>}
                 </Card>
               </li>
             ))}
@@ -135,8 +135,8 @@ export async function CategoryOverviewView({ params }: { params: Promise<{ code:
 function Stat({ label, value, alert = false }: { label: string; value: string; alert?: boolean }) {
   return (
     <Card className="p-3">
-      <dt className="text-xs text-slate-600">{label}</dt>
-      <dd className={`mt-1 text-base font-bold tabular-nums sm:text-xl ${alert ? "text-red-800" : "text-slate-900"}`}>{value}</dd>
+      <dt className="text-xs text-ink-600">{label}</dt>
+      <dd className={`mt-1 text-base font-bold tabular-nums sm:text-xl ${alert ? "text-red-800" : "text-ink-900"}`}>{value}</dd>
     </Card>
   );
 }
@@ -144,7 +144,7 @@ function Stat({ label, value, alert = false }: { label: string; value: string; a
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section>
-      <h2 className="mb-3 text-lg font-semibold text-slate-900">{title}</h2>
+      <h2 className="mb-3 font-display text-xl font-bold text-ink-900">{title}</h2>
       {children}
     </section>
   );
@@ -153,13 +153,13 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function OrgList({ rows }: { rows: { ubn: string; name: string; city: string; right: ReactNode }[] }) {
   return (
     <Card className="p-0 sm:p-0">
-      <ol className="divide-y divide-slate-100">
+      <ol className="divide-y divide-ink-100">
         {rows.map((o, i) => (
           <li key={o.ubn} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-            <span className="w-5 text-right font-semibold tabular-nums text-slate-500">{i + 1}</span>
+            <span className="w-5 text-right font-semibold tabular-nums text-ink-500">{i + 1}</span>
             <span className="min-w-0 flex-1 break-words">
               <TextLink href={`/orgs/${o.ubn}`}>{o.name}</TextLink>
-              {o.city && <span className="ml-2 text-xs text-slate-500">{o.city}</span>}
+              {o.city && <span className="ml-2 text-xs text-ink-500">{o.city}</span>}
             </span>
             {o.right}
           </li>

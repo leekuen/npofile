@@ -8,6 +8,9 @@ import { CategoryBrowser, CategoryChip } from "./categories";
 import { EmptyState, ErrorBox, PenaltyBadge, ScoreBadge, Skeleton, StatusBadge } from "./ui";
 
 const PAGE_SIZE = 20;
+
+/** 列表的欄：指數｜組織｜裁罰｜狀態｜箭頭（手機只留指數、組織、箭頭） */
+const ROW = "grid-cols-[3rem_minmax(0,1fr)_1rem] items-center gap-3 px-4 sm:grid-cols-[3rem_minmax(0,1fr)_6.5rem_6rem_1rem]";
 const ORDERINGS = [
   { value: "score", label: "揭露指數高到低" },
   { value: "name", label: "名稱" },
@@ -32,7 +35,7 @@ function href(query: OrgQuery, patch: Partial<OrgQuery>) {
 }
 
 const selectCls =
-  "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-teal-600 focus:outline-none";
+  "w-full rounded-xl border border-ink-300 bg-white px-3 py-2 text-sm text-ink-900 focus:border-brand-600 focus:outline-none";
 
 export async function OrgSearch({ searchParams, stats }: { searchParams: Promise<Search>; stats?: ReactNode }) {
   const sp = await searchParams;
@@ -75,15 +78,19 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
 
   return (
     <div className="space-y-8">
-      <section aria-labelledby="search-title" className="space-y-5 border-b border-slate-200 pb-8">
-        <h1 id="search-title" className="max-w-2xl text-3xl font-bold tracking-tight text-balance text-slate-900 sm:text-4xl">
+      <section
+        aria-labelledby="search-title"
+        className="grid gap-6 rounded-3xl bg-white p-5 ring-1 ring-ink-200 sm:p-8 lg:grid-cols-[minmax(0,1fr)_15rem] lg:items-center lg:gap-10"
+      >
+        <div className="min-w-0 space-y-5">
+        <h1 id="search-title" className="font-display max-w-2xl text-3xl font-extrabold text-balance text-ink-900 sm:text-4xl">
           查一個非營利組織的募款與裁罰紀錄
         </h1>
         <form
           key={`${query.q}|${query.city}|${query.status}|${query.ordering}|${query.field}|${query.sub}|${query.target}`}
           action="/"
           method="get"
-          className="max-w-3xl space-y-3"
+          className="space-y-3"
         >
           {query.field && <input type="hidden" name="field" value={query.field} />}
           {query.sub && <input type="hidden" name="sub" value={query.sub} />}
@@ -97,11 +104,11 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
               name="q"
               defaultValue={query.q}
               placeholder="組織名稱或統一編號"
-              className="min-w-0 flex-1 rounded-l-lg border-2 border-r-0 border-slate-800 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-500 focus:border-teal-700 focus:outline-none"
+              className="min-w-0 flex-1 rounded-l-xl border-2 border-r-0 border-ink-900 bg-white px-4 py-3 text-base text-ink-900 placeholder:text-ink-500 focus:border-brand-700 focus:outline-none"
             />
             <button
               type="submit"
-              className="shrink-0 rounded-r-lg bg-teal-700 px-6 text-base font-semibold text-white hover:bg-teal-800"
+              className="shrink-0 rounded-r-xl bg-sun-400 px-6 text-base font-bold text-ink-900 hover:bg-sun-500"
             >
               搜尋
             </button>
@@ -139,7 +146,7 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
               </select>
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <span className="shrink-0 text-slate-600">排序</span>
+              <span className="shrink-0 text-ink-600">排序</span>
               <select name="ordering" defaultValue={query.ordering} className={selectCls}>
                 {ORDERINGS.map((o) => (
                   <option key={o.value} value={o.value}>
@@ -156,6 +163,7 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
           sub={query.sub ?? ""}
           hrefFor={(patch) => href(query, { ...patch, page: "1" })}
         />
+        </div>
         {stats}
       </section>
 
@@ -164,18 +172,18 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
         組織列表
       </h2>
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-slate-700">
+        <span className="text-ink-700">
           共 <strong className="tabular-nums">{formatNumber(page.count)}</strong> 個組織
         </span>
         {chips.map((c) => (
           <Link
             key={c.label}
             href={href(query, { ...c.clear, page: "1" })}
-            className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-3 py-1 text-slate-800 hover:bg-slate-100"
+            className="inline-flex items-center gap-1 rounded-full border border-ink-300 bg-white px-3 py-1 text-ink-800 hover:bg-ink-100"
             aria-label={`移除條件：${c.label}`}
           >
             {c.label}
-            <span aria-hidden className="text-slate-500">
+            <span aria-hidden className="text-ink-500">
               ×
             </span>
           </Link>
@@ -187,51 +195,72 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
           換個關鍵字，或移除上面的條件再試一次。
         </EmptyState>
       ) : (
-        <ul className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white">
-          {page.results.map((org) => (
-            <li key={org.ubn}>
-              <Link href={`/orgs/${org.ubn}`} className="group flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
-                <ScoreBadge score={org.disclosure_score} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-teal-900 underline-offset-2 group-hover:underline">{org.name}</p>
-                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600">
-                    <span className="tabular-nums">統編 {org.ubn}</span>
-                    {org.city && <span>{org.city}</span>}
-                    {org.org_type && <span>{org.org_type}</span>}
-                    <StatusBadge status={org.status} label={org.status_label} />
-                    <PenaltyBadge count={org.penalty_count_5y} />
-                  </p>
-                  {org.tags.length > 0 && (
-                    <p className="mt-1.5 flex flex-wrap gap-1">
-                      {org.tags.map((t) => (
-                        <CategoryChip key={t.code} tag={t} link={false} />
-                      ))}
+        <div className="overflow-hidden rounded-2xl border border-ink-200 bg-white">
+          <div aria-hidden className={`${ROW} hidden border-b border-ink-100 py-2 text-xs text-ink-500 sm:grid`}>
+            <span className="text-center">指數</span>
+            <span>組織</span>
+            <span>近五年裁罰</span>
+            <span>營運狀態</span>
+            <span />
+          </div>
+          <ul className="divide-y divide-ink-100">
+            {page.results.map((org) => (
+              <li key={org.ubn}>
+                <Link href={`/orgs/${org.ubn}`} className={`group ${ROW} grid py-3 hover:bg-ink-50`}>
+                  <ScoreBadge score={org.disclosure_score} />
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-brand-900 underline-offset-2 group-hover:underline">{org.name}</p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-600">
+                      <span className="tabular-nums">統編 {org.ubn}</span>
+                      {org.city && <span>{org.city}</span>}
+                      {org.org_type && <span>{org.org_type}</span>}
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:hidden">
+                        <StatusBadge status={org.status} label={org.status_label} />
+                        <PenaltyBadge count={org.penalty_count_5y} />
+                      </span>
                     </p>
-                  )}
-                </div>
-                <span aria-hidden className="text-slate-400">
-                  ›
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                    {org.tags.length > 0 && (
+                      <p className="mt-1.5 flex flex-wrap gap-1">
+                        {org.tags.map((t) => (
+                          <CategoryChip key={t.code} tag={t} link={false} />
+                        ))}
+                      </p>
+                    )}
+                  </div>
+                  <span className="hidden text-sm sm:block">
+                    {org.penalty_count_5y > 0 ? (
+                      <PenaltyBadge count={org.penalty_count_5y} short />
+                    ) : (
+                      <span className="text-ink-500">無</span>
+                    )}
+                  </span>
+                  <span className="hidden sm:block">
+                    <StatusBadge status={org.status} label={org.status_label} />
+                  </span>
+                  <span aria-hidden className="text-ink-400">
+                    ›
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {lastPage > 1 && (
         <nav aria-label="分頁" className="flex items-center justify-between text-sm">
           {current > 1 ? (
-            <Link href={href(query, { page: String(current - 1) })} className="rounded-md border border-slate-300 bg-white px-4 py-2 hover:bg-slate-50">
+            <Link href={href(query, { page: String(current - 1) })} className="rounded-xl border border-ink-300 bg-white px-4 py-2 hover:bg-ink-50">
               ‹ 上一頁
             </Link>
           ) : (
             <span />
           )}
-          <span className="tabular-nums text-slate-600">
+          <span className="tabular-nums text-ink-600">
             第 {formatNumber(current)} / {formatNumber(lastPage)} 頁
           </span>
           {current < lastPage ? (
-            <Link href={href(query, { page: String(current + 1) })} className="rounded-md border border-slate-300 bg-white px-4 py-2 hover:bg-slate-50">
+            <Link href={href(query, { page: String(current + 1) })} className="rounded-xl border border-ink-300 bg-white px-4 py-2 hover:bg-ink-50">
               下一頁 ›
             </Link>
           ) : (
@@ -247,12 +276,12 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
 export function OrgSearchSkeleton() {
   return (
     <div className="space-y-8">
-      <div className="space-y-5 border-b border-slate-200 pb-8">
+      <div className="space-y-5 border-b border-ink-200 pb-8">
         <Skeleton className="h-10 w-2/3" />
         <Skeleton className="h-12 w-full max-w-3xl" />
         <Skeleton className="h-9 w-full max-w-xl" />
       </div>
-      <div className="space-y-px overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="space-y-px overflow-hidden rounded-2xl border border-ink-200 bg-white">
         {Array.from({ length: 6 }, (_, i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3">
             <Skeleton className="h-12 w-12 rounded-full" />

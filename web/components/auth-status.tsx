@@ -9,15 +9,15 @@ export function AuthStatus() {
   const { user, loading, logout } = useAuth();
   const [busy, setBusy] = useState(false);
 
-  if (loading) return <span className="h-5 w-20 animate-pulse rounded bg-slate-100" aria-hidden />;
+  if (loading) return <span className="h-5 w-20 animate-pulse rounded bg-ink-100" aria-hidden />;
 
   if (!user) {
     return (
       <nav className="flex items-center gap-2 text-sm">
-        <Link href="/login" className="rounded px-3 py-2 text-slate-700 hover:bg-slate-100">
+        <Link href="/login" className="rounded-full px-3 py-2 text-ink-700 hover:bg-ink-100">
           登入
         </Link>
-        <Link href="/register" className="rounded border border-slate-300 px-3 py-2 font-medium text-slate-800 hover:bg-slate-50">
+        <Link href="/register" className="rounded-full border border-ink-300 px-3 py-2 font-medium text-ink-800 hover:bg-ink-50">
           註冊
         </Link>
       </nav>
@@ -26,7 +26,7 @@ export function AuthStatus() {
 
   return (
     <div className="flex items-center gap-2 text-sm">
-      <span className="max-w-[10rem] truncate text-slate-700" title={user.display_name}>
+      <span className="max-w-[10rem] truncate text-ink-700" title={user.display_name}>
         {user.display_name}
       </span>
       <button
@@ -40,7 +40,7 @@ export function AuthStatus() {
             setBusy(false);
           }
         }}
-        className="rounded px-3 py-2 text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+        className="rounded-full px-3 py-2 text-ink-700 hover:bg-ink-100 disabled:opacity-50"
       >
         登出
       </button>

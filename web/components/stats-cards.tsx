@@ -21,11 +21,11 @@ export async function StatsCards() {
     throw e;
   }
   return (
-    <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-600">
+    <dl className="grid grid-cols-3 gap-3 border-t border-ink-100 pt-5 lg:grid-cols-1 lg:gap-0 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8">
       {ITEMS.map(({ key, label }) => (
-        <div key={key} className="flex items-baseline gap-1.5">
-          <dt>{label}</dt>
-          <dd className={`font-bold tabular-nums ${key === "penalized_5y" ? "text-red-800" : "text-slate-900"}`}>
+        <div key={key} className="flex flex-col lg:flex-row lg:items-baseline lg:justify-between lg:gap-3 lg:border-b lg:border-dashed lg:border-ink-200 lg:py-3 lg:last:border-b-0">
+          <dt className="text-xs text-ink-600 lg:text-sm">{label}</dt>
+          <dd className={`font-num text-lg font-semibold tabular-nums lg:text-xl ${key === "penalized_5y" ? "text-red-700" : "text-ink-900"}`}>
             {formatNumber(stats[key])}
           </dd>
         </div>
@@ -35,5 +35,5 @@ export async function StatsCards() {
 }
 
 export function StatsSkeleton() {
-  return <Skeleton className="h-5 w-80 max-w-full" />;
+  return <Skeleton className="h-24 w-full" />;
 }
