@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}

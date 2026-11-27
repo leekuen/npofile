@@ -126,7 +126,7 @@ def parse_group(html: str, url: str) -> list[Item]:
                     ubn=ubn,
                     data={
                         "decided_on": roc_date(_text(date_node)),
-                        "authority": "衛生福利部或地方主管機關（公益勸募條例）",
+                        "authority": "",
                         "content": _text(card.select_one(".punish-text")),
                         "fine_text": _text(card.select_one(".punish-price")),
                     },

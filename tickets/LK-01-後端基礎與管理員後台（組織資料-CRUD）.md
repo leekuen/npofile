@@ -70,3 +70,10 @@ updated: 2026-11-27
 ## 開發備註（/dev 填寫）
 
 - 同一條線：LK-01～LK-04 在 LK-01 的工作區、同一條分支上依序做。
+- 動工宣告：全清單走查（權限：是——新增管理員後台與捐款人帳號的權限分界）。
+- 實作：Django 6＋DRF（`server/`），`DATABASE_URL` 切換 PostgreSQL、本機預設 SQLite；組織＋四類資料模型與中文管理後台（`orgs/admin.py`，四類資料內嵌在組織頁）；
+  管理員在後台改過的基本欄位記進「手動鎖定」；匿名捐款一律走 `Donation.public_donor_name`。公開 API：`/api/stats`、`/api/filters`、`/api/orgs`、`/api/orgs/<統編>`。
+- 驗證：`make test-server` 44 條全過（含統編格式、未登入與捐款人進不了後台、後台改名後欄位被鎖、匿名不帶真名、`DATABASE_URL` 切到 PostgreSQL、正式環境沒設 SECRET_KEY 會拒絕啟動）。
+- 走查（真人眼看）：管理員登入後台 → 搜統編 10374724 → 打開組織編輯頁，基本資料與四類資料區塊都在；改名稱存檔後前台看到新名稱、該欄位被鎖（測完已改回）。
+- 已知限制：本機沒有 PostgreSQL，實際連 PostgreSQL 只驗了設定解析，沒有真的連線跑過。
+- commit：ead107e（後端）、本票後續提交見分支 feature/LK-01。

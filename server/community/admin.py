@@ -70,6 +70,9 @@ class DonorProfileAdmin(admin.ModelAdmin):
     readonly_fields = ("user",)
     actions = ["deactivate", "activate"]
 
+    def has_add_permission(self, request):
+        return False
+
     @admin.display(description="Email")
     def email(self, obj):
         return obj.user.email

@@ -122,4 +122,13 @@ make hooks          # 啟用 .githooks/（每個 clone 一次；之後開發分�
 ./scripts/agent-status.sh   # 入口簡報用的一次性狀態快照（換工作樹要在那一棵重跑）
 ```
 
-{{專案常用指令（起環境、測試、部署等），setup 初始化時填寫。}}
+```
+make setup-dev                       # 第一次：後端 venv＋套件＋資料庫、前台套件（之後複製 server/.env.example 成 server/.env）
+server/.venv/Scripts/python server/manage.py runserver 127.0.0.1:8000   # 後端＋管理後台 http://127.0.0.1:8000/admin/
+npm --prefix web run dev             # 前台 http://localhost:3000（/api/* 轉給後端）
+server/.venv/Scripts/python server/manage.py crawl fia               # 匯入財政部非營利名冊（約十萬筆）
+server/.venv/Scripts/python server/manage.py crawl mohw --limit 50   # 抓公益勸募團體（每秒一個請求）
+server/.venv/Scripts/python server/manage.py recompute_scores        # 重算揭露指數（「近五年」隨日期移動，每天跑）
+make test-crawler / make test-server / make lint-web / make build-web
+```
+（macOS／Linux 把 `Scripts/python` 換成 `bin/python`。）

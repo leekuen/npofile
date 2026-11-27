@@ -61,13 +61,19 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
     finally:
         if client is not None:
             client.close()
-        if touched:
-            scoring.recompute(Organization.objects.filter(ubn__in=touched))
+        recompute_ubns(touched)
         run.finished_at = timezone.now()
         run.save()
         source.last_run_at = run.finished_at
         source.save(update_fields=["last_run_at"])
     return run
+
+
+def recompute_ubns(ubns: set[str], chunk: int = 900) -> None:
+    # SQLite 單一查詢的參數有上限，分批送
+    items = sorted(ubns)
+    for i in range(0, len(items), chunk):
+        scoring.recompute(Organization.objects.filter(ubn__in=items[i : i + chunk]))
 
 
 def _store_batch(source: CrawlerSource, run: CrawlRun, batch: list[Item], known: set[str], touched: set[str]) -> None:

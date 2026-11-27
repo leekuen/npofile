@@ -76,6 +76,14 @@ class AutoApproveTests(TestCase):
         self.assertEqual(org.name, "管理員改的名字")
         self.assertEqual(org.org_type, "公益性社團法人")
 
+    def test_large_import_recomputes_in_chunks(self):
+        from npofile_crawler.items import Item
+
+        items = (Item("org", f"{i:08d}", {"name": f"組織{i}", "city": "臺北市", "status": "active"}) for i in range(1200))
+        run = run_source(self.fia, items=items)
+        self.assertEqual(run.status, CrawlRun.Status.SUCCESS, run.error)
+        self.assertEqual(Organization.objects.filter(disclosure_score=5).count(), 1200)
+
     def test_failure_is_recorded(self):
         def boom():
             yield from fia.parse_csv(read("fia_sample.csv"), limit=2)

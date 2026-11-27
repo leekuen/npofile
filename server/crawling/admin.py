@@ -5,10 +5,7 @@ from django.contrib import admin, messages
 from django.utils import timezone
 from django.utils.html import format_html
 
-from orgs import scoring
-from orgs.models import Organization
-
-from .ingest import apply_records, run_source
+from .ingest import apply_records, recompute_ubns, run_source
 from .models import CrawlerSource, CrawlRecord, CrawlRun
 
 TRIAL_LIMIT = 5
@@ -108,7 +105,7 @@ class CrawlRecordAdmin(admin.ModelAdmin):
     def approve(self, request, queryset):
         records = list(queryset.filter(status=CrawlRecord.Status.PENDING).select_related("source"))
         ok, failed = apply_records(records, CrawlRecord.Status.APPROVED, user=request.user)
-        scoring.recompute(Organization.objects.filter(ubn__in={r.ubn for r in records}))
+        recompute_ubns({r.ubn for r in records})
         self.message_user(request, f"已核准 {ok} 筆" + (f"，{failed} 筆失敗（看審核備註）" if failed else ""),
                           messages.WARNING if failed else messages.SUCCESS)
 

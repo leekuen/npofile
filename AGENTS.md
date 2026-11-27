@@ -14,7 +14,8 @@
 ## 技術棧（不要擅自更換）
 
 - **前端**：React / Next.js（捐款人前台：組織列表、組織資訊、留言）。
-- **後端**：Python（FastAPI 或 Django，與爬蟲同套語言；確切框架未定，待 framework 入口細定）。
+- **後端**：Python 3.12+／Django 6＋Django REST framework（與爬蟲同套語言；LK-01 決定）。
+  管理員後台用 Django 內建後台；對前台只開 `/api/*`（JSON、統一錯誤格式 `{"error": {code, message, fields}}`）。
   負責組織資料 CRUD、登入審核、爬蟲機制與審核機制設定。
 - **爬蟲**：Python。依資料類型分別去爬：
   - 基本資料 → 公益勸募系統、智邦公益館、一起夢想
@@ -22,26 +23,26 @@
   - 捐款專案 → 勸募字號專案、集資平台（噴噴、挖貝、一起夢想）、個別組織官網
   - 受裁罰紀錄 → 勸募字號專案、裁判書查詢、行政裁罰查詢
   爬回的資料送回後台，經審核機制確認後才上架；「組織評分」依已公開揭露指數算出。
-- **資料庫**：PostgreSQL。
+- **資料庫**：PostgreSQL（正式環境，`DATABASE_URL`）；本機沒設 `DATABASE_URL` 時用 SQLite。
 - **Mobile**：未定（目前只做網站，手機瀏覽器即可）。
 - **基礎設施**：未定。
 
 ## 目錄分層
 
 ```
-web/            # Next.js 前台（捐款人用）：組織列表、組織資訊頁、登入、留言
-  app/          # 頁面與路由（App Router）
-  components/   # 共用 UI 元件
-  lib/          # 前端共用邏輯（打後端 API、驗證等）
-
-server/         # Python 後端（FastAPI/Django，未定）：組織 CRUD、登入審核、
-                # 爬蟲機制／審核機制設定、組織評分計算
-
-crawler/        # Python 爬蟲模組，依來源分 spider（公益勸募系統／智邦公益館／
-                # 一起夢想／臉書／官網／噴噴／挖貝／裁判書查詢等），抓回資料送進 server 審核
+web/              # Next.js 16 前台（App Router、Cache Components）
+  app/            # 頁面：/（列表＋統計）、/orgs/[ubn]、/login、/register
+  components/     # ui.tsx 是共用元件（TextLink、徽章、空／錯誤狀態），畫面一律沿用
+  lib/            # server-api.ts（伺服器端讀 Django）、client-api.ts（瀏覽器端，帶 CSRF）、types.ts
+server/           # Django 專案 npofile/
+  orgs/           # 組織與四類資料、揭露指數（scoring.py 是唯一算分處）、公開 API
+  crawling/       # 爬蟲來源設定、執行紀錄、審核佇列；ingest.py 把爬蟲結果寫進組織資料
+  community/      # 捐款人帳號、留言（需審核）
+crawler/          # 純 Python 套件 npofile_crawler：只負責抓與解析，不碰資料庫；一個來源一個模組
 ```
 
-{{TODO：後端框架（FastAPI 或 Django）選定後，補充實際分層與資料庫 migration 流程。}}
+- 瀏覽器端的 `/api/*` 由 Next.js rewrites 轉給 Django（同源，cookie 與 CSRF 才有效）；伺服器端用 `API_BASE` 直接打 Django。
+- 模型改了：`makemigrations` 產生 migration 一起提交；不手改已提交的 migration。
 
 > 產品程式碼目錄同時要登記在 `scripts/framework-config.sh` 的 `PRODUCT_DIRS`——
 > 那是「無票不開發」閘門的守備範圍，漏登記 = 閘門不設防。
@@ -222,8 +223,11 @@ crawler/        # Python 爬蟲模組，依來源分 spider（公益勸募系統
 
 ## 怎麼加一個功能（標準流程）
 
-{{TODO：後端技術與資料庫選定後，補充實際流程（照哪個範例複製、怎麼產生遷移、測試怎麼寫）。
-目前先用 Next.js 慣例：頁面放 `web/app/`、API 放 `web/app/api/`。}}
+- **新資料來源**：在 `crawler/npofile_crawler/` 加一個模組（`fetch(client, limit)` 回傳 `Item`），登記到 `sources.py`；
+  把真實網頁存進 `crawler/tests/fixtures/` 寫解析測試；非官方來源預設需人工審核（`official=False`）。
+- **新欄位／新資料**：改 `server/<app>/models.py` → `makemigrations` → 序列化器 → `web/lib/types.ts` → 畫面；
+  後端測試放 `server/<app>/tests/`，用 DRF `APIClient` 打真的端點。
+- **前台**：讀資料的元件包在 `<Suspense>` 裡（Next 16 Cache Components 的規定），四態（載入、空、錯誤、正常）都要做。
 
 - 規格：動工前先讀 `docs/SPEC.md` 對焦既有行為；這次新增 / 修改 / 刪除的功能與變更歷史在**合流 `stage` 時**
   寫回 `docs/SPEC.md`（feature 分支不動它）。
@@ -306,8 +310,8 @@ crawler/        # Python 爬蟲模組，依來源分 spider（公益勸募系統
 ## 改完一定要跑的最小驗證
 
 - 票務與框架一致性：`make check`（至少含 `ticket-lint` 與框架工具自己的測試）。
-- {{TODO：專案檢查指令（lint / test / build）還沒有，專案建起來後補上，
-  並同步到 `.agents/skills/run-checks/SKILL.md`。}}
+- 專案檢查：`make test-crawler`、`make test-server`、`make lint-web`（`make check` 全包）；動到頁面結構再加 `make build-web`。
+  改了哪側跑哪段見 `.agents/skills/run-checks/SKILL.md`。
 - **檢查指令的輸出不要接管線**（`| tail`、`| head`、`| grep`）：結束碼會變成後面那個指令的，失敗被吞掉。
   `scripts/framework-config.sh` 的 `NO_PIPE_COMMANDS` 列的指令由 PreToolUse 閘門擋；要看尾段就先導到檔案再讀。
 - **`OK (skipped=N)` 不等於全過**：回報時要講跳過幾條、為什麼。
@@ -347,7 +351,8 @@ crawler/        # Python 爬蟲模組，依來源分 spider（公益勸募系統
   （**兩道確認閘**，授權單次有效、不跨票延續）。
 - ❌ 在閘門（票務 / 畫面 / git 同步 / git 波及範圍 / 部署檢查）失敗時繞過硬上；放行檔（`cache/*-override`）用完不刪。
 - ❌ 把檢查指令的輸出接管線、或只看到 `OK (skipped=N)` 就宣稱通過。
-- {{TODO：專案自己的嚴禁事項，後端技術選定後補充（例：手改 migration、在 UI 層直打外部 API）。}}
+- ❌ 手改已提交的 migration；揭露指數在 `orgs/scoring.py` 以外的地方另算一套。
+- ❌ 前台直接打外部網站或資料庫（一律經後端 API）；爬蟲繞過網站的登入、驗證碼或使用條款。
 
 ## 部署
 
