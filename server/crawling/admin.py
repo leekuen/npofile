@@ -7,7 +7,7 @@ from django.utils.html import format_html
 
 from . import progress
 from .ingest import apply_records, recompute_ubns, run_source
-from .models import ActivityProgress, CrawlerSource, CrawlRecord, CrawlRun
+from .models import ActivityProgress, CrawlerSource, CrawlRecord, CrawlRequest, CrawlRun
 
 TRIAL_LIMIT = 5
 
@@ -17,7 +17,7 @@ class CrawlerSourceAdmin(admin.ModelAdmin):
     list_display = ("name", "key", "enabled", "auto_approve", "max_items", "max_minutes", "last_run_at")
     list_editable = ("enabled", "auto_approve", "max_items", "max_minutes")
     readonly_fields = ("key", "last_run_at", "activity_progress")
-    actions = ["trial_run"]
+    actions = ["queue_full_crawl", "trial_run"]
 
     @admin.display(description="抓取進度")
     def activity_progress(self, obj):
@@ -28,6 +28,33 @@ class CrawlerSourceAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+    @admin.action(description="排入完整爬取（背景執行，一分鐘內開始）")
+    def queue_full_crawl(self, request, queryset):
+        active = CrawlRequest.objects.filter(
+            status__in=[CrawlRequest.Status.QUEUED, CrawlRequest.Status.RUNNING]
+        ).first()
+        if active:
+            self.message_user(
+                request,
+                f"已經有一個還沒跑完的完整爬取（#{active.pk}，{active.get_status_display()}），等它跑完再排。",
+                messages.WARNING,
+            )
+            return
+        sources = [s for s in queryset if s.enabled]
+        skipped = [s.name for s in queryset if not s.enabled]
+        if not sources:
+            self.message_user(request, "勾選的來源都是停用的，沒有排入。要跑的話先把它改成啟用。", messages.WARNING)
+            return
+        req = CrawlRequest.objects.create(requested_by=request.user)
+        req.sources.set(sources)
+        self.message_user(
+            request,
+            f"已排入完整爬取 #{req.pk}：{'、'.join(s.name for s in sources)}。排程一分鐘內會開始，"
+            "跑完會清掉舊資料並重算揭露指數；進度看「完整爬取請求」與「爬蟲執行紀錄」。"
+            + (f"略過停用的來源：{'、'.join(skipped)}。" if skipped else ""),
+            messages.SUCCESS,
+        )
 
     @admin.action(description=f"立即試跑（每個來源只抓 {TRIAL_LIMIT} 筆）")
     def trial_run(self, request, queryset):
@@ -158,3 +185,37 @@ class CrawlRecordAdmin(admin.ModelAdmin):
             status=CrawlRecord.Status.REJECTED, reviewed_at=timezone.now(), reviewed_by=request.user
         )
         self.message_user(request, f"已退回 {n} 筆", messages.SUCCESS)
+
+
+@admin.register(CrawlRequest)
+class CrawlRequestAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "status", "source_names", "requested_by", "requested_at", "started_at", "finished_at")
+    list_filter = ("status",)
+    readonly_fields = ("status", "source_names", "requested_by", "requested_at", "started_at", "finished_at",
+                       "pretty_output")
+    fields = readonly_fields
+    actions = ["cancel"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description="來源")
+    def source_names(self, obj):
+        return "、".join(obj.sources.values_list("name", flat=True))
+
+    @admin.display(description="執行紀錄")
+    def pretty_output(self, obj):
+        if not obj.output:
+            return "（還沒有，跑完才會寫入；執行中的進度看「爬蟲執行紀錄」）"
+        return format_html("<pre style='white-space:pre-wrap'>{}</pre>", obj.output)
+
+    @admin.action(description="取消（只限排隊中）")
+    def cancel(self, request, queryset):
+        n = queryset.filter(status=CrawlRequest.Status.QUEUED).update(
+            status=CrawlRequest.Status.CANCELED, finished_at=timezone.now()
+        )
+        self.message_user(request, f"已取消 {n} 筆" + ("（執行中的不能取消）" if n < queryset.count() else ""),
+                          messages.SUCCESS)

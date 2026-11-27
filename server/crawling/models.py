@@ -121,3 +121,32 @@ class ActivityProgress(models.Model):
 
     def __str__(self):
         return f"{self.activity_id} {self.name}"
+
+
+class CrawlRequest(models.Model):
+    """後台按「排入完整爬取」留下的請求；排程每分鐘跑一次 run_crawl_requests 把它做完（LK-26）。"""
+
+    class Status(models.TextChoices):
+        QUEUED = "queued", "排隊中"
+        RUNNING = "running", "執行中"
+        DONE = "done", "完成"
+        FAILED = "failed", "失敗"
+        CANCELED = "canceled", "已取消"
+
+    sources = models.ManyToManyField(CrawlerSource, related_name="requests", verbose_name="來源")
+    status = models.CharField("狀態", max_length=10, choices=Status.choices, default=Status.QUEUED, db_index=True)
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="誰按的"
+    )
+    requested_at = models.DateTimeField("按下時間", auto_now_add=True)
+    started_at = models.DateTimeField("開始時間", null=True, blank=True)
+    finished_at = models.DateTimeField("結束時間", null=True, blank=True)
+    output = models.TextField("執行紀錄", blank=True)
+
+    class Meta:
+        verbose_name = "完整爬取請求"
+        verbose_name_plural = "完整爬取請求"
+        ordering = ["-requested_at"]
+
+    def __str__(self):
+        return f"完整爬取 #{self.pk}"
