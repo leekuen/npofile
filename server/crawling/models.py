@@ -1,0 +1,91 @@
+from django.conf import settings
+from django.db import models
+
+
+class CrawlerSource(models.Model):
+    key = models.SlugField("代號", max_length=30, unique=True)
+    name = models.CharField("來源名稱", max_length=100)
+    url = models.URLField("來源網址", max_length=500, blank=True)
+    enabled = models.BooleanField("啟用", default=True)
+    auto_approve = models.BooleanField(
+        "自動上架", default=False, help_text="勾選：抓到就直接上架。不勾：先進待審核清單，管理員核准後才上架。"
+    )
+    max_items = models.PositiveIntegerField("每次最多抓幾筆", default=0, help_text="0 表示不限制。")
+    description = models.TextField("說明", blank=True)
+    last_run_at = models.DateTimeField("最近執行", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "爬蟲來源設定"
+        verbose_name_plural = "爬蟲來源設定"
+        ordering = ["key"]
+
+    def __str__(self):
+        return self.name
+
+
+class CrawlRun(models.Model):
+    class Status(models.TextChoices):
+        RUNNING = "running", "執行中"
+        SUCCESS = "success", "完成"
+        FAILED = "failed", "失敗"
+
+    source = models.ForeignKey(CrawlerSource, on_delete=models.CASCADE, related_name="runs", verbose_name="來源")
+    started_at = models.DateTimeField("開始時間", auto_now_add=True)
+    finished_at = models.DateTimeField("結束時間", null=True, blank=True)
+    status = models.CharField("狀態", max_length=10, choices=Status.choices, default=Status.RUNNING)
+    fetched = models.PositiveIntegerField("抓到筆數", default=0)
+    created = models.PositiveIntegerField("新資料筆數", default=0)
+    applied = models.PositiveIntegerField("已上架筆數", default=0)
+    pending = models.PositiveIntegerField("待審核筆數", default=0)
+    failed = models.PositiveIntegerField("失敗筆數", default=0)
+    error = models.TextField("錯誤訊息", blank=True)
+
+    class Meta:
+        verbose_name = "爬蟲執行紀錄"
+        verbose_name_plural = "爬蟲執行紀錄"
+        ordering = ["-started_at"]
+
+    def __str__(self):
+        return f"{self.source} {self.started_at:%Y-%m-%d %H:%M}"
+
+
+class CrawlRecord(models.Model):
+    class Kind(models.TextChoices):
+        ORG = "org", "組織基本資料"
+        ANNUAL = "annual", "年度募款"
+        PROJECT = "project", "捐款專案"
+        PENALTY = "penalty", "受裁罰紀錄"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "待審核"
+        APPROVED = "approved", "已核准"
+        REJECTED = "rejected", "已退回"
+        AUTO = "auto", "已自動上架"
+
+    source = models.ForeignKey(CrawlerSource, on_delete=models.CASCADE, related_name="records", verbose_name="來源")
+    run = models.ForeignKey(CrawlRun, on_delete=models.SET_NULL, null=True, blank=True, related_name="records", verbose_name="執行")
+    kind = models.CharField("資料類型", max_length=10, choices=Kind.choices)
+    ubn = models.CharField("統一編號", max_length=8, db_index=True)
+    external_id = models.CharField("來源編號", max_length=50, blank=True)
+    payload = models.JSONField("內容")
+    source_url = models.URLField("來源網址", max_length=500, blank=True)
+    content_hash = models.CharField(max_length=64)
+    status = models.CharField("狀態", max_length=10, choices=Status.choices, default=Status.PENDING, db_index=True)
+    organization = models.ForeignKey(
+        "orgs.Organization", on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="對應組織"
+    )
+    created_at = models.DateTimeField("抓取時間", auto_now_add=True)
+    reviewed_at = models.DateTimeField("審核時間", null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="審核人"
+    )
+    review_note = models.CharField("審核備註", max_length=300, blank=True)
+
+    class Meta:
+        verbose_name = "爬蟲資料（審核佇列）"
+        verbose_name_plural = "爬蟲資料（審核佇列）"
+        ordering = ["-created_at"]
+        constraints = [models.UniqueConstraint(fields=["source", "content_hash"], name="uniq_record_content")]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} {self.ubn}"

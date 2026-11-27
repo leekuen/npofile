@@ -4,13 +4,40 @@
 
 .PHONY: help check ticket-lint dup-lint new-ticket next-framework-version \
         worktree worktree-list worktree-clean ticket-handoff \
-        walkthrough-lint confirm-lint confirm-lint-prod hooks
+        walkthrough-lint confirm-lint confirm-lint-prod hooks \
+        setup-dev test-server test-crawler lint-web build-web
+
+# 後端 Python：Windows 的 venv 在 Scripts/，其他平台在 bin/
+PY := $(abspath $(firstword $(wildcard server/.venv/Scripts/python.exe server/.venv/bin/python)))
+export PYTHONIOENCODING := utf-8
 
 help: ## 列出所有指令
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-24s %s\n", $$1, $$2}'
 
-check: ticket-lint dup-lint ## 跑所有檢查（= CI；setup 後應包含專案的 lint/test）。輸出不要接管線
-	@echo "[check] OK（目前僅框架檢查；專案檢查由 setup 補上）"
+check: ticket-lint dup-lint test-crawler test-server lint-web ## 跑所有檢查（= CI）。輸出不要接管線
+	@echo "[check] OK"
+
+# ── 專案（NPOFile）────────────────────────────────────────────────────
+
+setup-dev: ## 第一次開發：建後端 venv、裝套件、建資料庫；裝前台套件
+	cd server && python -m venv .venv
+	$(MAKE) setup-dev-deps
+
+setup-dev-deps:
+	cd server && $(PY) -m pip install -r requirements.txt && $(PY) manage.py migrate
+	cd web && npm ci
+
+test-crawler: ## 爬蟲解析測試（用存下來的真實網頁，不連網）
+	cd crawler && $(PY) -m unittest discover -s tests
+
+test-server: ## 後端測試（組織、爬蟲匯入與審核、捐款人與留言）
+	cd server && $(PY) manage.py test
+
+lint-web: ## 前台型別檢查與 lint
+	cd web && npx tsc --noEmit && npm run lint
+
+build-web: ## 前台正式建置（會抓 Next.js 的預先算繪錯誤）
+	cd web && npm run build
 
 # ── 票務 ──────────────────────────────────────────────────────────────
 

@@ -16,8 +16,15 @@ make check          # 目前至少包含 ticket-lint；專案檢查指令設定�
 
 ## 專案檢查指令
 
-{{TODO：由 setup 填寫——依技術棧列出 lint / typecheck / test / build 指令，
-分「改了哪一側就跑哪一段」。設定前，至少人工確認改動可正常執行。}}
+| 改了哪裡 | 跑什麼 |
+|---|---|
+| `crawler/`（解析） | `make test-crawler` |
+| `server/`（模型、API、後台、爬蟲匯入） | `make test-server`；改了模型先 `server/.venv/Scripts/python server/manage.py makemigrations` 並把 migration 一起提交 |
+| `web/`（前台） | `make lint-web`；改了頁面結構或資料讀取再加 `make build-web`（Next.js 的預先算繪錯誤只有 build 抓得到） |
+
+守門組（交合流前一律跑）：`make check`（= 上面三段＋框架檢查）。
+已知：在 Windows + Git Bash 上 `scripts/git-sync-gate-test.sh` 有 17 條失敗（框架 v5.0.1 決策紀錄，待 framework 入口查），
+跟專案程式無關；回報時照實列出。
 
 ## 檢查輸出不要接管線（源專案 v4.90.0）
 

@@ -39,7 +39,7 @@ WORKTREE_COPY_GLOBS=(".env" ".env.local")
 # 「檢查指令不准接管線」閘門的守備範圍：這些指令後面接 `| tail` 之類會吞掉失敗的結束碼
 # （源專案 v4.90.0）。寫指令開頭即可，比對時以詞為單位。
 # 專案自己的檢查指令（例："npm test" "pytest"）由 setup／framework 入口補進來。
-NO_PIPE_COMMANDS=("make check" "make ticket-lint")
+NO_PIPE_COMMANDS=("make check" "make ticket-lint" "make test-server" "make test-crawler" "make lint-web" "make build-web" "npm run build" "npm run lint")
 
 # 本機健康檢查 URL（agent-status 簡報用；留空 = 跳過健康檢查）
 HEALTH_URL=""
