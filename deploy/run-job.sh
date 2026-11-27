@@ -49,7 +49,7 @@ ping "$url/start?create=1"
 "$@" 2>&1 | tee "$tmp" >>"$log"
 code=${PIPESTATUS[0]}
 
-echo "=== $(date '+%F %T') 結束 $name：結束碼 $code，用了 $(($(date +%s) - started)) 秒" >>"$log"
+echo "=== $(date '+%F %T') 結束 ${name}：結束碼 ${code}，用了 $(($(date +%s) - started)) 秒" >>"$log"
 if [ "$code" -ne 0 ] && [ -z "$url" ]; then
   echo "!!! 沒設 HEALTHCHECKS_PING_KEY，這次失敗不會通知任何人" >>"$log"
 fi
