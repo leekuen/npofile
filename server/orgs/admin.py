@@ -9,6 +9,7 @@ from .models import (
     AnnualFundraising,
     CourtRegistration,
     Donation,
+    DonationCode,
     Donor,
     DonorListSummary,
     FinancialYear,
@@ -18,6 +19,7 @@ from .models import (
     Organization,
     Penalty,
     Project,
+    RegistryEntry,
 )
 
 admin.site.site_header = "非營利檔案 NPOFile 管理後台"
@@ -184,6 +186,66 @@ class GrantAdmin(admin.ModelAdmin):
     list_filter = ("year", "source_name", "agency")
     search_fields = ("organization__name", "organization__ubn", "recipient", "purpose")
     autocomplete_fields = ("organization",)
+
+
+class MatchedFilter(admin.SimpleListFilter):
+    title = "對到組織"
+    parameter_name = "matched"
+
+    def lookups(self, request, model_admin):
+        return (("yes", "有"), ("no", "沒有（前台不顯示）"))
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.filter(organization__isnull=False)
+        if self.value() == "no":
+            return queryset.filter(organization__isnull=True)
+        return queryset
+
+
+@admin.register(RegistryEntry)
+class RegistryEntryAdmin(admin.ModelAdmin):
+    """主管機關名冊（LK-32）：名稱對不上的列在這裡，管理員指定組織後重新匯入不會改掉。"""
+
+    list_display = ("registry_name", "authority", "organization", "status", "registered_assets", "org_manual")
+    list_filter = (MatchedFilter, "authority", "status", "org_manual")
+    search_fields = ("registry_name", "permit_no", "organization__name", "organization__ubn")
+    autocomplete_fields = ("organization",)
+    fields = (
+        "organization", "org_manual", "authority", "registry_name", "permit_no", "founded_on", "permitted_assets",
+        "registered_assets", "status", "purpose", "main_business", "service_targets", "business_category",
+        "data_date", "source_name", "source_url",
+    )
+
+    def save_model(self, request, obj, form, change):
+        if "organization" in form.changed_data:
+            obj.org_manual = True
+        super().save_model(request, obj, form, change)
+
+
+class CodeMatchedFilter(admin.SimpleListFilter):
+    title = "對到組織"
+    parameter_name = "matched"
+
+    def lookups(self, request, model_admin):
+        return (("yes", "有"), ("no", "沒有（前台不顯示）"))
+
+    def queryset(self, request, queryset):
+        known = Organization.objects.values("ubn")
+        if self.value() == "yes":
+            return queryset.filter(ubn__in=known)
+        if self.value() == "no":
+            return queryset.exclude(ubn__in=known)
+        return queryset
+
+
+@admin.register(DonationCode)
+class DonationCodeAdmin(admin.ModelAdmin):
+    """發票捐贈碼（LK-32）：用統編對組織；統編不在組織名冊的前台不顯示。"""
+
+    list_display = ("code", "registered_name", "short_name", "ubn", "county")
+    list_filter = (CodeMatchedFilter, "county")
+    search_fields = ("code", "registered_name", "short_name", "ubn")
 
 
 @admin.register(FinancialYear)

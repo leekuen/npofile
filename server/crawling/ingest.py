@@ -23,6 +23,7 @@ from orgs.models import (
     CRAWLABLE_FIELDS,
     AnnualFundraising,
     Donation,
+    DonationCode,
     Donor,
     DonorListSummary,
     FinancialYear,
@@ -32,6 +33,7 @@ from orgs.models import (
     CourtRegistration,
     Penalty,
     Project,
+    RegistryEntry,
 )
 from orgs.signals import suspend_scoring
 
@@ -43,12 +45,15 @@ log = logging.getLogger(__name__)
 
 BATCH = 500
 STORE_EVERY = 60  # 秒
-KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4, "grant": 5, "document": 6, "financial": 7, "court_reg": 8}
+KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4, "grant": 5, "document": 6, "financial": 7,
+              "court_reg": 8, "registry": 9, "einvoice": 10}
 PROJECT_FIELDS = (
     "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
     "result_filed_on", "closed_filed_on", "description", "channel", "monthly_raised", "backers",
 )
 DATE_FIELDS = {"start_date", "end_date", "result_filed_on", "closed_filed_on"}
+# 名冊類（LK-32）：對不到組織也照樣存（前台不顯示、後台可查），不算失敗
+ORGLESS_KINDS = {"registry", "einvoice"}
 
 
 def record_source_name(source: CrawlerSource) -> str:
@@ -213,19 +218,19 @@ def _store_batch(source: CrawlerSource, run: CrawlRun, batch: list[Item], known:
     run.created += len(saved)
     if source.auto_approve:
         # 統編空白＝名稱對不上組織（LK-29 勞動局處分）：不上架，留在審核清單等管理員指定組織或退回
-        matched = [r for r in saved if r.ubn or r.kind in NO_SCORE_KINDS]  # 法院公告對不到也照存（LK-31）
+        matched = [r for r in saved if r.ubn or r.kind in NO_SCORE_KINDS or r.kind in ORGLESS_KINDS]  # 法院公告、名冊對不到也照存（LK-31、LK-32）
         ok, failed = apply_records(matched, CrawlRecord.Status.AUTO)
         run.applied += ok
         run.failed += failed
         run.pending += len(saved) - len(matched)
-        touched.update(r.ubn for r in matched if r.kind not in NO_SCORE_KINDS)
+        touched.update(r.ubn for r in matched if r.kind not in NO_SCORE_KINDS and r.kind not in ORGLESS_KINDS)  # 名冊、法院公告不影響指數與分類
     else:
         updates = _approved_updates(source, saved)
         if updates:
             ok, failed = apply_records(updates, CrawlRecord.Status.AUTO)
             run.applied += ok
             run.failed += failed
-            touched.update(r.ubn for r in updates)
+            touched.update(r.ubn for r in updates if r.kind not in ORGLESS_KINDS)
         run.pending += len(saved) - len(updates)
     run.save(update_fields=["fetched", "created", "applied", "pending", "failed"])
 
@@ -271,8 +276,11 @@ def _apply_records(records: list[CrawlRecord], status: str, user) -> tuple[int, 
     ok = failed = 0
     for rec in records:
         org = orgs.get(rec.ubn) if rec.ubn else None
-        if rec.kind == "court_reg":  # 對不到組織的法院公告也存（後台可手動指定），不算失敗
-            _apply_court_registration(rec, org, record_source_name(sources[rec.source_id]))
+        if rec.kind == "court_reg" or rec.kind in ORGLESS_KINDS:  # 對不到組織也照存（法院公告 LK-31、名冊 LK-32），不算失敗
+            if rec.kind == "court_reg":
+                _apply_court_registration(rec, org, record_source_name(sources[rec.source_id]))
+            else:
+                _apply_registry(rec, org, record_source_name(sources[rec.source_id]))
             rec.organization = org
             rec.status = status
             rec.reviewed_at = now
@@ -399,6 +407,37 @@ def _apply_child(rec: CrawlRecord, org: Organization, source_name: str) -> None:
         )
     elif rec.kind == "financial":
         _apply_financial(rec, org, source_name)
+
+
+def _apply_registry(rec: CrawlRecord, org: Organization | None, source_name: str) -> None:
+    """名冊與捐贈碼（LK-32）：只寫自己的表，不動組織的基本欄位（財政部名冊那幾欄）。"""
+    d = rec.payload
+    if rec.kind == "einvoice":
+        DonationCode.objects.update_or_create(
+            source_name=source_name, code=d["code"][:10],
+            defaults={"ubn": rec.ubn, "registered_name": (d.get("name") or "")[:200],
+                      "short_name": (d.get("short_name") or "")[:100], "county": (d.get("county") or "")[:10],
+                      "source_url": rec.source_url},
+        )
+        return
+    values = {
+        "authority": (d.get("authority") or "")[:50], "registry_name": (d.get("name") or "")[:200],
+        "permit_no": (d.get("permit_no") or "")[:100], "founded_on": _date(d.get("founded_on")),
+        "permitted_assets": d.get("permitted_assets"), "registered_assets": d.get("registered_assets"),
+        "purpose": d.get("purpose") or "", "main_business": d.get("main_business") or "",
+        "service_targets": (d.get("service_targets") or "")[:300],
+        "business_category": (d.get("business_category") or "")[:300],
+        "status": (d.get("status") or "")[:20], "data_date": _date(d.get("data_date")), "source_url": rec.source_url,
+    }
+    entry = RegistryEntry.objects.filter(source_name=source_name, external_id=rec.external_id).first()
+    if entry is None:
+        RegistryEntry.objects.create(source_name=source_name, external_id=rec.external_id, organization=org, **values)
+        return
+    for k, v in values.items():
+        setattr(entry, k, v)
+    if not entry.org_manual:  # 管理員指定過的組織，重新匯入不改
+        entry.organization = org
+    entry.save()
 
 
 FINANCIAL_FIELDS = (

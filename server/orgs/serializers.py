@@ -3,7 +3,20 @@ from rest_framework import serializers
 from . import category_api, donor_rules, period, scoring
 from npofile_crawler import labor
 
-from .models import AnnualFundraising, CourtRegistration, Donation, Donor, FinancialYear, Grant, OrgDocument, Organization, Penalty, Project
+from .models import (
+    AnnualFundraising,
+    CourtRegistration,
+    Donation,
+    DonationCode,
+    Donor,
+    FinancialYear,
+    Grant,
+    OrgDocument,
+    Organization,
+    Penalty,
+    Project,
+    RegistryEntry,
+)
 
 RECENT_DONATIONS = 50
 DONOR_DETAIL_DONATIONS = 200
@@ -156,6 +169,23 @@ class DonationSerializer(serializers.ModelSerializer):
         return obj.donor.kind if obj.donor_id else ("individual" if obj.donor_name.strip() else None)
 
 
+class RegistryEntrySerializer(serializers.ModelSerializer):
+    """主管機關名冊（LK-32）：全是政府公開資料；名冊上的個人姓名與聯絡方式本來就沒存。"""
+
+    class Meta:
+        model = RegistryEntry
+        fields = (
+            "authority", "registry_name", "permit_no", "founded_on", "registered_assets", "status",
+            "service_targets", "business_category", "data_date", "source_name", "source_url",
+        )
+
+
+class DonationCodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DonationCode
+        fields = ("code", "short_name", "source_name", "source_url")
+
+
 class OrganizationDetailSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source="get_status_display")
     penalty_count_5y = serializers.IntegerField()
@@ -169,6 +199,8 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     grants = serializers.SerializerMethodField()
     court_registrations = CourtRegistrationSerializer(many=True)
     court_dissolution = serializers.SerializerMethodField()
+    registries = RegistryEntrySerializer(source="registry_entries", many=True)
+    donation_codes = serializers.SerializerMethodField()
     donations = serializers.SerializerMethodField()
     corporate_donors = serializers.SerializerMethodField()
     individual_donors = serializers.SerializerMethodField()
@@ -182,7 +214,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
             "ubn", "name", "org_type", "representative", "registered_address", "contact_address", "phone",
             "website", "city", "purposes", "status", "status_label", "source_links", "disclosure_score",
             "penalty_count_5y", "score", "public_raised", "annual_records", "financials", "documents", "projects",
-            "penalties", "grants", "court_registrations", "court_dissolution", "donations",
+            "penalties", "grants", "court_registrations", "court_dissolution", "registries", "donation_codes", "donations",
             "corporate_donors", "individual_donors", "donor_summary", "since_roc_year", "categories",
             "updated_at",
         )
@@ -211,6 +243,10 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
 
     def get_donor_summary(self, obj):
         return donor_rules.org_summary(obj)
+
+    def get_donation_codes(self, obj):
+        # 用統編對（讀的時候才對）：清單沒變、組織後來才進財政部名冊也對得到
+        return DonationCodeSerializer(DonationCode.objects.filter(ubn=obj.ubn).order_by("code"), many=True).data
 
     def get_since_roc_year(self, obj):
         return period.since_roc_year()

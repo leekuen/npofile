@@ -67,6 +67,7 @@ def organization_detail(request, ubn):
             # 法院登記公告全部保留（組織歷史，跟裁罰一樣不篩年度）；新到舊，第一筆決定頁首的解散標示
             Prefetch("court_registrations", queryset=CourtRegistration.objects.order_by("-posted_on", "-id")),
             "categories",
+            "registry_entries",
         )
     )
     org = get_object_or_404(qs, ubn=ubn)
