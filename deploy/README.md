@@ -8,7 +8,8 @@
                    ├─ /admin/      → Django（gunicorn）:8000
                    └─ /static/     → server/staticfiles/
 Django ──▶ PostgreSQL（同一台）
-cron   ──▶ 每天爬蟲、清舊資料、重算揭露指數
+cron   ──▶ 每天備份資料庫、爬蟲、清舊資料、重算揭露指數
+         └─ 失敗或沒準時跑完 → Healthchecks.io 寄信
 ```
 
 | 檔案 | 放到伺服器哪裡 |
@@ -18,6 +19,7 @@ cron   ──▶ 每天爬蟲、清舊資料、重算揭露指數
 | `nginx.conf` | `/etc/nginx/sites-available/npofile`（網域要改） |
 | `crontab` | `crontab -u npofile deploy/crontab` |
 | `deploy.sh` | 不用搬，在 repo 裡直接跑 |
+| `run-job.sh`、`backup-db.sh` | 不用搬，crontab 直接叫 repo 裡的 |
 
 路徑都寫死成 `/home/npofile/app`（帳號 `npofile`）。要改的話，四個檔案要一起改。
 
@@ -142,7 +144,78 @@ cd ~/app/server
 .venv/bin/python manage.py recompute_scores
 ```
 
-### 10. 排程（root）
+### 10. 排程失敗通知（自己的電腦＋npofile）
+
+沒有這一步，爬蟲壞掉只會寫進紀錄檔，沒人看就不會知道資料停更了。
+
+1. 到 <https://healthchecks.io> 註冊（免費方案就夠），建一個專案，例如「npofile」。
+2. 專案的 **Settings → Ping key** 按 Create，複製那串 key。
+3. **Integrations** 預設會寄信到註冊的信箱；要 LINE、Telegram、Slack 也在這裡加。
+4. 把 key 加進伺服器的 `~/app/server/.env`：
+
+   ```
+   HEALTHCHECKS_PING_KEY=剛剛複製的 key
+   ```
+
+5. 手動跑一次，讓 check 自動建立起來（`npofile-backup` 在第 11 步建立）：
+
+   ```bash
+   sudo -iu npofile
+   ~/app/deploy/run-job.sh scores bash -c 'cd ~/app/server && .venv/bin/python manage.py recompute_scores'
+   ~/app/deploy/run-job.sh crawl  bash -c 'cd ~/app/server && .venv/bin/python manage.py crawl mohw --limit 1'
+   ```
+
+6. 回到 Healthchecks，把三個 check 的時間表改成跟 crontab 一樣（不改的話預設是「每天一次、寬限 1 小時」，
+   爬蟲跑得久會誤報）：
+
+   | Check | Schedule（Cron，時區選 Asia/Taipei） | Grace time |
+   |---|---|---|
+   | `npofile-backup` | `0 2 * * *` | 1 小時 |
+   | `npofile-crawl` | `30 2 * * *` | 3 小時（爬蟲開始後超過這麼久沒跑完，也會通知） |
+   | `npofile-scores` | `30 5 * * *` | 1 小時 |
+
+會收到通知的情況：
+
+- 工作失敗（結束碼不是 0）。信裡附輸出的最後 20KB，通常直接看得到錯誤。
+- 爬蟲「成功」但某個來源**一筆都沒抓到**：多半是來源網站改版，`crawl` 會當成失敗。
+- 到了時間沒開始跑、或開始了沒在寬限時間內跑完：伺服器關機、cron 沒裝、程式卡住都屬於這種。
+
+### 11. 資料庫每日備份（npofile）
+
+正式資料庫是在伺服器上重新爬出來的，壞了要重爬好幾天。每天 02:00（爬蟲之前）`backup-db.sh` 會：
+
+1. `pg_dump` 成 `~/backups/npofile-日期.dump`（壓縮過的 PostgreSQL 格式，只有 npofile 帳號讀得到）。
+2. 檢查檔案讀得回來、裡面真的有組織資料；不合格就算失敗（會通知），不會留下壞檔。
+3. 刪掉 14 天前的本機備份。
+4. 有設機器外位置的話，複製一份過去，並刪掉那邊 60 天前的。
+
+先手動跑一次，確定成功：
+
+```bash
+sudo -iu npofile ~/app/deploy/run-job.sh backup ~/app/deploy/backup-db.sh   # 順便在 Healthchecks 建立 npofile-backup
+ls -lh ~npofile/backups
+```
+
+**本機備份擋不住整台機器壞掉**（硬碟毀損、Droplet 被誤刪）。強烈建議再放一份到機器外，用 DigitalOcean Spaces：
+
+1. DigitalOcean 後台 → Spaces Object Storage → 建一個 bucket（例 `npofile-backups`，區域選跟 Droplet 一樣，例 `sgp1`）；
+   **不要**開 CDN、權限維持 Private。
+2. API → Spaces Keys → Generate New Key，記下 Access Key 和 Secret。
+3. 伺服器上（root）裝 rclone：`apt install -y rclone`
+4. npofile 帳號設定 remote（key 只存在這個帳號的 `~/.config/rclone/rclone.conf`）：
+
+   ```bash
+   sudo -iu npofile
+   rclone config create spaces s3 provider=DigitalOcean env_auth=false access_key_id=你的AccessKey secret_access_key=你的Secret endpoint=sgp1.digitaloceanspaces.com
+   chmod 600 ~/.config/rclone/rclone.conf
+   ```
+
+5. `~/app/server/.env` 加上 `BACKUP_RCLONE_REMOTE=spaces:npofile-backups/db`，再手動跑一次 `backup-db.sh`，
+   最後一段應該印「複製到機器外」，`rclone ls spaces:npofile-backups/db` 看得到檔案。
+
+保留天數要改的話，在 `.env` 設 `BACKUP_KEEP_DAYS`（本機）、`BACKUP_REMOTE_KEEP_DAYS`（機器外）。
+
+### 12. 排程（root）
 
 ```bash
 crontab -u npofile /home/npofile/app/deploy/crontab
@@ -174,15 +247,42 @@ sudo -iu npofile ~/app/deploy/deploy.sh
 journalctl -u npofile-api -n 100 --no-pager     # Django／gunicorn
 journalctl -u npofile-web -n 100 --no-pager     # Next.js
 tail -n 100 /var/log/nginx/error.log
-tail -n 100 /home/npofile/logs/crawl.log
+tail -n 100 /home/npofile/logs/crawl.log      # 爬蟲（backup.log、scores.log 同一個資料夾）
 ```
+
+排程每一次跑的結果（成功、失敗、花多久）也看得到：Healthchecks 上點 check → Events。
 
 ## 回滾
 
-在本機對 `prod` 做 `git revert`，推上去後再跑一次 `deploy.sh`。如果某個版本做了不可逆的 migration，要先備份資料庫再更新：
+在本機對 `prod` 做 `git revert`，推上去後再跑一次 `deploy.sh`。如果某個版本做了不可逆的 migration，更新前先手動備份一次：
 
 ```bash
-sudo -u postgres pg_dump npofile > /root/npofile-$(date +%F).sql
+sudo -iu npofile ~/app/deploy/backup-db.sh
+```
+
+（同一天跑第二次會覆蓋當天的檔案；要留住更新前那份，跑完把它改名，例 `mv ~/backups/npofile-$(date +%F).dump ~/backups/before-deploy.dump`。）
+
+## 從備份還原
+
+還原會把資料庫整個換成備份當天的內容，之後抓的資料、新的留言都會不見。先停掉後端，不讓網站在還原中寫入：
+
+```bash
+sudo systemctl stop npofile-api                       # root
+sudo -iu npofile
+ls -lh ~/backups                                      # 挑一份；機器外的用 rclone copy spaces:npofile-backups/db/檔名 ~/backups/ 拿回來
+DB=$(sed -n 's/^DATABASE_URL=//p' ~/app/server/.env)
+pg_restore --clean --if-exists --no-owner --no-privileges --dbname="$DB" ~/backups/npofile-2026-12-01.dump
+exit
+sudo systemctl start npofile-api                      # root
+```
+
+**每個月演練一次**，確定備份真的能用（還原到另一個空資料庫，不碰正式的）：
+
+```bash
+sudo -u postgres createdb -O npofile npofile_restore_test
+sudo -iu npofile bash -c 'DB=$(sed -n "s/^DATABASE_URL=//p" ~/app/server/.env); pg_restore --no-owner --no-privileges --dbname="${DB%/*}/npofile_restore_test" ~/backups/$(ls ~/backups | tail -n 1) && echo 還原 OK'
+sudo -u postgres psql npofile_restore_test -c "select count(*) from orgs_organization;"   # 應該是十萬上下
+sudo -u postgres dropdb npofile_restore_test
 ```
 
 ## 常見問題

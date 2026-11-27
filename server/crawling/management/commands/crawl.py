@@ -50,5 +50,10 @@ class Command(BaseCommand):
                 f"待審核 {run.pending}、失敗 {run.failed}" + (f"\n錯誤：{run.error}" if run.error else "")
             )
             failed |= run.status != run.Status.SUCCESS
+            # 每次都是整批重抓、比對後才決定哪些是新的，所以「成功卻一筆都沒抓到」幾乎都是來源網站改版、
+            # 解析不到東西。不當成成功，排程才會發通知（LK-12）。
+            if run.status == run.Status.SUCCESS and run.fetched == 0 and limit != 0:
+                self.stderr.write(f"警告：{source.name} 一筆都沒抓到，來源網站可能改版或暫時沒有回應")
+                failed = True
         if failed:
             raise CommandError("有來源執行失敗，看上面的錯誤或後台的執行紀錄")
