@@ -853,7 +853,7 @@ function GrantsTab({ grants }: { grants: Grant[] }) {
   if (grants.length === 0) {
     return (
       <EmptyState title="近 5 年沒有收錄到政府補助">
-        目前收錄衛生福利部（含社會及家庭署等所屬機關）公開的補助名單；名單上的名稱要跟組織登記名稱相同才對得到。
+        目前收錄衛生福利部（含社會及家庭署等所屬機關）與勞動部就業安定基金公開的補助名單；名單上的名稱要跟組織登記名稱相同才對得到。
       </EmptyState>
     );
   }
@@ -904,9 +904,17 @@ function GrantsTab({ grants }: { grants: Grant[] }) {
           </section>
         );
       })}
-      <p>
-        <SourceNote name={grants[0].source_name} url={grants[0].source_url} />
-      </p>
+      <ul className="space-y-1">
+        {[
+          ...new Map(
+            grants.map((g) => [g.source_name, g.source_url]),
+          ).entries(),
+        ].map(([name, url]) => (
+          <li key={name}>
+            <SourceNote name={name} url={url} />
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

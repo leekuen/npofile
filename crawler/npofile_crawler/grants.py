@@ -1,8 +1,11 @@
-"""衛福部主管「公務預算對民間團體及個人補(捐)助經費彙總表」（LK-19）。
+"""政府對民間團體及個人補(捐)助（LK-19 衛福部主管、LK-24 勞動部就業安定基金）。
 
 依《中央政府各機關對民間團體及個人補(捐)助預算執行應注意事項》第 7 點，各機關每季公開核定的補(捐)助案件。
 衛福部（含社會及家庭署、健保署、疾管署等所屬）的彙總表放在政府資料開放平臺 dataset 44952，
 每年度一份「截至第 N 季止」的累計表：同一年取季數最大的那份就是那年最新、最完整的。
+
+各機關照同一套規定公開，欄位大致相同（括號半形全形、有沒有「項次」「補(捐)助機關」欄、日期寫法各家不同）；
+每個資料集一個 `DatasetSpec`，要加新的部會多一行設定。
 
 表上的受補助對象只有名稱、沒有統編；名稱對組織由呼叫端給的組織名冊（`orgs`）比對，對不到的不回傳
 （多半是醫院診所、社區發展協會、公會、個人，不在收錄的非營利組織裡）。
@@ -24,23 +27,40 @@ from .donors import _ROW, _cells
 from .http import PoliteClient
 from .items import Item, money, roc_date
 
-DATASET_ID = 44952
 DATASET_API = "https://data.gov.tw/api/v2/rest/dataset/{id}"
 DATASET_PAGE = "https://data.gov.tw/dataset/{id}"
-SOURCE_NAME = "衛生福利部 對民間團體及個人補(捐)助經費彙總表"
 
-# 彙總表的標題寫法每年不太一樣：「對民間團體及個人補(捐)助經費彙總表」「公務團體個人補(捐)助彙總表」
+
+@dataclass(frozen=True)
+class DatasetSpec:
+    id: int
+    name: str                           # 存進資料的來源名稱
+    title_re: re.Pattern | None = None  # 資料集裡只拿標題符合的檔（None＝全部）
+    agency: str = ""                    # 表上沒有「補(捐)助機關」欄時用這個
+
+
+# 衛福部主管：同一個資料集還有「補(捐)助情形季報表」「補助地方政府情形表」，只拿逐筆列出受補助對象的彙總表；
+# 標題寫法每年不太一樣：「對民間團體及個人補(捐)助經費彙總表」「公務團體個人補(捐)助彙總表」
 TITLE_RE = re.compile(r"團體及?個人補\(捐\)助(?:經費)?彙總表")
-YEAR_RE = re.compile(r"(\d{3})年度")
-QUARTER_RE = re.compile(r"第\s*(\d)\s*季")
+MOHW = DatasetSpec(44952, "衛生福利部 對民間團體及個人補(捐)助經費彙總表", TITLE_RE)
+# 勞動部就業安定基金（多元就業開發方案、職業訓練、身障就業等）：資料集裡每季一份，就是要的那種表
+ESF = DatasetSpec(128781, "勞動部 就業安定基金對民間團體及個人之補(捐)助情形季報表", None, "勞動部")
 
+DATASET_ID = MOHW.id
+SOURCE_NAME = MOHW.name
+YEAR_RE = re.compile(r"(\d{3})(?=年|第)")
+QUARTER_RE = re.compile(r"第\s*(\d)\s*季")
+ROC_TEXT_DATE_RE = re.compile(r"(\d{2,3})年(\d{1,2})月(\d{1,2})日")
+
+# 表頭比對前拿掉所有括號（半形全形都有人用，也有人省略「(含累積金額)」的括號）
 HEADERS = {
-    "補(捐)助機關": "agency",
-    "受補(捐)助對象所歸屬之直轄市或縣(市)": "county",
-    "受補(捐)助對象": "recipient",
-    "補(捐)助事項或用途": "purpose",
+    "項次": "seq",
+    "補捐助機關": "agency",
+    "受補捐助對象所歸屬之直轄市或縣市": "county",
+    "受補捐助對象": "recipient",
+    "補捐助事項或用途": "purpose",
     "核准日期": "approved",
-    "補(捐)助金額(含累積金額)": "amount",
+    "補捐助金額含累積金額": "amount",
 }
 
 PAREN_TAIL_RE = re.compile(r"\([^()]*\)$")
@@ -53,20 +73,23 @@ class GrantFile:
     quarter: int   # 截至第幾季
     fmt: str       # CSV｜ODS
     url: str
+    dataset: int = DATASET_ID
 
 
-def pick_files(distributions: Iterable[dict], since_roc: int | None = None) -> list[GrantFile]:
-    """資料集的檔案清單 → 每年度季數最大的彙總表（新年度在前）。"""
+def pick_files(distributions: Iterable[dict], since_roc: int | None = None, spec: DatasetSpec = MOHW) -> list[GrantFile]:
+    """資料集的檔案清單 → 每年度季數最大的那份累計表（新年度在前）。"""
     best: dict[int, GrantFile] = {}
     for d in distributions:
         title = d.get("resourceDescription") or ""
         fmt = (d.get("resourceFormat") or "").upper()
         url = d.get("resourceDownloadUrl") or ""
         y = YEAR_RE.search(title)
-        if not (TITLE_RE.search(title) and y and url and fmt in ("CSV", "ODS")):
+        if spec.title_re is not None and not spec.title_re.search(title):
+            continue
+        if not (y and url and fmt in ("CSV", "ODS")):
             continue
         q = QUARTER_RE.search(title)
-        f = GrantFile(int(y.group(1)), int(q.group(1)) if q else 4, fmt, url)
+        f = GrantFile(int(y.group(1)), int(q.group(1)) if q else 4, fmt, url, spec.id)
         if since_roc is not None and f.year < since_roc:
             continue
         # 同一年同一季兩種格式都有時用 CSV（解析快）
@@ -80,16 +103,32 @@ def _clean(text: str) -> str:
     return re.sub(r"\s+", "", text or "")
 
 
+def _header(text: str) -> str:
+    return re.sub(r"[()（）]", "", _clean(text))
+
+
+def _date(text: str):
+    """「1140528」「114/05/28」「114年05月28日」都認。"""
+    m = ROC_TEXT_DATE_RE.fullmatch(text)
+    if m:
+        return roc_date(f"{m.group(1)}/{m.group(2)}/{m.group(3)}")
+    return roc_date(text)
+
+
 def rows_from_table(table: Iterable[list[str]]) -> Iterator[dict]:
     """表格的列 → 每筆補助（表頭依欄名找；總計、合計、註解列跳過）。"""
     index: dict[str, int] | None = None
     for cells in table:
         if index is None:
-            found = {HEADERS[_clean(c)]: i for i, c in enumerate(cells) if _clean(c) in HEADERS}
+            found = {HEADERS[_header(c)]: i for i, c in enumerate(cells) if _header(c) in HEADERS}
             if {"recipient", "amount"} <= set(found):
                 index = found
             continue
-        if not cells or not (cells[0] or "").strip().isdigit():
+        if not cells:
+            continue
+        # 有「項次」欄的表：項次不是數字的是總計、合計、註解列
+        seq = index.get("seq")
+        if seq is not None and not (cells[seq] if seq < len(cells) else "").strip().isdigit():
             continue
 
         def get(key: str) -> str:
@@ -100,7 +139,7 @@ def rows_from_table(table: Iterable[list[str]]) -> Iterator[dict]:
         amount = money(get("amount"))
         if not recipient or amount is None:
             continue
-        dates = [d for d in (roc_date(x) for x in re.split(r"[\s、,]+", get("approved")) if x) if d]
+        dates = [d for d in (_date(x) for x in re.split(r"[\s、,]+", get("approved")) if x) if d]
         yield {
             "agency": get("agency"),
             "county": get("county"),
@@ -113,7 +152,11 @@ def rows_from_table(table: Iterable[list[str]]) -> Iterator[dict]:
 
 
 def csv_table(data: bytes) -> Iterator[list[str]]:
-    text = data.decode("utf-8-sig", errors="replace")
+    # 大多是 UTF-8，勞動部有幾季是 Big5
+    try:
+        text = data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = data.decode("cp950", errors="replace")
     yield from csv.reader(io.StringIO(text))
 
 
@@ -170,9 +213,11 @@ def grant_id(year: int, row: dict, seq: int = 1) -> str:
     return f"{year}-{hashlib.sha1(key.encode('utf-8')).hexdigest()[:16]}{suffix}"
 
 
-def to_items(f: GrantFile, rows: Iterable[dict], matcher: OrgMatcher) -> Iterator[Item]:
+def to_items(f: GrantFile, rows: Iterable[dict], matcher: OrgMatcher, agency: str = "") -> Iterator[Item]:
     seen: dict[str, int] = defaultdict(int)
     for row in rows:
+        if not row["agency"] and agency:
+            row = {**row, "agency": agency}
         hit = matcher.match(row["recipient"])
         if hit is None:
             continue
@@ -183,22 +228,32 @@ def to_items(f: GrantFile, rows: Iterable[dict], matcher: OrgMatcher) -> Iterato
             kind="grant",
             ubn=ubn,
             external_id=grant_id(f.year, row, seen[base]),
-            source_url=DATASET_PAGE.format(id=DATASET_ID),
+            source_url=DATASET_PAGE.format(id=f.dataset),
             data={**row, "year": f.year, "quarter": f.quarter, "facility": facility},
         )
 
 
 def fetch(client: PoliteClient, limit: int | None = None, since_roc: int | None = None,
-          orgs: Iterable[tuple[str, str]] = ()) -> Iterator[Item]:
-    """近 5 年每年最新一份彙總表，對到組織的補助一筆一個 Item。limit 算的是 Item 數。"""
+          orgs: Iterable[tuple[str, str]] = (), spec: DatasetSpec = MOHW) -> Iterator[Item]:
+    """近 5 年每年最新一份累計表，對到組織的補助一筆一個 Item。limit 算的是 Item 數。"""
     matcher = OrgMatcher(orgs)
-    meta = client.get(DATASET_API.format(id=DATASET_ID)).json()["result"]
+    meta = client.get(DATASET_API.format(id=spec.id)).json()["result"]
     count = 0
-    for f in pick_files(meta.get("distribution", []), since_roc):
+    for f in pick_files(meta.get("distribution", []), since_roc, spec):
         data = client.get(f.url).content
         table = csv_table(data) if f.fmt == "CSV" else ods_table(data)
-        for item in to_items(f, rows_from_table(table), matcher):
+        for item in to_items(f, rows_from_table(table), matcher, spec.agency):
             if limit is not None and count >= limit:
                 return
             count += 1
             yield item
+
+
+def fetch_mohw(client: PoliteClient, limit: int | None = None, since_roc: int | None = None,
+               orgs: Iterable[tuple[str, str]] = ()) -> Iterator[Item]:
+    return fetch(client, limit, since_roc, orgs, MOHW)
+
+
+def fetch_esf(client: PoliteClient, limit: int | None = None, since_roc: int | None = None,
+              orgs: Iterable[tuple[str, str]] = ()) -> Iterator[Item]:
+    return fetch(client, limit, since_roc, orgs, ESF)

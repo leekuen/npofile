@@ -52,9 +52,13 @@ SOURCES = {
                "群眾集資平台：非營利組織在挖貝提的集資專案（依提案者統編對組織；只收收錄的組織）；"
                "每天抓進行中的專案，結束後 14 天內再回頭看；不影響揭露指數",
                options=("revisit",), known_orgs_only=True, update_approved=True),
-        Source("mohw_grants", grants.SOURCE_NAME, grants.DATASET_PAGE.format(id=grants.DATASET_ID), True, grants.fetch,
+        Source("mohw_grants", grants.MOHW.name, grants.DATASET_PAGE.format(id=grants.MOHW.id), True, grants.fetch_mohw,
                "政府公開資料：衛福部（含社家署、健保署、疾管署等）每季公開的補(捐)助核定案件；"
                "近 5 年每年取最新一季的累計表，受補助對象名稱跟組織名稱完全相同才收（「某某附設某某」算給上層法人）",
+               options=("since_roc", "orgs")),
+        Source("esf_grants", grants.ESF.name, grants.DATASET_PAGE.format(id=grants.ESF.id), True, grants.fetch_esf,
+               "政府公開資料：勞動部就業安定基金（多元就業開發方案、職業訓練、身障就業等）每季公開的補(捐)助核定案件；"
+               "近 5 年每年取最新一季的累計表，對組織的規則同衛福部補助",
                options=("since_roc", "orgs")),
     )
 }

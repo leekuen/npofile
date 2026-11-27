@@ -98,6 +98,43 @@ class ItemTests(unittest.TestCase):
         self.assertEqual(items[1].external_id, items[0].external_id + "-2")
 
 
+class OtherAgencyFormatTests(unittest.TestCase):
+    """LK-24：勞動部的表（全形括號、文字日期、Big5、沒有項次欄）。"""
+
+    def test_esf_big5_fullwidth_and_text_dates(self):
+        rows = list(grants.rows_from_table(table("grants_esf_big5.csv")))
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(rows[0]["agency"], "勞動部")
+        self.assertEqual(rows[0]["recipient"], "財團法人瑪利亞社會福利基金會")
+        self.assertEqual(rows[0]["approved_on"], date(2025, 1, 15))
+        self.assertEqual(rows[0]["amount"], 3650000)
+
+    def test_table_without_seq_or_agency_columns(self):
+        rows = list(grants.rows_from_table(table("grants_no_seq.csv")))
+        self.assertEqual([r["recipient"] for r in rows], ["就業安定基金", "財團法人瑪利亞社會福利基金會"])
+        self.assertEqual(rows[1]["agency"], "")
+        f = grants.GrantFile(114, 4, "CSV", "x", 143623)
+        items = list(grants.to_items(f, rows, grants.OrgMatcher(ORGS), agency="勞動部勞動力發展署"))
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].data["agency"], "勞動部勞動力發展署")
+        self.assertEqual(items[0].source_url, "https://data.gov.tw/dataset/143623")
+
+    def test_esf_titles_have_no_title_filter_and_short_year(self):
+        dist = [
+            {"resourceDescription": f"114第{q}季就業安定基金對民間團體及個人之補(捐)助情形季報表",
+             "resourceFormat": "CSV", "resourceDownloadUrl": f"https://example.test/esf114q{q}.csv"} for q in (1, 2, 3, 4)
+        ] + [
+            {"resourceDescription": "115第3季就業安定基金對民間團體及個人之補(捐)助情形季報表",
+             "resourceFormat": "CSV", "resourceDownloadUrl": "https://example.test/esf115q3.csv"},
+            {"resourceDescription": "115第3季就業安定基金對民間團體及個人之補(捐)助情形季報表",
+             "resourceFormat": "JSON", "resourceDownloadUrl": "https://example.test/esf115q3.json"},
+        ]
+        files = grants.pick_files(dist, since_roc=111, spec=grants.ESF)
+        self.assertEqual([(f.year, f.quarter, f.url) for f in files],
+                         [(115, 3, "https://example.test/esf115q3.csv"), (114, 4, "https://example.test/esf114q4.csv")])
+        self.assertTrue(all(f.dataset == grants.ESF.id for f in files))
+
+
 class FakeClient:
     def __init__(self, pages):
         self.pages = pages
