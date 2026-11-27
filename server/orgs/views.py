@@ -1,5 +1,6 @@
 import re
 
+from django.conf import settings
 from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
@@ -63,6 +64,8 @@ def stats(request):
                 period.annual_q("annual_records__") | (Q(projects__isnull=False) & period.project_q("projects__"))
             ).distinct().count(),
             "since_roc_year": period.since_roc_year(),
+            # 資料說明頁要寫個人捐款人的門檻：從設定讀，畫面不寫死（LK-22）
+            "donor_individual_threshold": settings.DONOR_INDIVIDUAL_THRESHOLD,
             "penalized_5y": orgs.filter(scoring.penalty_5y_filter("penalties__")).distinct().count(),
         }
     )
