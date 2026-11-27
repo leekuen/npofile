@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import collections
 import json
 import logging
 import re
@@ -73,9 +74,22 @@ class JudicialError(RuntimeError):
 # ── 名稱比對 ─────────────────────────────────────────────────────────
 
 
+CITIES = "台北|新北|桃園|台中|台南|高雄|基隆|新竹|嘉義|苗栗|彰化|南投|雲林|屏東|宜蘭|花蓮|台東|澎湖|金門|連江"
+# 「桃園市私立」「桃園縣私立」「桃園私立」都寫過：私立機構前的縣市一律只留地名（台北縣先改成新北，才不會跟台北市混在一起）
+CITY_BEFORE_PRIVATE_RE = re.compile(rf"({CITIES})[市縣](?=私立)")
+
+
 def normalize(text: str) -> str:
-    """判決全文會在名稱中間斷行、用全形空白排版；臺／台混用。比對前一律去空白、臺→台。"""
-    return re.sub(r"\s+", "", text or "").replace("臺", "台")
+    """登記名稱和判決全文都過一次，同一個機構的不同寫法就會變成同一串字：
+    - 判決會在名稱中間斷行、用全形空白排版 → 去空白
+    - 臺／台混用 → 台
+    - 「更生團契附設桃園市私立少年之家」登記成「更生團契桃園市私立少年之家」→ 拿掉「附設／附屬」
+    - 縣市升格前後、有沒有寫「市」→ 私立機構前的縣市只留地名
+    """
+    text = re.sub(r"\s+", "", text or "").replace("臺", "台")
+    text = text.replace("附設", "").replace("附屬", "")
+    text = text.replace("台北縣", "新北市")
+    return CITY_BEFORE_PRIVATE_RE.sub(r"\1", text)
 
 
 def _key(name: str) -> str:
@@ -87,7 +101,8 @@ def _key(name: str) -> str:
 
 
 class NameIndex:
-    """組織名稱 → 統編。以名稱前 4 個字分桶，掃全文時每個位置查一次桶、取最長的相符名稱。"""
+    """組織名稱 → 統編。以名稱前 4 個字分桶，掃全文時每個位置查一次桶、取最長的相符名稱。
+    名冊裡同名（或縣市升格前後各登記一次）的組織不只一個統編：每個都回傳，由審核的人挑。"""
 
     def __init__(self, names: dict[str, str] | Iterable[tuple[str, str]]):
         pairs = names.items() if isinstance(names, dict) else names
@@ -101,15 +116,16 @@ class NameIndex:
             bucket.sort(key=lambda t: -len(t[0]))
 
     def find(self, text: str) -> list[tuple[int, int, str, str]]:
-        """回傳（起點, 終點, 統編, 組織名稱），位置是 normalize 後的全文。重疊時取最長的。"""
+        """回傳（起點, 終點, 統編, 組織名稱），位置是 normalize 後的全文。重疊時取最長的；
+        同一個名稱對到好幾個統編，同一段會有好幾筆。"""
         hits: list[tuple[int, int, str, str]] = []
         i, n = 0, len(text)
         while i < n:
             bucket = self._buckets.get(text[i : i + BUCKET])
             if bucket:
-                for key, ubn, name in bucket:
+                for key, _ubn, _name in bucket:
                     if text.startswith(key, i):
-                        hits.append((i, i + len(key), ubn, name))
+                        hits.extend((i, i + len(key), u, nm) for k, u, nm in bucket if k == key)
                         i += len(key)
                         break
                 else:
@@ -238,18 +254,20 @@ def match(judgment: Judgment, index: NameIndex) -> list[Item]:
     norm = normalize(judgment.text)
     roles: dict[str, tuple[str, str, int, int]] = {}
     rank = {"組織為": 0, "組織人員涉案": 1, "判決內容提及組織": 2}
-    for start, end, ubn, name in index.find(norm):
+    found = index.find(norm)
+    namesakes = collections.Counter((start, end) for start, end, _u, _n in found)
+    for start, end, ubn, name in found:
         role = classify(judgment, start, end, norm)
         if role is None:
             continue
         current = roles.get(ubn)
         weight = next(v for k, v in rank.items() if role.startswith(k))
         if current is None or weight < next(v for k, v in rank.items() if current[0].startswith(k)):
-            roles[ubn] = (role, name, start, end)
+            roles[ubn] = (role, name, start, end, namesakes[(start, end)])
     items = []
     main = _main_text(judgment.text)
     kind_label = "刑事判決" if judgment.kind == "M" else "行政判決"
-    for ubn, (role, name, start, end) in roles.items():
+    for ubn, (role, name, start, end, same) in roles.items():
         excerpt = norm[max(0, start - 60) : end + 60]
         items.append(
             Item(
@@ -261,7 +279,11 @@ def match(judgment: Judgment, index: NameIndex) -> list[Item]:
                     "document_no": judgment.case_no,
                     "content": f"{kind_label}：{judgment.title}（{role}）",
                     "fine_text": "",
-                    "reason": "\n\n".join(p for p in (f"主文：{main}" if main else "", f"相關段落：…{excerpt}…") if p),
+                    "reason": "\n\n".join(p for p in (
+                        f"主文：{main}" if main else "",
+                        f"相關段落：…{excerpt}…",
+                        f"注意：名冊裡有 {same} 個組織叫這個名稱（或縣市升格前後各登記一次），請確認是哪一個" if same > 1 else "",
+                    ) if p),
                 },
                 source_url=judgment.url,
                 external_id=judgment.jid,

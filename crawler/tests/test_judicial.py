@@ -66,6 +66,23 @@ class NameIndexTests(unittest.TestCase):
         hits = [(ubn, name) for _, _, ubn, name in idx.find(text)]
         self.assertEqual(hits, [("72856004", ORGS_NAME_72856004), ("00985373", "財團法人基督教更生團契")])
 
+    def test_real_spellings_of_the_same_home(self):
+        # 2026-11-27 在真實判決看到的三種寫法，登記名稱是「…更生團契桃園市私立少年之家」
+        idx = judicial.NameIndex(ORGS)
+        for text in (
+            "財團法人基督教更生團契附設桃園市私立少年之家所有",  # 106 桃交簡 416
+            "財團法人基督教更生團契附設桃園縣私立少年之家捐款",  # 101 審簡上 49（升格前）
+            "財團法人基督教更生團契桃園私立少年之家。",  # 106 審侵簡 13
+        ):
+            with self.subTest(text=text):
+                hits = [h[2] for h in idx.find(judicial.normalize(text))]
+                self.assertEqual(hits, ["72856004"])
+
+    def test_variants_do_not_merge_different_cities(self):
+        idx = judicial.NameIndex({"財團法人台南市私立測試育幼院": "1"})
+        self.assertEqual(idx.find(judicial.normalize("財團法人高雄市私立測試育幼院")), [])
+        self.assertEqual([h[2] for h in idx.find(judicial.normalize("財團法人臺南縣私立測試育幼院"))], ["1"])
+
     def test_tai_variants_and_short_names(self):
         idx = judicial.NameIndex({"臺灣測試協會總會": "1", "慈雲宮": "2"})
         self.assertEqual([h[2] for h in idx.find(judicial.normalize("台灣測試協會總會與慈雲宮"))], ["1"])
@@ -124,6 +141,20 @@ class MatchTests(unittest.TestCase):
     def test_admin_party(self):
         items = judicial.match(judgment("synthetic_admin_party.json"), self.idx)
         self.assertEqual([(i.ubn, i.data["content"]) for i in items], [("33333333", "行政判決：公益勸募條例（組織為原告）")])
+
+    def test_namesakes_each_go_to_review_with_warning(self):
+        # 名冊真的有：同一個協會在縣市升格前後各登記一個統編
+        idx = judicial.NameIndex({**ORGS, "社團法人臺北縣測試兒童福利基金會": "55555555",
+                                  "財團法人新北市測試兒童福利基金會": "66666666"})
+        doc = load("synthetic_staff_embezzle.json")
+        doc["JFULLX"]["JFULLCONTENT"] = doc["JFULLX"]["JFULLCONTENT"].replace(
+            "財團法人測試兒童福利基金會之執行", "社團法人臺北縣測試兒童福利基金會之執行")
+        items = judicial.match(judicial.parse_doc(doc), idx)
+        hit = {i.ubn: i for i in items if i.ubn in ("55555555", "66666666")}
+        self.assertEqual(set(hit), {"55555555", "66666666"})
+        self.assertIn("名冊裡有 2 個組織叫這個名稱", hit["55555555"].data["reason"])
+        lone = next(i for i in judicial.match(judgment("synthetic_staff_embezzle.json"), self.idx))
+        self.assertNotIn("名冊裡有", lone.data["reason"])
 
     def test_same_judgment_same_hash(self):
         a = judicial.match(judgment("synthetic_admin_party.json"), self.idx)[0]
