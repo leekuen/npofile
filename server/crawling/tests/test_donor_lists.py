@@ -154,7 +154,10 @@ class ReclassifyTests(TestCase):
         manual = Donor.objects.create(name="星巴克", kind=Donor.Kind.COMPANY, kind_manual=True)
         church = Donor.objects.create(name="Great Commission Church International", kind=Donor.Kind.INDIVIDUAL,
                                       kind_manual=True)
+        platform = Donor.objects.create(name="MOMO", kind=Donor.Kind.INDIVIDUAL)
         call_command("reclassify_donors")
+        platform.refresh_from_db()
+        self.assertTrue(platform.hidden)  # 平台彙總：隱藏，金額併入匿名
         auto.refresh_from_db()
         manual.refresh_from_db()
         church.refresh_from_db()

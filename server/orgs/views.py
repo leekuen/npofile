@@ -1,13 +1,13 @@
 import re
 
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 
-from . import donor_rules, scoring
-from .models import Donor, Organization
+from . import donor_rules, period, scoring
+from .models import AnnualFundraising, Donor, Organization, Project
 from .serializers import (
     DonorDetailSerializer,
     DonorListSerializer,
@@ -41,7 +41,11 @@ class OrganizationList(ListAPIView):
 @api_view(["GET"])
 def organization_detail(request, ubn):
     qs = scoring.with_penalty_count(
-        Organization.objects.prefetch_related("annual_records", "projects", "penalties", "projects__donor_summary")
+        Organization.objects.prefetch_related(
+            Prefetch("annual_records", queryset=AnnualFundraising.objects.filter(period.annual_q())),
+            Prefetch("projects", queryset=Project.objects.filter(period.project_q())),
+            "penalties",
+        )
     )
     org = get_object_or_404(qs, ubn=ubn)
     return Response(OrganizationDetailSerializer(org).data)
@@ -53,7 +57,10 @@ def stats(request):
     return Response(
         {
             "organizations": orgs.count(),
-            "with_fundraising": orgs.filter(Q(annual_records__isnull=False) | Q(projects__isnull=False)).distinct().count(),
+            "with_fundraising": orgs.filter(
+                period.annual_q("annual_records__") | (Q(projects__isnull=False) & period.project_q("projects__"))
+            ).distinct().count(),
+            "since_roc_year": period.since_roc_year(),
             "penalized_5y": orgs.filter(scoring.penalty_5y_filter("penalties__")).distinct().count(),
         }
     )

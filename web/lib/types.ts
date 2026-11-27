@@ -22,6 +22,7 @@ export interface Stats {
   organizations: number;
   with_fundraising: number;
   penalized_5y: number;
+  since_roc_year: number;
 }
 
 export interface Filters {
@@ -64,8 +65,10 @@ export interface Penalty {
   id: number;
   decided_on: string | null;
   authority: string;
+  document_no: string;
   content: string;
   fine_text: string;
+  reason: string;
   source_name: string;
   source_url: string;
 }
@@ -115,6 +118,7 @@ export interface OrgDetail extends OrgSummary {
   corporate_donors: CorporateDonorRank[];
   individual_donors: { name: string; total: number; count: number }[];
   donor_summary: DonorSummary | null;
+  since_roc_year: number;
   updated_at: string;
 }
 

@@ -5,6 +5,7 @@ from npofile_crawler.http import PoliteClient
 
 from crawling.ingest import ensure_sources, run_source
 from crawling.models import CrawlerSource
+from orgs import period
 
 
 class Command(BaseCommand):
@@ -36,7 +37,9 @@ class Command(BaseCommand):
                 if source.key != "mohw_activities":
                     raise CommandError("--group 只能搭配 mohw_activities")
                 client = PoliteClient(min_interval=settings.CRAWLER_MIN_INTERVAL)
-                items = mohw.fetch_activities_for(client, group, settings.DONOR_INDIVIDUAL_THRESHOLD)
+                items = mohw.fetch_activities_for(
+                    client, group, settings.DONOR_INDIVIDUAL_THRESHOLD, period.since_roc_year()
+                )
             try:
                 run = run_source(source, limit=limit, items=items, min_interval=settings.CRAWLER_MIN_INTERVAL)
             finally:

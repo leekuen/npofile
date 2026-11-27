@@ -37,7 +37,7 @@ export async function DonorDetailView({ params }: { params: Promise<{ id: string
           </p>
         </div>
         <Card className="w-full shrink-0 sm:w-72">
-          <p className="text-sm text-slate-600">清冊上的捐款總額</p>
+          <p className="text-sm text-slate-600">近 5 年清冊上的捐款總額</p>
           <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{formatMoney(donor.total)}</p>
           <p className="mt-1 text-sm text-slate-600">
             捐給 {formatNumber(donor.org_count)} 個組織，共 {formatNumber(donor.donation_count)} 筆

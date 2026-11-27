@@ -10,14 +10,15 @@ from __future__ import annotations
 
 from django.db.models import Count, Q, QuerySet, Sum
 
+from . import period
 from .models import Donation, Donor, DonorListSummary, Organization
 
 RANKING_SIZE = 20
 
 
 def visible_donations(qs: QuerySet[Donation]) -> QuerySet[Donation]:
-    """前台看得到的逐筆：被隱藏的捐款人整筆拿掉；標匿名的照列，名稱顯示「匿名」。"""
-    return qs.exclude(donor__hidden=True)
+    """前台看得到的逐筆：只算近 5 年；被隱藏的捐款人整筆拿掉；標匿名的照列，名稱顯示「匿名」。"""
+    return qs.filter(period.donation_q()).exclude(donor__hidden=True)
 
 
 def ranked_donations(qs: QuerySet[Donation]) -> QuerySet[Donation]:
@@ -57,7 +58,8 @@ def individual_ranking(org: Organization, size: int = RANKING_SIZE) -> list[dict
 
 
 def org_summary(org: Organization) -> dict | None:
-    agg = DonorListSummary.objects.filter(project__organization=org).aggregate(
+    summaries = DonorListSummary.objects.filter(period.project_q("project__"), project__organization=org)
+    agg = summaries.aggregate(
         lists=Count("id"),
         total_rows=Sum("total_rows"),
         total_amount=Sum("total_amount"),
@@ -68,8 +70,8 @@ def org_summary(org: Organization) -> dict | None:
     )
     if not agg["lists"]:
         return None
-    hidden = org.donations.filter(donor__hidden=True).aggregate(n=Count("id"), amount=Sum("amount"))
-    threshold = DonorListSummary.objects.filter(project__organization=org).values_list("threshold", flat=True).first()
+    hidden = org.donations.filter(period.donation_q(), donor__hidden=True).aggregate(n=Count("id"), amount=Sum("amount"))
+    threshold = summaries.values_list("threshold", flat=True).first()
     return {
         "lists": agg["lists"],
         "total_rows": agg["total_rows"] or 0,
@@ -86,9 +88,9 @@ def public_donors() -> QuerySet[Donor]:
     return (
         Donor.objects.filter(kind__in=Donor.PUBLIC_KINDS, hidden=False)
         .annotate(
-            total=Sum("donations__amount"),
-            donation_count=Count("donations", distinct=True),
-            org_count=Count("donations__organization", distinct=True),
+            total=Sum("donations__amount", filter=period.donation_q("donations__")),
+            donation_count=Count("donations", filter=period.donation_q("donations__"), distinct=True),
+            org_count=Count("donations__organization", filter=period.donation_q("donations__"), distinct=True),
         )
         .filter(donation_count__gt=0)
     )
@@ -96,7 +98,8 @@ def public_donors() -> QuerySet[Donor]:
 
 def donor_by_org(donor: Donor) -> list[dict]:
     rows = (
-        donor.donations.values("organization__ubn", "organization__name")
+        donor.donations.filter(period.donation_q())
+        .values("organization__ubn", "organization__name")
         .annotate(total=Sum("amount"), count=Count("id"))
         .order_by("-total")
     )

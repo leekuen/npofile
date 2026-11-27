@@ -13,7 +13,7 @@ from npofile_crawler.http import PoliteClient
 from npofile_crawler.items import Item
 from npofile_crawler.sources import SOURCES
 
-from orgs import scoring
+from orgs import period, scoring
 from orgs.models import (
     CRAWLABLE_FIELDS,
     AnnualFundraising,
@@ -65,8 +65,9 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
             try:
                 if items is None:
                     client = PoliteClient(min_interval=min_interval)
-                    extra = {"threshold": settings.DONOR_INDIVIDUAL_THRESHOLD} if source.key == "mohw_activities" else {}
-                    items = SOURCES[source.key].fetch(client, limit, **extra)
+                    src = SOURCES[source.key]
+                    values = {"threshold": settings.DONOR_INDIVIDUAL_THRESHOLD, "since_roc": period.since_roc_year()}
+                    items = src.fetch(client, limit, **{k: values[k] for k in src.options})
                 for item in items:
                     run.fetched += 1
                     batch.append(item)
@@ -223,16 +224,26 @@ def _apply_child(rec: CrawlRecord, org: Organization, source_name: str) -> None:
             project.name = d["name"][:300]
             project.save()
     elif rec.kind == "penalty":
-        Penalty.objects.update_or_create(
+        # 團體頁的裁處卡片欄位少、違規公告的完整：同一筆（同編號）只補有值的欄位，不拿空值蓋掉
+        values = {
+            "decided_on": _date(d.get("decided_on")),
+            "authority": d.get("authority", ""),
+            "document_no": (d.get("document_no") or "")[:200],
+            "content": d.get("content", ""),
+            "fine_text": (d.get("fine_text") or "")[:300],
+            "reason": d.get("reason", ""),
+        }
+        values = {k: v for k, v in values.items() if v not in (None, "")}
+        penalty, created = Penalty.objects.get_or_create(
             organization=org, source_name=source_name, external_id=rec.external_id,
-            defaults={
-                "decided_on": _date(d.get("decided_on")),
-                "authority": d.get("authority", ""),
-                "content": d.get("content", ""),
-                "fine_text": d.get("fine_text", "")[:300],
-                "source_url": rec.source_url,
-            },
+            defaults={"source_url": rec.source_url, **values},
         )
+        if not created:
+            for k, v in values.items():
+                setattr(penalty, k, v)
+            if "violationDetails" in rec.source_url:
+                penalty.source_url = rec.source_url
+            penalty.save()
     elif rec.kind == "donor_list":
         _apply_donor_list(rec, org, source_name)
 

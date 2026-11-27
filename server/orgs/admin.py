@@ -51,7 +51,10 @@ class ProjectInline(admin.StackedInline):
 class PenaltyInline(admin.StackedInline):
     model = Penalty
     extra = 0
-    fields = (("decided_on", "authority"), "content", "fine_text", ("source_name", "source_url", "external_id"))
+    fields = (
+        ("decided_on", "authority", "document_no"), "content", "fine_text", "reason",
+        ("source_name", "source_url", "external_id"),
+    )
 
 
 @admin.register(Organization)

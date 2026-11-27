@@ -17,18 +17,21 @@ from .items import money, roc_date
 
 COMPANY, GROUP, INDIVIDUAL, ANONYMOUS = "company", "group", "individual", "anonymous"
 
-ANON_RE = re.compile(r"不公開|匿名|有心人|善心人|無名氏|愛心人士")
+# 匿名，以及金流平台／通路把很多筆小額捐款併成一筆的名稱（不是那家平台自己捐的）
+ANON_RE = re.compile(
+    r"不公開|匿名|有心人|善心人|無名氏|愛心人士|^MOMO$|LINE ?PAY|街口|超商|便利商店|門市捐款|發票捐贈", re.IGNORECASE
+)
 COMPANY_RE = re.compile(r"公司|企業社|商行|商號|工作室|銀行|實業|事務所|診所|藥局|有限|股份|保險|證券|行號")
 GROUP_RE = re.compile(
     r"基金會|協會|學會|公會|扶輪社|獅子會|同濟會|青商會|教會|寺|宮|廟|禪|佛堂|功德會|學校|國小|國中|高中|高工|高商|大學|幼兒園|"
-    r"社區發展|里辦公處|聯誼會|校友會|合作社|農會|漁會|醫院"
+    r"社區發展|里辦公處|聯誼會|校友會|合作社|農會|漁會|醫院|小學|中學|實驗教育"
 )
 COMPANY_EN_RE = re.compile(
     r"\b(plc|inc|ltd|llc|corp|corporation|company|co\.|holdings|limited|gmbh|bank|bhd|pte)\b", re.IGNORECASE
 )
 GROUP_EN_RE = re.compile(
     r"\b(foundation|association|church|society|club|trust|funds?|ministry|ministries|temple|school|university|"
-    r"college|rotary|lions)\b",
+    r"college|rotary|lions|world vision)\b",
     re.IGNORECASE,
 )
 # 政府機關與宗教場所：名稱結尾判斷（「外交部」「台北真理堂」）

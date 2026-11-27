@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from . import donor_rules, scoring
+from . import donor_rules, period, scoring
 from .models import AnnualFundraising, Donation, Donor, Organization, Penalty, Project
 
 RECENT_DONATIONS = 50
@@ -41,7 +41,9 @@ class ProjectSerializer(serializers.ModelSerializer):
 class PenaltySerializer(serializers.ModelSerializer):
     class Meta:
         model = Penalty
-        fields = ("id", "decided_on", "authority", "content", "fine_text", "source_name", "source_url")
+        fields = (
+            "id", "decided_on", "authority", "document_no", "content", "fine_text", "reason", "source_name", "source_url",
+        )
 
 
 class DonationSerializer(serializers.ModelSerializer):
@@ -71,6 +73,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     corporate_donors = serializers.SerializerMethodField()
     individual_donors = serializers.SerializerMethodField()
     donor_summary = serializers.SerializerMethodField()
+    since_roc_year = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
@@ -78,7 +81,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
             "ubn", "name", "org_type", "representative", "registered_address", "contact_address", "phone",
             "website", "city", "purposes", "status", "status_label", "source_links", "disclosure_score",
             "penalty_count_5y", "score", "annual_records", "projects", "penalties", "donations",
-            "corporate_donors", "individual_donors", "donor_summary",
+            "corporate_donors", "individual_donors", "donor_summary", "since_roc_year",
             "updated_at",
         )
 
@@ -97,6 +100,9 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
 
     def get_donor_summary(self, obj):
         return donor_rules.org_summary(obj)
+
+    def get_since_roc_year(self, obj):
+        return period.since_roc_year()
 
 
 class DonorListSerializer(serializers.ModelSerializer):
@@ -133,5 +139,6 @@ class DonorDetailSerializer(DonorListSerializer):
         return donor_rules.donor_by_org(obj)
 
     def get_donations(self, obj):
-        qs = obj.donations.select_related("organization", "project").order_by("-donated_on", "-amount")
+        qs = obj.donations.filter(period.donation_q()).select_related("organization", "project")
+        qs = qs.order_by("-donated_on", "-amount")
         return DonorDonationSerializer(qs[:DONOR_DETAIL_DONATIONS], many=True).data

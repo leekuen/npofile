@@ -71,7 +71,17 @@ def parse_index(html: str) -> list[str]:
     return ids
 
 
-def parse_group(html: str, url: str) -> list[Item]:
+NAME_YEAR_RE = re.compile(r"^\s*(\d{2,3})\s*年")
+
+
+def name_roc_year(name: str) -> int | None:
+    """「114年度《行動音樂教室》…」→ 114；名稱沒寫年度回 None。"""
+    m = NAME_YEAR_RE.match(name or "")
+    return int(m.group(1)) if m else None
+
+
+def parse_group(html: str, url: str, since_roc: int | None = None) -> list[Item]:
+    """since_roc：只收這個民國年度（含）以後的年度募款與專案；裁處不受限。"""
     soup = BeautifulSoup(html, "html.parser")
     crumb = soup.select_one("li.breadcrumb-item.active")
     name = _text(crumb)
@@ -147,6 +157,8 @@ def parse_group(html: str, url: str) -> list[Item]:
             cells = [_text(c) for c in row.select(".td .content")]
             if len(cells) < 3 or not cells[0].isdigit():
                 continue
+            if since_roc and int(cells[0]) < since_roc:
+                continue
             items.append(
                 Item(
                     kind="annual",
@@ -164,6 +176,9 @@ def parse_group(html: str, url: str) -> list[Item]:
             cells = [_text(c) for c in row.select(".td .content")]
             link = row.find("a", href=ACTIVITY_ID_RE)
             if not cells or not cells[0]:
+                continue
+            year = name_roc_year(cells[0])
+            if since_roc and year is not None and year < since_roc:
                 continue
             href = urljoin(BASE, link["href"]) if link else url
             m = ACTIVITY_ID_RE.search(href)
@@ -253,15 +268,16 @@ def list_activity_ids(client: PoliteClient, org_name: str, page_size: int = 10) 
 
 
 def fetch_activities(client: PoliteClient, limit: int | None = None,
-                     threshold: int = donors.DEFAULT_INDIVIDUAL_THRESHOLD) -> Iterator[Item]:
-    yield from fetch_activities_for(client, list_group_ids(client, limit=limit), threshold)
+                     threshold: int = donors.DEFAULT_INDIVIDUAL_THRESHOLD, since_roc: int | None = None) -> Iterator[Item]:
+    yield from fetch_activities_for(client, list_group_ids(client, limit=limit), threshold, since_roc)
 
 
-def fetch_activities_for(client: PoliteClient, group_ids, threshold: int = donors.DEFAULT_INDIVIDUAL_THRESHOLD) -> Iterator[Item]:
+def fetch_activities_for(client: PoliteClient, group_ids, threshold: int = donors.DEFAULT_INDIVIDUAL_THRESHOLD,
+                         since_roc: int | None = None) -> Iterator[Item]:
     """每個團體：列出所有勸募活動 → 活動頁補專案欄位 → 有捐贈人資料就下載清冊整理成 donor_list。"""
     for gid in group_ids:
         group_url = GROUP_URL.format(gid=gid)
-        group_items = parse_group(client.get(group_url).text, group_url)
+        group_items = parse_group(client.get(group_url).text, group_url, since_roc=since_roc)
         org = next((i for i in group_items if i.kind == "org"), None)
         if org is None:
             continue
@@ -271,6 +287,10 @@ def fetch_activities_for(client: PoliteClient, group_ids, threshold: int = donor
             project, donors_url = parse_activity(client.get(url).text, url, org.ubn)
             if project is None:
                 continue
+            start = project.data.get("start_date")
+            year = start.year - 1911 if start else name_roc_year(project.data["name"])
+            if since_roc and year is not None and year < since_roc:
+                continue  # 舊活動：不收、也不下載清冊
             yield project
             if donors_url:
                 try:
@@ -306,7 +326,7 @@ def list_group_ids(client: PoliteClient, limit: int | None = None, page_size: in
         offset += len(ids)
 
 
-def fetch(client: PoliteClient, limit: int | None = None) -> Iterator[Item]:
+def fetch(client: PoliteClient, limit: int | None = None, since_roc: int | None = None) -> Iterator[Item]:
     for gid in list_group_ids(client, limit=limit):
         url = GROUP_URL.format(gid=gid)
-        yield from parse_group(client.get(url).text, url)
+        yield from parse_group(client.get(url).text, url, since_roc=since_roc)

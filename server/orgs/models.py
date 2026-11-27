@@ -1,3 +1,5 @@
+import re
+
 from django.core.validators import RegexValidator
 from django.db import models
 
@@ -159,6 +161,10 @@ class Project(SourceMixin):
     result_filed_on = models.DateField("成果備查日期", null=True, blank=True)
     closed_filed_on = models.DateField("結案備查日期", null=True, blank=True)
     description = models.TextField("成果／說明", blank=True)
+    period_year = models.PositiveSmallIntegerField(
+        "年度（民國）", null=True, blank=True, db_index=True, editable=False,
+        help_text="依開始日期，沒有就看名稱開頭的年度、再沒有看成果備查日期；用來判斷是否在近 5 年內。",
+    )
 
     class Meta:
         verbose_name = "捐款專案"
@@ -167,6 +173,22 @@ class Project(SourceMixin):
 
     def __str__(self):
         return self.name
+
+    def compute_period_year(self) -> int | None:
+        if self.start_date:
+            return self.start_date.year - 1911
+        m = re.match(r"^\s*(\d{2,3})\s*年", self.name or "")
+        if m:
+            return int(m.group(1))
+        if self.result_filed_on:
+            return self.result_filed_on.year - 1911
+        return None
+
+    def save(self, *args, **kwargs):
+        self.period_year = self.compute_period_year()
+        if kwargs.get("update_fields") is not None:
+            kwargs["update_fields"] = {*kwargs["update_fields"], "period_year"}
+        super().save(*args, **kwargs)
 
 
 class DonorListSummary(models.Model):
@@ -197,8 +219,10 @@ class Penalty(SourceMixin):
     external_id = models.CharField("來源編號", max_length=50, blank=True)
     decided_on = models.DateField("處分日期", null=True, blank=True)
     authority = models.CharField("處分機關", max_length=200, blank=True)
+    document_no = models.CharField("文號", max_length=200, blank=True)
     content = models.TextField("處分內容")
     fine_text = models.CharField("罰鍰", max_length=300, blank=True)
+    reason = models.TextField("處分理由", blank=True)
 
     class Meta:
         verbose_name = "受裁罰紀錄"

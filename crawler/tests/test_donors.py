@@ -31,8 +31,13 @@ class ClassifyTests(unittest.TestCase):
             "MOMO捐款有心人": donors.ANONYMOUS,
             "鼎鼎聯合行銷股份有限公司 有心人捐款": donors.ANONYMOUS,  # 金流平台彙總，不是企業
             "Line Pay 有心人": donors.ANONYMOUS,
+            "MOMO": donors.ANONYMOUS,
+            "OK超商門市捐款(助學活動)": donors.ANONYMOUS,
+            "新北市私立育才國民小學": donors.GROUP,
+            "World Vision Korea": donors.GROUP,
             "": donors.ANONYMOUS,
             "王小明": donors.INDIVIDUAL,
+            "林國民": donors.INDIVIDUAL,  # 姓名裡有「國民」不能被當成學校
             "李健行": donors.INDIVIDUAL,  # 「行」結尾的姓名不能被當成商行
             "Stephanie": donors.INDIVIDUAL,
             "SHANG-CHI CHEN": donors.INDIVIDUAL,
@@ -173,3 +178,24 @@ class FetchActivitiesTests(unittest.TestCase):
         kinds = [i.kind for i in items]
         self.assertEqual(kinds.count("donor_list"), 0)
         self.assertGreater(kinds.count("project"), 6)  # 團體頁的專案＋6 個活動頁都還在
+
+
+class FetchActivitiesSinceTests(unittest.TestCase):
+    FakeResp = FetchActivitiesTests.FakeResp
+    make_client = FetchActivitiesTests.make_client
+
+    def test_old_activities_are_skipped_without_download(self):
+        downloads = []
+        client = self.make_client()
+        original = client.get
+
+        def counting_get(url, **kw):
+            if "downloadDonors" in url:
+                downloads.append(url)
+            return original(url, **kw)
+
+        client.get = counting_get
+        # 存下來的活動頁是民國 114 年開始：since=115 → 全部略過、一份清冊都不下載
+        items = list(mohw.fetch_activities_for(client, ["10057"], since_roc=115))
+        self.assertEqual([i for i in items if i.kind == "donor_list"], [])
+        self.assertEqual(downloads, [])
