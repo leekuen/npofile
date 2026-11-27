@@ -53,3 +53,6 @@ out/
 db.sqlite3
 staticfiles/
 *.egg-info/
+
+# Docker Compose 的本機資料（compose.yaml 的預設路徑）
+/data/

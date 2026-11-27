@@ -1,0 +1,115 @@
+# Docker Compose 整套測試（LK-14）：在 x86 與 ARM64（Apple Silicon 同架構）的機器上各跑一次
+# 建映像檔 → 全部啟動 → 經過 nginx 打首頁／API／管理後台／靜態檔 → 登入的 CSRF → 後端測試 → 備份一次
+name: docker
+
+on:
+  push:
+    branches: [stage, prod, "feature/**"]
+    paths:
+      - compose.yaml
+      - .env.example
+      - .dockerignore
+      - docker/**
+      - server/**
+      - crawler/**
+      - web/**
+      - deploy/run-job.sh
+      - deploy/backup-db.sh
+      - .github/workflows/docker.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compose:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # 自動更新的測試要退回上一個 commit
+
+      - name: 測試用的 .env
+        run: |
+          cp .env.example .env
+          sed -i \
+            -e "s/^DOMAIN=.*/DOMAIN=npofile.example/" \
+            -e "s/^DJANGO_SECRET_KEY=.*/DJANGO_SECRET_KEY=$(python3 -c 'import secrets;print(secrets.token_urlsafe(50))')/" \
+            -e "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(python3 -c 'import secrets;print(secrets.token_urlsafe(24))')/" \
+            -e "s/^COMPOSE_PROFILES=.*/# COMPOSE_PROFILES=tunnel/" \
+            -e "s/^DJANGO_SECURE_COOKIES=.*/DJANGO_SECURE_COOKIES=false/" \
+            .env
+
+      - name: 建置並啟動
+        run: docker compose up -d --build --wait --wait-timeout 900
+
+      - name: 架構
+        run: |
+          echo "runner: $(uname -m)"
+          echo "backend: $(docker compose exec -T backend uname -m)"
+          echo "web: $(docker compose exec -T web uname -m)"
+          docker compose ps
+
+      - name: 經過 nginx 打各個入口
+        run: |
+          set -e
+          for p in / /api/stats /admin/login/ /static/admin/css/base.css /login; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8080$p")
+            echo "$code $p"
+            [ "$code" = 200 ]
+          done
+          curl -fsS http://127.0.0.1:8080/api/stats; echo
+
+      - name: 登入流程的 CSRF
+        run: |
+          set -e
+          B=http://127.0.0.1:8080
+          curl -fsS -c cj -b cj -o /dev/null "$B/api/auth/csrf"
+          T=$(awk '$6=="csrftoken"{print $7}' cj)
+          body=$(curl -s -b cj -H 'Content-Type: application/json' -H "X-CSRFToken: $T" -H "Origin: https://npofile.example" \
+            -d '{"email":"nobody@example.invalid","password":"wrong-password-xyz"}' "$B/api/auth/login")
+          echo "$body"
+          echo "$body" | grep -q invalid_credentials
+          code=$(curl -s -o /dev/null -w '%{http_code}' -b cj -H 'Content-Type: application/json' \
+            -d '{"email":"x@example.invalid","password":"y"}' "$B/api/auth/login")
+          echo "沒帶 token：$code"
+          [ "$code" = 403 ]
+
+      - name: 後端測試（在映像檔裡、連 PostgreSQL）
+        run: docker compose exec -T -u app backend python manage.py test --noinput
+
+      - name: 排程 container 跑一次備份
+        run: |
+          set -e
+          docker compose exec -T -u app scheduler /app/deploy/run-job.sh backup /app/deploy/backup-db.sh
+          cat data/logs/backup.log
+          ls -l data/backups
+          ls data/backups/*.dump
+
+      - name: 自動更新（模擬這台是舊版 → updater 抓到新版並重建）
+        run: |
+          set -e
+          new=$(git rev-parse HEAD)
+          # 先備好 updater 的映像檔與腳本（上一個 commit 不一定有它們）
+          docker compose --profile autoupdate build updater
+          cp docker/auto-update.sh /tmp/auto-update.sh
+          git reset -q --hard HEAD~1
+          echo "退回：$(git log -1 --format='%h %s')"
+          docker run --rm -v "$PWD:$PWD" -w "$PWD" -v /var/run/docker.sock:/var/run/docker.sock             -v /tmp/auto-update.sh:/auto-update.sh:ro -e AUTO_UPDATE_BRANCH="$GITHUB_REF_NAME"             --entrypoint sh npofile-updater /auto-update.sh --once
+          echo "updater 之後：$(git log -1 --format='%h %s')"
+          [ "$(git rev-parse HEAD)" = "$new" ]
+          docker compose up -d --wait --wait-timeout 300
+          for p in / /api/stats; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8080$p"); echo "$code $p"; [ "$code" = 200 ]
+          done
+          echo "已是最新時再跑一次（應該什麼都不做）："
+          docker compose --profile autoupdate run --rm -e AUTO_UPDATE_BRANCH="$GITHUB_REF_NAME" updater --once
+
+      - name: 失敗時印紀錄
+        if: failure()
+        run: docker compose logs --tail 200

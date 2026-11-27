@@ -1,0 +1,10 @@
+# 排程 container（supercronic）的時間表；時區看 container 的 TZ（Asia/Taipei）。
+# 每個工作包在 run-job.sh 裡：輸出寫進 /logs/<名稱>.log；有設 HEALTHCHECKS_PING_KEY 時，失敗或沒準時跑完會寄信。
+# 跟 deploy/crontab（直接裝在主機上的版本）是同一份時間表，改一邊要改另一邊。
+
+# 每天 02:00 備份資料庫（在爬蟲動資料之前，爬壞了可以退回前一天）
+0 2 * * * /app/deploy/run-job.sh backup /app/deploy/backup-db.sh
+# 每天 02:30 跑所有啟用中的爬蟲來源（每次抓幾筆照管理後台的設定）
+30 2 * * * /app/deploy/run-job.sh crawl python manage.py crawl all
+# 每天 05:30 清掉近 5 年以外的資料、重算揭露指數（「近五年」隨日期移動）
+30 5 * * * /app/deploy/run-job.sh scores bash -c "python manage.py prune_old_records && python manage.py recompute_scores"
