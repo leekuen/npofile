@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
-from . import fia, grants, mohw, orgsite, violations, wabay
+from . import fia, grants, judicial, labor, mohw, orgsite, registries, violations, wabay
 from .http import PoliteClient
 from .items import Item
 
@@ -22,12 +22,15 @@ class Source:
     data_name: str = ""
     # fetch 另外收哪些參數（後端依設定給值）：threshold＝清冊個人門檻、since_roc＝只收這個民國年度起、
     # plan＝記住抓到哪裡的 mohw.ActivityPlan（後端用資料庫版本）、revisit＝要回頭再看的專案編號、orgs＝（統編, 名稱）名冊、
+    # orgs_city＝（統編, 名稱, 所在縣市）名冊、seen_regs＝已存過的法院登記公告編號、floor_reached＝法院登記公告回補完了沒、listed＝列表讀到幾筆（[0]，給 crawl 判斷網站改版）、
     # targets＝要爬的（統編, 官網）、extractor＝讀報告數字的 financials.ClaudeExtractor（沒設金鑰是 None）、seen_docs＝已讀過數字的檔案網址
     options: tuple[str, ...] = ()
     # 統編不在組織資料庫的資料不存（例：挖貝上公司提的商品集資），不進審核清單
     known_orgs_only: bool = False
     # 先審核的來源：同一筆（同編號）核准過之後，數字更新直接上架，不再每天進審核清單
     update_approved: bool = False
+    # 整份重新下載的年更資料（LK-32）：「crawl all」距上次成功不到這麼多天就略過（0＝每次都跑）；指名跑不受限
+    every_days: int = 0
 
     @property
     def record_name(self) -> str:
@@ -61,9 +64,44 @@ SOURCES = {
                "政府公開資料：勞動部就業安定基金（多元就業開發方案、職業訓練、身障就業等）每季公開的補(捐)助核定案件；"
                "近 5 年每年取最新一季的累計表，對組織的規則同衛福部補助",
                options=("since_roc", "orgs")),
+        # LK-30：更多部會，規則都同衛福部補助
+        *(
+            Source(key, spec.name, grants.DATASET_PAGE.format(id=spec.id), True, grants.fetcher(spec),
+                   f"政府公開資料：{what}每季公開的補(捐)助核定案件；近 5 年每年取最新一季的累計表，對組織的規則同衛福部補助",
+                   options=("since_roc", "orgs"))
+            for key, spec, what in (
+                ("k12ea_grants", grants.K12EA, "教育部國民及學前教育署"),
+                ("wda_grants", grants.WDA, "勞動部勞動力發展署及所屬分署（公務預算與特別預算；寫「對個人」的列不收）"),
+                ("nidf_grants", grants.NIDF, "新住民發展基金（內政部移民署）對個人及團體"),
+                ("oac_grants", grants.OAC, "海洋委員會（含海巡署、海保署等所屬；111、112 年只公開 PDF，讀不到）"),
+            )
+        ),
+        *(
+            Source(spec.key, spec.source_name, labor.DATASET_PAGE.format(id=spec.dataset), True, labor.fetcher(spec),
+                   f"政府公開資料：{spec.county}依勞動基準法第 80-1 條公布的違反事業單位（每月更新的總表）；"
+                   "只收名稱像非營利組織或對得上站上組織的處分，負責人姓名不存；"
+                   "名稱像非營利組織但對不上的，進審核清單（統編空白）等管理員指定組織或退回",
+                   options=("orgs",))
+            for spec in labor.SPECS
+        ),
+        Source("judicial", judicial.SOURCE_NAME, judicial.LIST_PAGE, True, judicial.fetch,
+               "政府公開資料：司法院每天公告的社團法人、財團法人設立、變更、解散、清算登記（108-12-09 起全部保留）；"
+               "法人名稱跟組織名稱完全相同且唯一才連（同名的用法院所在縣市挑），對不到的記下不顯示、後台可手動指定；"
+               "董事、監察人姓名不存；不改財政部名冊的營運狀態。第一次會回補全部，之後每天只抓新的；「每次最多抓幾筆」算的是公告筆數",
+               options=("orgs_city", "seen_regs", "floor_reached", "listed")),
         Source("orgsite", "組織官網（年報與財務報告）", "", False, orgsite.fetch,
                "組織自己官網公開的近 5 年財務報告、年報、工作／成果報告；設了 ANTHROPIC_API_KEY 才會讀出報告裡的數字"
                "（會產生 API 費用）。「每次最多抓幾筆」算的是組織數",
                data_name=orgsite.SOURCE_NAME, options=("since_roc", "targets", "extractor", "seen_docs")),
+        Source("moe_registry", registries.MOE_NAME, registries.DATASET_PAGE.format(id=registries.MOE_DATASET), True,
+               registries.fetch_moe,
+               "政府公開資料：教育部主管的教育財團法人名冊（主管機關、登記財產、成立宗旨、服務對象、基金會狀態）；"
+               "每月檢查一次。名稱跟組織名稱完全相同且唯一才連起來，對不上的記在「主管機關名冊」等管理員指定；"
+               "董事長、執行長、聯絡人的姓名與聯絡方式不存",
+               options=("orgs",), every_days=30),
+        Source("einvoice_codes", registries.EINVOICE_NAME, registries.DATASET_PAGE.format(id=registries.EINVOICE_DATASET),
+               True, registries.fetch_einvoice,
+               "政府公開資料：電子發票受捐贈機關或團體的捐贈碼；每月檢查一次。用統一編號對組織，統編不在組織名冊的不顯示",
+               every_days=30),
     )
 }

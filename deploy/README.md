@@ -202,6 +202,7 @@ cd ~/app/server
 .venv/bin/python manage.py crawl mohw                      # 公益勸募團體
 .venv/bin/python manage.py crawl mohw_violations           # 違規公告（全部年度的裁罰）
 .venv/bin/python manage.py crawl mohw_activities          # 勸募活動＋捐贈人清冊：先跑 120 分鐘，之後每晚排程接著抓
+.venv/bin/python manage.py crawl judicial                  # 司法院法人登記公告：第一次回補約 900 頁＋對到組織的內頁，每晚 120 分鐘接著補
 .venv/bin/python manage.py match_companies
 .venv/bin/python manage.py recompute_scores
 ```
