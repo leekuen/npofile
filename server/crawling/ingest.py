@@ -11,6 +11,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
+from npofile_crawler import donors as donor_names
 from npofile_crawler.http import PoliteClient
 from npofile_crawler.items import Item
 from npofile_crawler.sources import SOURCES
@@ -355,22 +356,30 @@ def _apply_donor_list(rec: CrawlRecord, org: Organization, source_name: str) -> 
         organization=org, source_name=source_name, external_id=rec.external_id,
         defaults={"name": d.get("project_name", "")[:300] or "（未命名活動）", "source_url": rec.source_url},
     )
-    kinds = {r["name"]: r["kind"] for r in d.get("rows", []) if r.get("name")}
+    # 用「比對用名稱」對到既有捐款人：台／臺、空白、(股) 不同的寫法都算同一位（LK-16）
+    first: dict[str, dict] = {}
+    for r in d.get("rows", []):
+        if r.get("name"):
+            first.setdefault(donor_names.identity_key(r["name"])[:200], r)
     donors: dict[str, Donor] = {}
-    names = sorted(kinds)
-    for i in range(0, len(names), 900):
-        donors.update(Donor.objects.in_bulk(names[i : i + 900], field_name="name"))
-    missing = [Donor(name=n[:200], kind=kinds[n]) for n in names if n not in donors]
+    keys = sorted(first)
+    for i in range(0, len(keys), 900):
+        donors.update(Donor.objects.in_bulk(keys[i : i + 900], field_name="name_key"))
+    missing = [
+        Donor(name=donor_names.normalize(first[k]["name"])[:200], name_key=k, kind=first[k]["kind"])
+        for k in keys if k not in donors
+    ]
     if missing:
         Donor.objects.bulk_create(missing, ignore_conflicts=True)
-        for i in range(0, len(names), 900):
-            donors.update(Donor.objects.in_bulk(names[i : i + 900], field_name="name"))
+        for i in range(0, len(keys), 900):
+            donors.update(Donor.objects.in_bulk(keys[i : i + 900], field_name="name_key"))
 
     Donation.objects.filter(project=project, source_name=source_name).delete()
     Donation.objects.bulk_create(
         [
             Donation(
-                organization=org, project=project, donor=donors.get(r["name"]), donor_name=r["name"][:200],
+                organization=org, project=project, donor=donors.get(donor_names.identity_key(r["name"])[:200]),
+                donor_name=donor_names.normalize(r["name"])[:200],
                 amount=r.get("amount") or 0, donated_on=_date(r.get("donated_on")),
                 receipt_no=(r.get("receipt_no") or "")[:50], purpose=(r.get("purpose") or "")[:200],
                 source_name=source_name, source_url=rec.source_url,
