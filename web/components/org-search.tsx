@@ -9,12 +9,12 @@ import { EmptyState, ErrorBox, PenaltyBadge, ScoreBadge, Skeleton, StatusBadge }
 
 const PAGE_SIZE = 20;
 
-/** 列表的欄：指數｜組織｜近 5 年實募｜裁罰｜狀態｜箭頭（狀態欄從 md 起；手機只留指數、組織、箭頭） */
+/** 列表的欄：指數｜組織｜近 5 年公開募款｜裁罰｜狀態｜箭頭（狀態欄從 md 起；手機只留指數、組織、箭頭） */
 const ROW =
-  "grid-cols-[3rem_minmax(0,1fr)_1rem] items-center gap-3 px-4 sm:grid-cols-[3rem_minmax(0,1fr)_8rem_5.5rem_1rem] md:grid-cols-[3rem_minmax(0,1fr)_8.5rem_6rem_6rem_1rem]";
+  "grid-cols-[3rem_minmax(0,1fr)_1rem] items-center gap-3 px-4 sm:grid-cols-[3rem_minmax(0,1fr)_8.5rem_5.5rem_1rem] md:grid-cols-[3rem_minmax(0,1fr)_9rem_6rem_6rem_1rem]";
 const DEFAULT_ORDERING = "raised";
 const ORDERINGS = [
-  { value: "raised", label: "近 5 年實募高到低" },
+  { value: "raised", label: "近 5 年公開募款高到低" },
   { value: "score", label: "揭露指數高到低" },
   { value: "name", label: "名稱" },
 ];
@@ -202,7 +202,7 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
           <div aria-hidden className={`${ROW} hidden border-b border-ink-100 py-2 text-xs text-ink-500 sm:grid`}>
             <span className="text-center">指數</span>
             <span>組織</span>
-            <span className="text-right">近 5 年實募</span>
+            <span className="text-right">近 5 年公開募款</span>
             <span>近五年裁罰</span>
             <span className="hidden md:block">營運狀態</span>
             <span />
@@ -218,8 +218,8 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
                       <span className="tabular-nums">統編 {org.ubn}</span>
                       {org.city && <span>{org.city}</span>}
                       {org.org_type && <span>{org.org_type}</span>}
-                      {org.raised_5y > 0 && (
-                        <span className="tabular-nums sm:hidden">近 5 年實募 {formatMoney(org.raised_5y)}</span>
+                      {org.public_raised_5y > 0 && (
+                        <span className="tabular-nums sm:hidden">近 5 年公開募款 {formatMoney(org.public_raised_5y)}</span>
                       )}
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 md:hidden">
                         <StatusBadge status={org.status} label={org.status_label} />
@@ -237,7 +237,7 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
                     )}
                   </div>
                   <span className="hidden text-right font-num text-sm whitespace-nowrap tabular-nums sm:block">
-                    {org.raised_5y > 0 ? formatMoney(org.raised_5y) : <span className="text-ink-400">—</span>}
+                    {org.public_raised_5y > 0 ? formatMoney(org.public_raised_5y) : <span className="text-ink-400">—</span>}
                   </span>
                   <span className="hidden text-sm sm:block">
                     {org.penalty_count_5y > 0 ? (

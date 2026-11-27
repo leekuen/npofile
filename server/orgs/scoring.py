@@ -85,8 +85,37 @@ def breakdown(org: Organization, annual=None, donations_exist=None, projects=Non
     }
 
 
+def public_raised(annual, projects, ref: date | None = None) -> dict:
+    """近 5 年公開募款（LK-20）。
+
+    群眾集資平台沒有勸募字號，分不出哪些錢之後也會報進勸募。為了不重複算，逐年判斷：
+    那一年勸募已申報（實募 > 0）就用勸募；還沒申報（0）才用當年開始的群眾集資補上。
+    群眾集資只算一次性／累計募得，不算每月定期定額。
+    """
+    since = period.since_roc_year(ref)
+    permit_by_year: dict[int, int] = {}
+    for a in annual:
+        if a.year >= since:
+            permit_by_year[a.year] = permit_by_year.get(a.year, 0) + (a.raised or 0)
+    crowd_by_year: dict[int, int] = {}
+    for p in projects:
+        if p.channel == Project.Channel.CROWDFUNDING and period.in_window(p.period_year, ref) and (p.raised or 0) > 0:
+            # 沒有日期的集資當作今年（最可能還沒申報的年度）
+            y = p.period_year if p.period_year is not None else since + period.YEARS - 1
+            crowd_by_year[y] = crowd_by_year.get(y, 0) + p.raised
+    permit = sum(permit_by_year.values())
+    crowd = sum(crowd_by_year.values())
+    crowd_counted = sum(v for y, v in crowd_by_year.items() if permit_by_year.get(y, 0) <= 0)
+    return {
+        "total": permit + crowd_counted,
+        "permit": permit,
+        "crowdfunding": crowd,
+        "crowdfunding_counted": crowd_counted,
+    }
+
+
 def recompute(orgs: QuerySet[Organization] | None = None, chunk: int = 2000) -> int:
-    """重算揭露指數並寫回；回傳有變動的組織數。"""
+    """重算揭露指數與近 5 年公開募款並寫回；回傳有變動的組織數。"""
     qs = (orgs if orgs is not None else Organization.objects.all()).order_by("pk")
     qs = qs.prefetch_related("annual_records", "projects").annotate(
         _donations=Count("donations", filter=period.donation_q("donations__"))
@@ -94,14 +123,13 @@ def recompute(orgs: QuerySet[Organization] | None = None, chunk: int = 2000) -> 
     changed = 0
     batch: list[Organization] = []
     for org in qs.iterator(chunk_size=chunk):
-        total = breakdown(
-            org,
-            annual=list(org.annual_records.all()),
-            projects=list(org.projects.all()),
-            donations_exist=org._donations > 0,
-        )["total"]
-        if total != org.disclosure_score:
+        annual = list(org.annual_records.all())
+        projects = list(org.projects.all())
+        total = breakdown(org, annual=annual, projects=projects, donations_exist=org._donations > 0)["total"]
+        raised = public_raised(annual, projects)["total"]
+        if total != org.disclosure_score or raised != org.public_raised_5y:
             org.disclosure_score = total
+            org.public_raised_5y = raised
             batch.append(org)
         if len(batch) >= chunk:
             changed += _flush(batch)
@@ -112,6 +140,6 @@ def recompute(orgs: QuerySet[Organization] | None = None, chunk: int = 2000) -> 
 def _flush(batch: list[Organization]) -> int:
     n = len(batch)
     if n:
-        Organization.objects.bulk_update(batch, ["disclosure_score"])
+        Organization.objects.bulk_update(batch, ["disclosure_score", "public_raised_5y"])
         batch.clear()
     return n

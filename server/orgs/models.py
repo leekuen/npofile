@@ -43,6 +43,8 @@ class Organization(models.Model):
         "手動鎖定欄位", default=list, blank=True, help_text="管理員手動改過的欄位，爬蟲不會覆蓋。"
     )
     disclosure_score = models.PositiveSmallIntegerField("揭露指數", default=0, db_index=True, editable=False)
+    # 近 5 年公開募款（勸募申報＋群眾集資，同一年度不重複算；口徑見 tickets/LK-20），跟揭露指數一起重算
+    public_raised_5y = models.BigIntegerField("近 5 年公開募款", default=0, db_index=True, editable=False)
     created_at = models.DateTimeField("建立時間", auto_now_add=True)
     updated_at = models.DateTimeField("更新時間", auto_now=True)
 

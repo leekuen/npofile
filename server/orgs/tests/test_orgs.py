@@ -196,33 +196,54 @@ class SettingsTests(SimpleTestCase):
 
 
 class OrgListRaisedOrderingTests(TestCase):
-    """LK-20：首頁預設依近 5 年實募排序；沒有實募的依揭露指數、名稱。"""
+    """LK-20：首頁預設依近 5 年公開募款排序（勸募申報＋群眾集資，同一年度不重複）；沒有的依揭露指數、名稱。"""
 
     def setUp(self):
-        this_year = period.since_roc_year() + period.YEARS - 1
+        self.this_year = period.since_roc_year() + period.YEARS - 1
+        y = self.this_year
         self.big = make_org("10000001", name="甲")
         self.small = make_org("10000002", name="乙")
         self.old_only = make_org("10000003", name="丙")
         self.none_high = make_org("10000004", name="丁", website="https://d.tw")
-        AnnualFundraising.objects.create(organization=self.big, year=this_year, raised=500)
-        AnnualFundraising.objects.create(organization=self.big, year=this_year - 1, raised=300)
-        AnnualFundraising.objects.create(organization=self.small, year=this_year, raised=100)
+        self.crowd = make_org("10000005", name="戊")
+        AnnualFundraising.objects.create(organization=self.big, year=y, raised=500)
+        AnnualFundraising.objects.create(organization=self.big, year=y - 1, raised=300)
+        AnnualFundraising.objects.create(organization=self.small, year=y, raised=100)
         # 早於近 5 年的不算
         AnnualFundraising.objects.create(organization=self.old_only, year=period.since_roc_year() - 1, raised=9999)
-        # 有裁罰也不能讓實募被 join 放大
+        # 有裁罰也不能讓金額被放大
         Penalty.objects.create(organization=self.big, decided_on=date.today(), content="a")
         Penalty.objects.create(organization=self.big, decided_on=date.today(), content="b")
-        for o in Organization.objects.all():
-            scoring.breakdown(o)
+        # 群眾集資：今年勸募還沒申報（0）→ 用集資補上；去年勸募已申報 → 去年的集資不重複算
+        AnnualFundraising.objects.create(organization=self.crowd, year=y, raised=0)
+        AnnualFundraising.objects.create(organization=self.crowd, year=y - 1, raised=40)
+        Project.objects.create(organization=self.crowd, name="今年集資", channel="crowdfunding", raised=600, start_date=date(y + 1911, 3, 1))
+        Project.objects.create(organization=self.crowd, name="去年集資", channel="crowdfunding", raised=70, start_date=date(y + 1910, 3, 1))
+        Project.objects.create(organization=self.crowd, name="定期定額", channel="crowdfunding", raised=None, monthly_raised=999, start_date=date(y + 1911, 5, 1))
+        scoring.recompute()
 
-    def test_default_ordering_is_raised_5y(self):
+    def test_public_raised_rule(self):
+        b = scoring.public_raised(list(self.crowd.annual_records.all()), list(self.crowd.projects.all()))
+        self.assertEqual(b, {"total": 640, "permit": 40, "crowdfunding": 670, "crowdfunding_counted": 600})
+
+    def test_default_ordering_is_public_raised_5y(self):
         r = self.client.get("/api/orgs").json()["results"]
-        self.assertEqual([o["ubn"] for o in r[:2]], ["10000001", "10000002"])
-        self.assertEqual([o["raised_5y"] for o in r[:2]], [800, 100])
-        rest = r[2:]
-        self.assertTrue(all(o["raised_5y"] == 0 for o in rest))
+        self.assertEqual([o["ubn"] for o in r[:3]], ["10000001", "10000005", "10000002"])
+        self.assertEqual([o["public_raised_5y"] for o in r[:3]], [800, 640, 100])
+        rest = r[3:]
+        self.assertTrue(all(o["public_raised_5y"] == 0 for o in rest))
         scores = [o["disclosure_score"] for o in rest]
         self.assertEqual(scores, sorted(scores, reverse=True))
+
+    def test_detail_has_breakdown(self):
+        d = self.client.get("/api/orgs/10000005").json()
+        self.assertEqual(d["public_raised"]["total"], 640)
+
+    def test_stored_total_follows_new_data(self):
+        AnnualFundraising.objects.filter(organization=self.crowd, year=self.this_year).update(raised=900)
+        scoring.recompute(Organization.objects.filter(pk=self.crowd.pk))
+        self.crowd.refresh_from_db()
+        self.assertEqual(self.crowd.public_raised_5y, 940)  # 今年勸募申報後，今年的集資就不再加
 
     def test_score_ordering_still_available(self):
         r = self.client.get("/api/orgs?ordering=score").json()["results"]

@@ -149,10 +149,9 @@ export async function OrgDetailView({
   );
 }
 
-/** 頁首摘要：裁罰、近 5 年實募、專案數，點了跳到對應分頁 */
+/** 頁首摘要：裁罰、近 5 年公開募款、專案數，點了跳到對應分頁 */
 function OrgSummary({ org }: { org: OrgDetail }) {
-  const years = fundedYears(org);
-  const raised = years.reduce((sum, a) => sum + a.raised, 0);
+  const raised = org.public_raised.total;
   const penalized = org.penalty_count_5y > 0;
   const items = [
     {
@@ -166,8 +165,8 @@ function OrgSummary({ org }: { org: OrgDetail }) {
     },
     {
       tab: "donations",
-      label: "近 5 年實募",
-      value: years.length ? formatMoney(raised) : "沒有紀錄",
+      label: "近 5 年公開募款",
+      value: raised > 0 ? formatMoney(raised) : "沒有紀錄",
       tone: "border-ink-200 bg-white text-ink-900",
       icon: null,
     },
@@ -422,8 +421,38 @@ function fundedYears(org: OrgDetail) {
 function DonationsTab({ org }: { org: OrgDetail }) {
   const years = fundedYears(org);
   const maxRaised = Math.max(0, ...years.map((a) => a.raised));
+  const pr = org.public_raised;
   return (
     <div className="space-y-6">
+      {pr.crowdfunding > 0 && (
+        <section>
+          <SectionTitle>近 5 年公開募款</SectionTitle>
+          <Card>
+            <dl className="grid gap-3 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="text-ink-600">合計</dt>
+                <dd className="font-num text-lg font-semibold tabular-nums">{formatMoney(pr.total)}</dd>
+              </div>
+              <div>
+                <dt className="text-ink-600">公益勸募申報</dt>
+                <dd className="font-num font-semibold tabular-nums">{formatMoney(pr.permit)}</dd>
+              </div>
+              <div>
+                <dt className="text-ink-600">群眾集資</dt>
+                <dd className="font-num font-semibold tabular-nums">
+                  {formatMoney(pr.crowdfunding)}
+                  {pr.crowdfunding_counted < pr.crowdfunding && (
+                    <span className="ml-1 text-xs font-normal text-ink-600">計入 {formatMoney(pr.crowdfunding_counted)}</span>
+                  )}
+                </dd>
+              </div>
+            </dl>
+            {pr.crowdfunding_counted < pr.crowdfunding && (
+              <p className="mt-3 text-xs text-ink-600">當年度已申報勸募的，不再加計同年度的群眾集資，避免同一筆捐款算兩次。</p>
+            )}
+          </Card>
+        </section>
+      )}
       <section>
         <SectionTitle>年度募款</SectionTitle>
         {years.length === 0 ? (
@@ -820,7 +849,7 @@ function CrowdfundingCard({ p }: { p: Project }) {
         </div>
       </dl>
       <p className="mt-3 text-xs text-ink-600">
-        金額為挖貝頁面顯示的即時數字，不併入上方的近 5 年實募合計。
+        金額為挖貝頁面顯示的即時數字；當年度的公益勸募還沒申報時，會計入近 5 年公開募款。
       </p>
       <p className="mt-2">
         <SourceNote name={p.source_name} url={p.source_url} />
