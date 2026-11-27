@@ -166,6 +166,10 @@ class Donation(SourceMixin):
 
 
 class Project(SourceMixin):
+    class Channel(models.TextChoices):
+        PERMIT = "permit", "勸募活動"
+        CROWDFUNDING = "crowdfunding", "群眾集資"
+
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="projects", verbose_name="組織")
     external_id = models.CharField("來源編號", max_length=50, blank=True)
     name = models.CharField("專案名稱", max_length=300)
@@ -179,6 +183,12 @@ class Project(SourceMixin):
     result_filed_on = models.DateField("成果備查日期", null=True, blank=True)
     closed_filed_on = models.DateField("結案備查日期", null=True, blank=True)
     description = models.TextField("成果／說明", blank=True)
+    channel = models.CharField(
+        "募款管道", max_length=20, choices=Channel.choices, default=Channel.PERMIT,
+        help_text="群眾集資專案（例：挖貝）不算進揭露指數，見 LK-15。",
+    )
+    monthly_raised = models.BigIntegerField("每月定期定額", null=True, blank=True)
+    backers = models.PositiveIntegerField("參與人次", null=True, blank=True)
     period_year = models.PositiveSmallIntegerField(
         "年度（民國）", null=True, blank=True, db_index=True, editable=False,
         help_text="依開始日期，沒有就看名稱開頭的年度、再沒有看成果備查日期；用來判斷是否在近 5 年內。",

@@ -41,6 +41,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         fields = (
             "id", "name", "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
             "result_filed_on", "closed_filed_on", "description", "source_name", "source_url",
+            "channel", "monthly_raised", "backers",
         )
 
 

@@ -60,6 +60,10 @@ export interface Project {
   description: string;
   source_name: string;
   source_url: string;
+  /** permit＝衛福部勸募活動；crowdfunding＝群眾集資（挖貝，LK-15） */
+  channel: "permit" | "crowdfunding";
+  monthly_raised: number | null;
+  backers: number | null;
 }
 
 export interface Penalty {
@@ -91,7 +95,10 @@ export interface DonationRow {
 export interface ScoreBreakdown {
   basic: number;
   basic_max: number;
-  basic_present: Record<"ubn" | "org_type" | "address" | "phone" | "website" | "purposes", boolean>;
+  basic_present: Record<
+    "ubn" | "org_type" | "address" | "phone" | "website" | "purposes",
+    boolean
+  >;
   fundraising: number;
   fundraising_max: number;
   project: number;
@@ -231,9 +238,33 @@ export interface CategoryOverview {
   org_count: number;
   raised_5y: number;
   penalized_5y: number;
-  top_score: { ubn: string; name: string; city: string; disclosure_score: number }[];
-  top_raised: { ubn: string; name: string; city: string; disclosure_score: number; raised_5y: number }[];
-  top_donors: { donor_id: number; name: string; kind_label: string; total: number; org_count: number }[];
-  penalties: { id: number; decided_on: string | null; content: string; fine_text: string; org_ubn: string; org_name: string }[];
+  top_score: {
+    ubn: string;
+    name: string;
+    city: string;
+    disclosure_score: number;
+  }[];
+  top_raised: {
+    ubn: string;
+    name: string;
+    city: string;
+    disclosure_score: number;
+    raised_5y: number;
+  }[];
+  top_donors: {
+    donor_id: number;
+    name: string;
+    kind_label: string;
+    total: number;
+    org_count: number;
+  }[];
+  penalties: {
+    id: number;
+    decided_on: string | null;
+    content: string;
+    fine_text: string;
+    org_ubn: string;
+    org_name: string;
+  }[];
   penalty_total: number;
 }
