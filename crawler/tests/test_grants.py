@@ -176,5 +176,126 @@ class FetchTests(unittest.TestCase):
         self.assertEqual(len(limited), 3)
 
 
+LK30_ORGS = [
+    ("10000001", "社團法人台中市親子閱讀協會"),
+    ("10000002", "社團法人中華民國全國中小企業總會"),
+    ("05557110", "財團法人瑪利亞社會福利基金會"),
+    ("10000003", "雲林縣紫色姊妹協會"),
+    ("10000004", "社團法人臺南市整體造型交流協會"),
+    ("10000005", "財團法人原住民族文化事業基金會"),
+]
+
+
+class MoreAgenciesParseTests(unittest.TestCase):
+    """LK-30：每個新資料集用一季真實樣本（節錄）。"""
+
+    def items(self, name, spec, year, quarter=3):
+        f = grants.GrantFile(year, quarter, "CSV" if name.endswith(".csv") else "ODS", "u", spec.id)
+        return list(grants.to_items(f, grants.rows_from_table(table(name)), grants.OrgMatcher(LK30_ORGS),
+                                    spec.agency, spec.prefix_re))
+
+    def test_k12ea(self):
+        rows = list(grants.rows_from_table(table("grants_k12ea_115q3.csv")))
+        self.assertEqual(len(rows), 5)  # 空白列跳過；遮名的個人照讀，對組織時對不到
+        self.assertEqual(rows[0]["agency"], "教育部國民及學前教育署")
+        self.assertEqual(rows[0]["approved_on"], date(2026, 1, 1))
+        self.assertEqual(rows[0]["amount"], 66442)
+        items = self.items("grants_k12ea_115q3.csv", grants.K12EA, 115)
+        self.assertEqual([(i.ubn, i.data["amount"]) for i in items], [("10000001", 60000), ("10000001", 130000)])
+        self.assertTrue(all(i.source_url == "https://data.gov.tw/dataset/48670" for i in items))
+
+    def test_wda_skips_individuals_and_strips_branch_prefix(self):
+        rows = list(grants.rows_from_table(table("grants_wda_115q3.csv")))
+        self.assertEqual(len(rows), 4)  # 「對個人之補(捐)助」兩列不收
+        self.assertFalse(any("○" in r["recipient"] or "學員" in r["recipient"] for r in rows))
+        items = self.items("grants_wda_115q3.csv", grants.WDA, 115)
+        by_ubn = {i.ubn: i.data for i in items}
+        self.assertEqual(set(by_ubn), {"10000002", "05557110"})
+        self.assertEqual(by_ubn["10000002"]["recipient"], "社團法人中華民國全國中小企業總會")
+        self.assertEqual(by_ubn["10000002"]["agency"], "勞動部勞動力發展署北基宜花金馬分署")
+        self.assertEqual(by_ubn["10000002"]["approved_on"], date(2026, 5, 27))
+        self.assertEqual(by_ubn["05557110"]["agency"], "勞動部勞動力發展署")
+
+    def test_nidf_big5_dot_dates_and_relay_suffix(self):
+        rows = list(grants.rows_from_table(table("grants_nidf_115q2_big5.csv")))
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(rows[0]["approved_on"], date(2025, 9, 16))
+        self.assertEqual(rows[0]["amount"], 1230523)
+        items = self.items("grants_nidf_115q2_big5.csv", grants.NIDF, 115, 2)
+        # 「（雲林縣政府層轉）」這種結尾括號拿掉再對
+        self.assertEqual(sorted(i.ubn for i in items), ["10000003", "10000004"])
+        self.assertTrue(all(i.data["agency"] == "新住民發展基金" for i in items))
+
+    def test_oac_ods_skips_subtotal_rows(self):
+        rows = list(grants.rows_from_table(table("grants_oac_115q3.ods")))
+        self.assertEqual([r["recipient"] for r in rows],
+                         ["財團法人吳三連台灣史料基金會", "財團法人原住民族文化事業基金會", "退休人員"])
+        self.assertEqual(rows[1]["approved_on"], date(2026, 6, 3))
+        items = self.items("grants_oac_115q3.ods", grants.OAC, 115)
+        self.assertEqual([(i.ubn, i.data["amount"]) for i in items], [("10000005", 1000000)])
+
+
+class MoreAgenciesPickTests(unittest.TestCase):
+    def test_k12ea_only_cumulative_summary_tables(self):
+        dist = [
+            {"resourceDescription": f"教育部國民及學前教育署{y}年度截至第{q}季止對民間團體補(捐)助經費彙總表",
+             "resourceFormat": "CSV", "resourceDownloadUrl": f"https://example.test/k{y}q{q}.csv"}
+            for y in (114, 115) for q in (1, 2, 3, 4) if (y, q) != (115, 4)
+        ] + [{"resourceDescription": "教育部國民及學前教育署 110年度第4季對民間團體及個人補(捐)助項目執行情形表",
+              "resourceFormat": "CSV", "resourceDownloadUrl": "https://example.test/k110.csv"}]
+        files = grants.pick_files(dist, since_roc=110, spec=grants.K12EA)
+        self.assertEqual([(f.year, f.quarter) for f in files], [(115, 3), (114, 4)])
+
+    def test_wda_keeps_one_file_per_budget_kind(self):
+        t = "{y}年第{q}季勞動部勞動力發展署及所屬{b}對民間團體及個人補(捐)助經費季報表{x}"
+        dist = [
+            {"resourceDescription": t.format(y=115, q=q, b=b, x=x), "resourceFormat": "CSV",
+             "resourceDownloadUrl": f"https://example.test/{q}{b}{x}.csv"}
+            for q, b, x in [(2, "公務預算", ""), (3, "公務預算", ""), (2, "特別預算", ""), (3, "特別預算", ""),
+                            (2, "特別預算", "(經濟部產業發展署核定)")]
+        ] + [{"resourceDescription": t.format(y=115, q=3, b="公務預算", x=""), "resourceFormat": "JSON",
+              "resourceDownloadUrl": "https://example.test/x.json"}]
+        files = grants.pick_files(dist, since_roc=111, spec=grants.WDA)
+        self.assertEqual(sorted((f.quarter, f.variant) for f in files),
+                         [(2, "特別預算(經濟部產業發展署核定)"), (3, "公務預算"), (3, "特別預算")])
+
+    def test_nidf_only_individuals_and_groups(self):
+        dist = [
+            {"resourceDescription": f"115年獎補助經費季報表截至第2季-基金-{who}", "resourceFormat": "CSV",
+             "resourceDownloadUrl": f"https://example.test/{who}.csv"} for who in ("個人及團體", "縣市政府")
+        ]
+        files = grants.pick_files(dist, since_roc=111, spec=grants.NIDF)
+        self.assertEqual([f.url for f in files], ["https://example.test/個人及團體.csv"])
+
+    def test_oac_index_and_page_attachment(self):
+        dist = list(grants.index_distributions(table("grants_oac_index_big5.csv")))
+        self.assertEqual([d["resourceFormat"] for d in dist], ["PDF", "PAGE", "PAGE"])
+        files = grants.pick_files(dist, since_roc=111, spec=grants.OAC)
+        self.assertEqual([(f.year, f.quarter, f.fmt) for f in files], [(115, 3, "PAGE")])  # PDF 讀不到，112 年沒有
+        page = (FX / "grants_oac_page.html").read_text(encoding="utf-8")
+        url, fmt = grants.page_attachment(page, files[0].url)
+        self.assertEqual(fmt, "ODS")
+        self.assertTrue(url.startswith("https://www.oac.gov.tw/filedownload?file=govinfo/202610141657501.ods&"))
+        self.assertIsNone(grants.page_attachment("<a href='/x.pdf'>pdf</a>", files[0].url))
+
+    def test_oac_fetch_follows_index_then_page(self):
+        index_url = "https://www.oac.gov.tw/index.csv"
+        page = (FX / "grants_oac_page.html").read_text(encoding="utf-8")
+        page_url = ("https://www.oac.gov.tw/ch/home.jsp?id=1242&parentpath=0,684&mcustomize=multimessages_view.jsp"
+                    "&dataserno=202610140004")
+        ods_url = "https://www.oac.gov.tw/filedownload?file=govinfo/202610141657501.ods&filedisplay=%E6%B5%B7.ods&flag=doc"
+        client = FakeClient({
+            grants.DATASET_API.format(id=grants.OAC.id): {"result": {"distribution": [
+                {"resourceDescription": "本會主管預算對民間團體及個人補(捐)助經費彙總表", "resourceFormat": "CSV",
+                 "resourceDownloadUrl": index_url}]}},
+            index_url: (FX / "grants_oac_index_big5.csv").read_bytes(),
+            page_url: page.encode("utf-8"),
+            ods_url: (FX / "grants_oac_115q3.ods").read_bytes(),
+        })
+        items = list(grants.fetcher(grants.OAC)(client, since_roc=111, orgs=LK30_ORGS))
+        self.assertEqual([(i.ubn, i.data["year"], i.data["quarter"]) for i in items], [("10000005", 115, 3)])
+        self.assertEqual(items[0].source_url, "https://data.gov.tw/dataset/139265")
+
+
 if __name__ == "__main__":
     unittest.main()

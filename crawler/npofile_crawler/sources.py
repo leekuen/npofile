@@ -61,6 +61,18 @@ SOURCES = {
                "政府公開資料：勞動部就業安定基金（多元就業開發方案、職業訓練、身障就業等）每季公開的補(捐)助核定案件；"
                "近 5 年每年取最新一季的累計表，對組織的規則同衛福部補助",
                options=("since_roc", "orgs")),
+        # LK-30：更多部會，規則都同衛福部補助
+        *(
+            Source(key, spec.name, grants.DATASET_PAGE.format(id=spec.id), True, grants.fetcher(spec),
+                   f"政府公開資料：{what}每季公開的補(捐)助核定案件；近 5 年每年取最新一季的累計表，對組織的規則同衛福部補助",
+                   options=("since_roc", "orgs"))
+            for key, spec, what in (
+                ("k12ea_grants", grants.K12EA, "教育部國民及學前教育署"),
+                ("wda_grants", grants.WDA, "勞動部勞動力發展署及所屬分署（公務預算與特別預算；寫「對個人」的列不收）"),
+                ("nidf_grants", grants.NIDF, "新住民發展基金（內政部移民署）對個人及團體"),
+                ("oac_grants", grants.OAC, "海洋委員會（含海巡署、海保署等所屬；111、112 年只公開 PDF，讀不到）"),
+            )
+        ),
         Source("orgsite", "組織官網（年報與財務報告）", "", False, orgsite.fetch,
                "組織自己官網公開的近 5 年財務報告、年報、工作／成果報告；設了 ANTHROPIC_API_KEY 才會讀出報告裡的數字"
                "（會產生 API 費用）。「每次最多抓幾筆」算的是組織數",

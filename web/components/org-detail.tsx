@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { formatMoney, formatNumber, formatRocDate } from "@/lib/format";
 import { ApiUnavailableError, getOrg } from "@/lib/server-api";
+import { GRANT_AGENCIES } from "@/lib/sources";
 import type { Grant, OrgDetail, Project, ScoreBreakdown } from "@/lib/types";
 
 import { OrgCategoryTags } from "./categories";
@@ -1029,7 +1030,7 @@ function GrantsTab({ grants }: { grants: Grant[] }) {
   if (grants.length === 0) {
     return (
       <EmptyState title="近 5 年沒有收錄到政府補助">
-        目前收錄衛生福利部（含社會及家庭署等所屬機關）與勞動部就業安定基金公開的補助名單；名單上的名稱要跟組織登記名稱相同才對得到。
+        目前收錄{GRANT_AGENCIES}公開的補助名單；名單上的名稱要跟組織登記名稱相同才對得到。
       </EmptyState>
     );
   }
