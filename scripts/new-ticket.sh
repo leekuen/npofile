@@ -66,14 +66,16 @@ if git -C "$ROOT" fetch --all --prune >/dev/null 2>&1; then
   # 計數後面接 `|| true`，不接 `|| echo 0`：一條遠端分支都沒有時（全新專案還沒設遠端），
   # `grep -c` 自己會印 0、結束碼是 1；再 `echo 0` 就多印一個 0，這一行訊息會斷成兩行。
   echo "[new-ticket] 已 fetch 全部遠端（取號納入 $(printf '%s\n' "$branches" | grep -c . || true) 條遠端分支上的票）"
-  remote_nums=$(
+  remote_files=$(
     for ref in $branches; do
       git -C "$ROOT" -c core.quotepath=false ls-tree -r --name-only "$ref" -- tickets/ 2>/dev/null
-    done | grep -oE "^tickets/${prefix}-[0-9]+" | grep -oE "${prefix}-[0-9]+"
+    done
   )
+  remote_nums=$(printf '%s\n' "$remote_files" | grep -oE "^tickets/${prefix}-[0-9]+" | grep -oE "${prefix}-[0-9]+")
 else
   echo "[new-ticket][warn] fetch 失敗（離線或無此遠端）——改用本地最大號，撞號風險較高；push 前務必先 pull --rebase" >&2
   remote_nums=""
+  remote_files=""
 fi
 
 # 1b) 掃**本機其他工作樹**裡的票（源專案 v4.55.0）
@@ -91,13 +93,15 @@ fi
 # 源專案因此發出過一個別棵工作樹裡已經有、只是還沒提交的號。
 # git 的清單從任何一棵問都一樣，還包含主目錄自己（主目錄也可能有未提交的票）。
 worktree_nums=""
+worktree_files=""
 wt_paths=$(git -C "$ROOT" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p')
 if [ -n "$wt_paths" ]; then
-  worktree_nums=$(
+  worktree_files=$(
     printf '%s\n' "$wt_paths" | while IFS= read -r wt; do
       ( cd "$wt/tickets" 2>/dev/null && ls "${prefix}"-*.md 2>/dev/null )
-    done | grep -oE "^${prefix}-[0-9]+"
+    done
   )
+  worktree_nums=$(printf '%s\n' "$worktree_files" | grep -oE "^${prefix}-[0-9]+")
   wt_count=$(printf '%s\n' "$wt_paths" | grep -c .)
   echo "[new-ticket] 已掃本機 $wt_count 棵工作樹（含主目錄與還沒提交的票）"
 else
@@ -211,4 +215,10 @@ updated: $today
 EOF
 
 echo "[new-ticket] 已建立 $next → $file"
+
+# 4) 標題相近的既有票（框架 v5.2.0）：票號不會撞，內容會——只提醒、不擋。
+#    遠端各分支＋本機各工作樹的票檔名上面都讀過了，這裡直接比標題。
+if command -v python3 >/dev/null 2>&1; then
+  printf '%s\n%s\n' "$remote_files" "$worktree_files" | python3 "$ROOT/scripts/similar_tickets.py" "$title" "$next" || true
+fi
 echo "[new-ticket] 記得補：roles（誰用）、目的、驗收；動工時標「開發中」+ 填 owner。"

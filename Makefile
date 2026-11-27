@@ -2,7 +2,7 @@
 # 模板初始只有框架檢查；setup / framework 入口依技術棧把專案的
 # lint / test / build / 起環境指令補進來（並同步 AGENTS.md「最小驗證」與 run-checks skill）。
 
-.PHONY: help check ticket-lint dup-lint new-ticket next-framework-version \
+.PHONY: help check ticket-lint dup-lint migration-lint new-ticket next-framework-version \
         worktree worktree-list worktree-clean ticket-handoff \
         walkthrough-lint confirm-lint confirm-lint-prod hooks \
         setup-dev test-server test-crawler test-deploy lint-web build-web
@@ -14,7 +14,7 @@ export PYTHONIOENCODING := utf-8
 help: ## 列出所有指令
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-24s %s\n", $$1, $$2}'
 
-check: ticket-lint dup-lint test-crawler test-server test-deploy lint-web ## 跑所有檢查（= CI）。輸出不要接管線
+check: ticket-lint dup-lint migration-lint test-crawler test-server test-deploy lint-web ## 跑所有檢查（= CI）。輸出不要接管線
 	@echo "[check] OK"
 
 # ── 專案（NPOFile）────────────────────────────────────────────────────
@@ -50,6 +50,7 @@ new-ticket: ## 開新票（先問遠端、也掃其他工作區再取號，防�
 ticket-lint: ## 票務格式與一致性檢查＋框架工具自己的測試
 	./scripts/ticket-lint.sh
 	@bash scripts/ticket-tools-test.sh  # 守規則的工具自己也要有測試（源專案 v4.12.1）
+	@bash scripts/ticket-overlap-test.sh  # 開票相近提醒與資料庫更新撞號檢查自己的測試（框架 v5.2.0）
 	@bash scripts/worktree-gates-test.sh  # 票務／畫面／示意圖文字閘門要認得工作區裡的檔案（源專案 v4.76.0）
 	@bash scripts/git-sync-gate-test.sh  # 推送前同步閘門：量的是實際推的那一棵（git -C／cd／執行目錄／主目錄），落後才擋（源專案 v4.19.1；測試是模板內補的）
 	@bash scripts/hooks-wiring-lint.sh  # 閘門有沒有真的接上：settings 有掛、檔案在、能執行、掛對事件與工具（模板內補的）
@@ -66,6 +67,9 @@ ticket-lint: ## 票務格式與一致性檢查＋框架工具自己的測試
 	@bash scripts/git-hooks-test.sh  # 版控 git hooks：pre-push／post-commit 與 make hooks 在沙盒 repo 裡真的擋得到、放得過（pre-commit 在 conflict-marker-lint-test；模板內補的）
 	@bash scripts/repo-lints-test.sh  # bash 3.2 變數、複製檔兩支 lint 自己會紅（模板內補的）
 	@bash scripts/bash32-var-lint.sh  # 變數後面直接接全形字，macOS 內建的 bash 3.2 會讀錯變數名（源專案 v4.86.0）
+
+migration-lint: ## 資料庫更新（migration）撞號：同一資料夾兩個同編號（平行分支合流後常見）
+	@bash scripts/migration-number-lint.sh
 
 dup-lint: ## 抓版控裡的複製檔（同步工具或檔案總管產生的「檔名 2.副檔名」）
 	@bash scripts/dup-file-lint.sh
