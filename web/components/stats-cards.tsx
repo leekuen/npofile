@@ -23,7 +23,7 @@ export async function StatsCards() {
   return (
     <dl className="grid grid-cols-3 gap-3 border-t border-ink-100 pt-5 lg:grid-cols-1 lg:gap-0 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8">
       {ITEMS.map(({ key, label }) => (
-        <div key={key} className="flex flex-col lg:flex-row lg:items-baseline lg:justify-between lg:gap-3 lg:border-b lg:border-dashed lg:border-ink-200 lg:py-3 lg:last:border-b-0">
+        <div key={key} className="flex flex-col justify-between lg:flex-row lg:items-baseline lg:justify-between lg:gap-3 lg:border-b lg:border-dashed lg:border-ink-200 lg:py-3 lg:last:border-b-0">
           <dt className="text-xs text-ink-600 lg:text-sm">{label}</dt>
           <dd className={`font-num text-lg font-semibold tabular-nums lg:text-xl ${key === "penalized_5y" ? "text-red-700" : "text-ink-900"}`}>
             {formatNumber(stats[key])}
