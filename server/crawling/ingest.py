@@ -36,6 +36,7 @@ from .progress import DbActivityPlan
 log = logging.getLogger(__name__)
 
 BATCH = 500
+STORE_EVERY = 60  # 秒
 KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4}
 PROJECT_FIELDS = (
     "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
@@ -75,9 +76,13 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
     known = set(CrawlRecord.objects.filter(source=source).values_list("content_hash", flat=True))
     skipped = 0
 
+    last_store = time.monotonic()
+
     def store() -> None:
+        nonlocal last_store
         _store_batch(source, run, batch, known, touched)
         batch.clear()
+        last_store = time.monotonic()
         if plan is not None:
             plan.flush()  # 資料寫進去了，才把對應的活動記成已抓
 
@@ -104,7 +109,8 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
                         skipped += 1
                         continue
                     batch.append(item)
-                    if len(batch) >= BATCH:
+                    # 記進度的來源至少每分鐘存一次：程式中途被關掉（電腦重開、主機重啟），最多只白做一分鐘
+                    if len(batch) >= BATCH or (plan is not None and time.monotonic() - last_store >= STORE_EVERY):
                         store()
                     if deadline is not None and time.monotonic() >= deadline:
                         run.note = f"到達每次最多 {source.max_minutes} 分鐘的上限先停，下次接著抓"
