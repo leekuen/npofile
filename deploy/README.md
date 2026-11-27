@@ -21,6 +21,68 @@ cron   ──▶ 每天爬蟲、清舊資料、重算揭露指數
 
 路徑都寫死成 `/home/npofile/app`（帳號 `npofile`）。要改的話，四個檔案要一起改。
 
+> **目前正式環境（2026-11-27 起）不是上面這種「獨佔一台」的裝法**，而是跟 LINE CRM 共用同一台
+> 512MB 的 Droplet（168.144.130.162），做法見下方〈與 LINE CRM 共用主機〉。之後換到自己的主機，就照「第一次安裝」整套做。
+
+---
+
+## 與 LINE CRM 共用主機（目前的做法）
+
+這台主機的 80／443 已經被 LINE CRM 的 Caddy（Docker）佔著，所以 NPOFile 不直接對外：
+
+```
+瀏覽器 ──▶ CRM 的 Caddy（Docker，:80/:443）
+             ├─ kuen-crm.duckdns.org → CRM
+             └─ NPOFILE_ADDRESS     → host.docker.internal:8080
+                                        └─ 主機 nginx :8080（deploy/nginx.conf 改 listen 8080）
+                                             ├─ /         → Next.js :3000
+                                             ├─ /admin/   → gunicorn :8000
+                                             └─ /static/  → staticfiles/
+```
+
+跟「第一次安裝」不同的地方：
+
+- **不跑 certbot**，HTTPS 由 CRM 的 Caddy 處理（`NPOFILE_ADDRESS` 填網域時自動申請憑證）。
+- nginx 改聽 `8080`、`server_name _`、`X-Forwarded-Proto $http_x_forwarded_proto`；防火牆只開給 Docker 網段：
+  `ufw allow from 172.16.0.0/12 to any port 8080 proto tcp`。
+- 記憶體小：加 2GB swap；gunicorn 改 2 個 worker；`npofile-web.service` 加 `Environment=NODE_OPTIONS=--max-old-space-size=256`；
+  PostgreSQL 用 `/etc/postgresql/16/main/conf.d/npofile-small.conf`（`shared_buffers=48MB`、`max_connections=20`）。
+- `server/.env` 的 `DJANGO_ALLOWED_HOSTS`、`DJANGO_CSRF_TRUSTED_ORIGINS` 要跟 `NPOFILE_ADDRESS` 一致。
+
+**CRM 那邊加的東西（也要加進 CRM 的 repo）**：CRM 用 GitHub Actions `rsync --delete` 部署，
+伺服器上的 `Caddyfile`、`compose.yaml` 每次都會被 repo 的版本蓋掉；沒進 CRM repo，下一次 CRM 部署 NPOFile 就連不到（CRM 本身不受影響）。
+
+`Caddyfile` 最後加：
+
+```
+# 非營利檔案 NPOFile（同一台主機上，不在 Docker 裡；主機 nginx 聽 8080）。
+# NPOFILE_ADDRESS 來自 .env：還沒有網域時填 http://主機IP；有網域後改成網域，Caddy 會自動上 HTTPS。
+{$NPOFILE_ADDRESS} {
+	encode gzip
+	reverse_proxy host.docker.internal:8080
+}
+```
+
+`compose.yaml` 的 `caddy` 服務，`STAGING_ADDRESS` 那行下面加：
+
+```yaml
+      # 非營利檔案 NPOFile 的網址（見 Caddyfile 最後一段）。沒設就用一個不會有人連的名稱
+      NPOFILE_ADDRESS: ${NPOFILE_ADDRESS:-http://npofile.localhost}
+    # 讓 caddy 連得到主機上的服務（NPOFile 的 nginx :8080）
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+```
+
+主機上 `/srv/line-crm/.env` 加 `NPOFILE_ADDRESS=http://168.144.130.162`（`.env` 不會被 CRM 部署蓋掉）。
+改完 `cd /srv/line-crm && docker compose up -d caddy`。改之前的備份在 `/root/backup-line-crm/`。
+
+**換成網域**（例：`npofile-kuen.duckdns.org`，DNS 指到 168.144.130.162）：
+
+1. `/srv/line-crm/.env`：`NPOFILE_ADDRESS=npofile-kuen.duckdns.org`（不加 `http://`，Caddy 才會上 HTTPS）→ `docker compose up -d caddy`。
+2. `/home/npofile/app/server/.env`：`DJANGO_ALLOWED_HOSTS` 加上網域、`DJANGO_CSRF_TRUSTED_ORIGINS=https://網域` → `systemctl restart npofile-api`。
+
+用 `http://IP` 的期間，登入與留言不能用：正式環境的登入 cookie 只走 HTTPS（`DJANGO_SECURE_COOKIES` 預設開），這是刻意的，不要為了 IP 關掉。
+
 ---
 
 ## 第一次安裝
