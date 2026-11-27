@@ -4,11 +4,20 @@ import type { ReactNode } from "react";
 
 import { formatMoney, formatNumber, formatRocDate } from "@/lib/format";
 import { ApiUnavailableError, getOrg } from "@/lib/server-api";
-import type { OrgDetail, ScoreBreakdown } from "@/lib/types";
+import type { OrgDetail, Project, ScoreBreakdown } from "@/lib/types";
 
 import { OrgCategoryTags } from "./categories";
 import { Comments } from "./comments";
-import { Card, EmptyState, ErrorBox, ScoreBadge, Skeleton, SourceNote, StatusBadge, TextLink } from "./ui";
+import {
+  Card,
+  EmptyState,
+  ErrorBox,
+  ScoreBadge,
+  Skeleton,
+  SourceNote,
+  StatusBadge,
+  TextLink,
+} from "./ui";
 
 // 基本資料改放右側欄（LK-11），分頁只留資料；舊連結 ?tab=basic 會落到預設分頁
 const TABS = [
@@ -28,14 +37,20 @@ export async function OrgDetailView({
 }) {
   const [{ ubn }, sp] = await Promise.all([params, searchParams]);
   const rawTab = Array.isArray(sp.tab) ? sp.tab[0] : sp.tab;
-  const tab: TabKey = TABS.some((t) => t.key === rawTab) ? (rawTab as TabKey) : DEFAULT_TAB;
+  const tab: TabKey = TABS.some((t) => t.key === rawTab)
+    ? (rawTab as TabKey)
+    : DEFAULT_TAB;
 
   let org: OrgDetail | null;
   try {
     org = await getOrg(ubn);
   } catch (e) {
     if (e instanceof ApiUnavailableError) {
-      return <ErrorBox title="目前讀不到這個組織的資料">資料服務暫時沒有回應，請稍後重新整理。</ErrorBox>;
+      return (
+        <ErrorBox title="目前讀不到這個組織的資料">
+          資料服務暫時沒有回應，請稍後重新整理。
+        </ErrorBox>
+      );
     }
     throw e;
   }
@@ -55,7 +70,9 @@ export async function OrgDetailView({
       </nav>
 
       <header>
-        <h1 className="font-display text-2xl font-extrabold text-balance break-words text-ink-900 sm:text-3xl">{org.name}</h1>
+        <h1 className="font-display text-2xl font-extrabold text-balance break-words text-ink-900 sm:text-3xl">
+          {org.name}
+        </h1>
         <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-600">
           <span className="tabular-nums">統一編號 {org.ubn}</span>
           {org.city && <span>{org.city}</span>}
@@ -79,23 +96,34 @@ export async function OrgDetailView({
         </aside>
 
         <div className="min-w-0 lg:col-start-1">
-          <nav aria-label="資料分類" className="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:px-0">
+          <nav
+            aria-label="資料分類"
+            className="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:px-0"
+          >
             <ul className="flex min-w-max gap-1 border-b border-ink-200">
               {TABS.map((t) => {
                 const active = t.key === tab;
                 return (
                   <li key={t.key}>
                     <Link
-                      href={t.key === DEFAULT_TAB ? `/orgs/${org.ubn}` : `/orgs/${org.ubn}?tab=${t.key}`}
+                      href={
+                        t.key === DEFAULT_TAB
+                          ? `/orgs/${org.ubn}`
+                          : `/orgs/${org.ubn}?tab=${t.key}`
+                      }
                       scroll={false}
                       aria-current={active ? "page" : undefined}
                       className={`-mb-px inline-flex items-center gap-1 border-b-2 px-3 py-3 text-sm font-medium ${
-                        active ? "border-brand-700 font-bold text-brand-900" : "border-transparent text-ink-600 hover:text-ink-900"
+                        active
+                          ? "border-brand-700 font-bold text-brand-900"
+                          : "border-transparent text-ink-600 hover:text-ink-900"
                       }`}
                     >
                       {t.label}
                       {counts[t.key] !== null && (
-                        <span className="rounded-full bg-red-100 px-1.5 text-xs tabular-nums text-red-800">{counts[t.key]}</span>
+                        <span className="rounded-full bg-red-100 px-1.5 text-xs tabular-nums text-red-800">
+                          {counts[t.key]}
+                        </span>
                       )}
                     </Link>
                   </li>
@@ -105,7 +133,9 @@ export async function OrgDetailView({
           </nav>
           <div className="pt-5">
             <p className="mb-4 text-sm text-ink-600">
-              {tab === "penalties" ? "所有年度" : `近 5 年（民國 ${org.since_roc_year} 年起）`}
+              {tab === "penalties"
+                ? "所有年度"
+                : `近 5 年（民國 ${org.since_roc_year} 年起）`}
             </p>
             {tab === "donations" && <DonationsTab org={org} />}
             {tab === "projects" && <ProjectsTab org={org} />}
@@ -129,7 +159,9 @@ function OrgSummary({ org }: { org: OrgDetail }) {
       tab: "penalties",
       label: "受裁罰",
       value: penalized ? `近五年 ${org.penalty_count_5y} 次` : "近五年無紀錄",
-      tone: penalized ? "border-red-300 bg-red-50 text-red-900" : "border-ink-200 bg-white text-ink-900",
+      tone: penalized
+        ? "border-red-300 bg-red-50 text-red-900"
+        : "border-ink-200 bg-white text-ink-900",
       icon: penalized ? "⚠" : "✓",
     },
     {
@@ -142,7 +174,9 @@ function OrgSummary({ org }: { org: OrgDetail }) {
     {
       tab: "projects",
       label: "捐款專案",
-      value: org.projects.length ? `${formatNumber(org.projects.length)} 個` : "沒有紀錄",
+      value: org.projects.length
+        ? `${formatNumber(org.projects.length)} 個`
+        : "沒有紀錄",
       tone: "border-ink-200 bg-white text-ink-900",
       icon: null,
     },
@@ -152,7 +186,11 @@ function OrgSummary({ org }: { org: OrgDetail }) {
       {items.map((it) => (
         <li key={it.tab}>
           <Link
-            href={it.tab === DEFAULT_TAB ? `/orgs/${org.ubn}` : `/orgs/${org.ubn}?tab=${it.tab}`}
+            href={
+              it.tab === DEFAULT_TAB
+                ? `/orgs/${org.ubn}`
+                : `/orgs/${org.ubn}?tab=${it.tab}`
+            }
             scroll={false}
             className={`flex h-full flex-col rounded-2xl border px-2.5 py-2 hover:border-brand-600 sm:px-3 sm:py-2.5 ${it.tone}`}
           >
@@ -182,9 +220,24 @@ function ScorePanel({ score }: { score: ScoreBreakdown }) {
     .map(([, label]) => label);
 
   const rows: { label: string; got: number; max: number; note: string }[] = [
-    { label: "基本資料", got: score.basic, max: score.basic_max, note: missing.length ? `缺：${missing.join("、")}` : "齊全" },
-    { label: "近五年募款紀錄", got: score.fundraising, max: score.fundraising_max, note: score.fundraising ? "有" : "沒有" },
-    { label: "捐款專案", got: score.project, max: score.project_max, note: score.project ? "有" : "沒有" },
+    {
+      label: "基本資料",
+      got: score.basic,
+      max: score.basic_max,
+      note: missing.length ? `缺：${missing.join("、")}` : "齊全",
+    },
+    {
+      label: "近五年募款紀錄",
+      got: score.fundraising,
+      max: score.fundraising_max,
+      note: score.fundraising ? "有" : "沒有",
+    },
+    {
+      label: "捐款專案",
+      got: score.project,
+      max: score.project_max,
+      note: score.project ? "有" : "沒有",
+    },
     {
       label: "專案成果備查",
       got: score.result,
@@ -210,7 +263,9 @@ function ScorePanel({ score }: { score: ScoreBreakdown }) {
       <div className="flex items-center gap-4">
         <ScoreBadge score={score.total} size="lg" />
         <div>
-          <p className="font-display text-lg font-bold text-ink-900">揭露指數</p>
+          <p className="font-display text-lg font-bold text-ink-900">
+            揭露指數
+          </p>
           <p className="text-xs text-ink-600">資料公開得越完整，分數越高</p>
           <p className="mt-1 text-sm text-ink-800 lg:hidden">{oneLine}</p>
         </div>
@@ -226,8 +281,14 @@ function ScorePanel({ score }: { score: ScoreBreakdown }) {
                     {r.got} / {r.max}
                   </span>
                 </div>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white" aria-hidden>
-                  <div className="h-full rounded-full bg-brand-600" style={{ width: `${r.max ? (r.got / r.max) * 100 : 0}%` }} />
+                <div
+                  className="mt-1 h-1.5 overflow-hidden rounded-full bg-white"
+                  aria-hidden
+                >
+                  <div
+                    className="h-full rounded-full bg-brand-600"
+                    style={{ width: `${r.max ? (r.got / r.max) * 100 : 0}%` }}
+                  />
                 </div>
                 <p className="mt-0.5 text-xs text-ink-600">{r.note}</p>
               </li>
@@ -236,11 +297,15 @@ function ScorePanel({ score }: { score: ScoreBreakdown }) {
         )}
         {full.length > 0 && (
           <p className="text-ink-700">
-            <span aria-hidden className="mr-1 font-bold text-emerald-700">✓</span>
+            <span aria-hidden className="mr-1 font-bold text-emerald-700">
+              ✓
+            </span>
             {full.map((r) => r.label).join("、")}拿到滿分
           </p>
         )}
-        <p className="text-xs text-ink-500">受裁罰紀錄不影響揭露指數，另外標示。</p>
+        <p className="text-xs text-ink-500">
+          受裁罰紀錄不影響揭露指數，另外標示。
+        </p>
       </div>
     </section>
   );
@@ -259,15 +324,37 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 /** 右側欄的基本資料：聯絡方式放前面，捐款前最常用 */
 function ContactFields({ org }: { org: OrgDetail }) {
-  const sameAddress = org.contact_address && org.contact_address === org.registered_address;
+  const sameAddress =
+    org.contact_address && org.contact_address === org.registered_address;
   return (
     <dl className="mt-3 space-y-3 text-sm">
       <Field label="電話">
-        {org.phone ? <a href={`tel:${org.phone}`} className="text-brand-800 underline underline-offset-2">{org.phone}</a> : NA}
+        {org.phone ? (
+          <a
+            href={`tel:${org.phone}`}
+            className="text-brand-800 underline underline-offset-2"
+          >
+            {org.phone}
+          </a>
+        ) : (
+          NA
+        )}
       </Field>
-      <Field label="官網">{org.website ? <TextLink href={org.website}>{org.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}</TextLink> : NA}</Field>
-      <Field label={sameAddress ? "地址" : "聯絡地址"}>{org.contact_address || org.registered_address || NA}</Field>
-      {!sameAddress && org.contact_address && org.registered_address && <Field label="登記地址">{org.registered_address}</Field>}
+      <Field label="官網">
+        {org.website ? (
+          <TextLink href={org.website}>
+            {org.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+          </TextLink>
+        ) : (
+          NA
+        )}
+      </Field>
+      <Field label={sameAddress ? "地址" : "聯絡地址"}>
+        {org.contact_address || org.registered_address || NA}
+      </Field>
+      {!sameAddress && org.contact_address && org.registered_address && (
+        <Field label="登記地址">{org.registered_address}</Field>
+      )}
       <Field label="負責人">{org.representative || NA}</Field>
       <Field label="勸募用途">{org.purposes || NA}</Field>
       <Field label="資料來源">
@@ -291,8 +378,14 @@ function ContactFields({ org }: { org: OrgDetail }) {
 function ContactCard({ org }: { org: OrgDetail }) {
   return (
     <>
-      <section aria-labelledby="contact-title" className="hidden rounded-2xl border border-ink-200 bg-white p-5 lg:block">
-        <h2 id="contact-title" className="font-display text-lg font-bold text-ink-900">
+      <section
+        aria-labelledby="contact-title"
+        className="hidden rounded-2xl border border-ink-200 bg-white p-5 lg:block"
+      >
+        <h2
+          id="contact-title"
+          className="font-display text-lg font-bold text-ink-900"
+        >
           基本資料
         </h2>
         <ContactFields org={org} />
@@ -300,7 +393,10 @@ function ContactCard({ org }: { org: OrgDetail }) {
       <details className="group rounded-2xl border border-ink-200 bg-white px-4 py-3 lg:hidden">
         <summary className="flex cursor-pointer list-none items-center justify-between font-display font-bold text-ink-900">
           基本資料與聯絡方式
-          <span aria-hidden className="text-ink-500 transition-transform group-open:rotate-90">
+          <span
+            aria-hidden
+            className="text-ink-500 transition-transform group-open:rotate-90"
+          >
             ›
           </span>
         </summary>
@@ -311,7 +407,11 @@ function ContactCard({ org }: { org: OrgDetail }) {
 }
 
 function SectionTitle({ children }: { children: ReactNode }) {
-  return <h2 className="mb-3 font-display text-xl font-bold text-ink-900">{children}</h2>;
+  return (
+    <h2 className="mb-3 font-display text-xl font-bold text-ink-900">
+      {children}
+    </h2>
+  );
 }
 
 /** 來源會列出沒有勸募的年度（含未來年度），實募與預募都是 0 的不顯示 */
@@ -327,19 +427,44 @@ function DonationsTab({ org }: { org: OrgDetail }) {
       <section>
         <SectionTitle>年度募款</SectionTitle>
         {years.length === 0 ? (
-          <EmptyState title="近 5 年沒有收錄到募款紀錄">這個組織可能近年沒有向主管機關申請公益勸募。</EmptyState>
+          <EmptyState title="近 5 年沒有收錄到募款紀錄">
+            這個組織可能近年沒有向主管機關申請公益勸募。
+          </EmptyState>
         ) : (
           <Card className="overflow-x-auto p-0 sm:p-0">
             <table className="w-full text-sm">
               <thead className="bg-ink-50 text-ink-700">
                 <tr>
-                  <th scope="col" className="px-3 py-2 text-left font-medium whitespace-nowrap">年度（民國）</th>
-                  <th scope="col" className="w-full min-w-16 px-3 py-2 text-left font-medium">
+                  <th
+                    scope="col"
+                    className="px-3 py-2 text-left font-medium whitespace-nowrap"
+                  >
+                    年度（民國）
+                  </th>
+                  <th
+                    scope="col"
+                    className="w-full min-w-16 px-3 py-2 text-left font-medium"
+                  >
                     <span className="sr-only">實募金額比較</span>
                   </th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium whitespace-nowrap">實募金額</th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium whitespace-nowrap">預募金額</th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium whitespace-nowrap">達成率</th>
+                  <th
+                    scope="col"
+                    className="px-3 py-2 text-right font-medium whitespace-nowrap"
+                  >
+                    實募金額
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-3 py-2 text-right font-medium whitespace-nowrap"
+                  >
+                    預募金額
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-3 py-2 text-right font-medium whitespace-nowrap"
+                  >
+                    達成率
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-100 tabular-nums">
@@ -347,17 +472,33 @@ function DonationsTab({ org }: { org: OrgDetail }) {
                   <tr key={`${a.year}-${a.source_name}`}>
                     <td className="px-3 py-2">{a.year}</td>
                     <td className="px-3 py-2" aria-hidden>
-                      <div className="h-3 rounded-sm bg-brand-600" style={{ width: `${maxRaised ? (a.raised / maxRaised) * 100 : 0}%` }} />
+                      <div
+                        className="h-3 rounded-sm bg-brand-600"
+                        style={{
+                          width: `${maxRaised ? (a.raised / maxRaised) * 100 : 0}%`,
+                        }}
+                      />
                     </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap">{formatMoney(a.raised)}</td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap">{formatMoney(a.target)}</td>
-                    <td className="px-3 py-2 text-right">{a.achievement_rate === null ? "—" : `${a.achievement_rate}%`}</td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                      {formatMoney(a.raised)}
+                    </td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                      {formatMoney(a.target)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {a.achievement_rate === null
+                        ? "—"
+                        : `${a.achievement_rate}%`}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             <p className="border-t border-ink-100 px-3 py-2">
-              <SourceNote name={years[0].source_name} url={years[0].source_url} />
+              <SourceNote
+                name={years[0].source_name}
+                url={years[0].source_url}
+              />
             </p>
           </Card>
         )}
@@ -367,28 +508,63 @@ function DonationsTab({ org }: { org: OrgDetail }) {
 
       {org.donations.length > 0 && (
         <section>
-          <SectionTitle>捐款明細（最近 {org.donations.length} 筆）</SectionTitle>
+          <SectionTitle>
+            捐款明細（最近 {org.donations.length} 筆）
+          </SectionTitle>
           <Card className="overflow-x-auto p-0 sm:p-0">
             <table className="w-full text-sm">
               <thead className="bg-ink-50 text-ink-700">
                 <tr>
-                  <th scope="col" className="px-3 py-2 text-left font-medium whitespace-nowrap">日期</th>
-                  <th scope="col" className="px-3 py-2 text-left font-medium">捐款人</th>
-                  <th scope="col" className="px-3 py-2 text-right font-medium">金額</th>
-                  <th scope="col" className="px-3 py-2 text-left font-medium">用途</th>
-                  <th scope="col" className="px-3 py-2 text-left font-medium">來源</th>
+                  <th
+                    scope="col"
+                    className="px-3 py-2 text-left font-medium whitespace-nowrap"
+                  >
+                    日期
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left font-medium">
+                    捐款人
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">
+                    金額
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left font-medium">
+                    用途
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left font-medium">
+                    來源
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-100">
                 {org.donations.map((d) => (
                   <tr key={d.id}>
-                    <td className="px-3 py-2 tabular-nums whitespace-nowrap">{formatRocDate(d.donated_on)}</td>
-                    <td className="px-3 py-2">
-                      {d.donor_id ? <TextLink href={`/donors/${d.donor_id}`}>{d.donor_name}</TextLink> : d.donor_name}
+                    <td className="px-3 py-2 tabular-nums whitespace-nowrap">
+                      {formatRocDate(d.donated_on)}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{formatMoney(d.amount)}</td>
-                    <td className="px-3 py-2 text-ink-700">{d.purpose || "—"}</td>
-                    <td className="px-3 py-2">{d.source_url ? <TextLink href={d.source_url}>{d.source_name || "原始資料"}</TextLink> : d.source_name || "—"}</td>
+                    <td className="px-3 py-2">
+                      {d.donor_id ? (
+                        <TextLink href={`/donors/${d.donor_id}`}>
+                          {d.donor_name}
+                        </TextLink>
+                      ) : (
+                        d.donor_name
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
+                      {formatMoney(d.amount)}
+                    </td>
+                    <td className="px-3 py-2 text-ink-700">
+                      {d.purpose || "—"}
+                    </td>
+                    <td className="px-3 py-2">
+                      {d.source_url ? (
+                        <TextLink href={d.source_url}>
+                          {d.source_name || "原始資料"}
+                        </TextLink>
+                      ) : (
+                        d.source_name || "—"
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -402,11 +578,17 @@ function DonationsTab({ org }: { org: OrgDetail }) {
 
 function DonorRankings({ org }: { org: OrgDetail }) {
   const summary = org.donor_summary;
-  if (!org.corporate_donors.length && !org.individual_donors.length && !summary) {
+  if (
+    !org.corporate_donors.length &&
+    !org.individual_donors.length &&
+    !summary
+  ) {
     return (
       <section>
         <SectionTitle>捐款人</SectionTitle>
-        <EmptyState title="目前沒有收錄到具名的捐款人">這個組織的勸募活動還沒有公開捐贈人清冊，或還沒有抓取。</EmptyState>
+        <EmptyState title="目前沒有收錄到具名的捐款人">
+          這個組織的勸募活動還沒有公開捐贈人清冊，或還沒有抓取。
+        </EmptyState>
       </section>
     );
   }
@@ -420,13 +602,22 @@ function DonorRankings({ org }: { org: OrgDetail }) {
           <Card className="p-0 sm:p-0">
             <ol className="divide-y divide-ink-100">
               {org.corporate_donors.map((d, i) => (
-                <li key={d.donor_id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
-                  <span className="w-6 text-right font-semibold tabular-nums text-ink-500">{i + 1}</span>
+                <li
+                  key={d.donor_id}
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm"
+                >
+                  <span className="w-6 text-right font-semibold tabular-nums text-ink-500">
+                    {i + 1}
+                  </span>
                   <span className="min-w-0 flex-1 break-words">
                     <TextLink href={`/donors/${d.donor_id}`}>{d.name}</TextLink>
-                    <span className="ml-2 inline-block rounded bg-ink-100 px-1.5 text-xs text-ink-700">{d.kind_label}</span>
+                    <span className="ml-2 inline-block rounded bg-ink-100 px-1.5 text-xs text-ink-700">
+                      {d.kind_label}
+                    </span>
                   </span>
-                  <span className="tabular-nums font-medium">{formatMoney(d.total)}</span>
+                  <span className="tabular-nums font-medium">
+                    {formatMoney(d.total)}
+                  </span>
                 </li>
               ))}
             </ol>
@@ -438,7 +629,8 @@ function DonorRankings({ org }: { org: OrgDetail }) {
         <SectionTitle>大額個人捐款人</SectionTitle>
         {summary && (
           <p className="-mt-2 mb-3 text-xs text-ink-600">
-            個人只列出在同一個勸募活動累計捐款 {formatMoney(summary.threshold)}以上者。
+            個人只列出在同一個勸募活動累計捐款 {formatMoney(summary.threshold)}
+            以上者。
           </p>
         )}
         {org.individual_donors.length === 0 ? (
@@ -447,10 +639,17 @@ function DonorRankings({ org }: { org: OrgDetail }) {
           <Card className="p-0 sm:p-0">
             <ol className="divide-y divide-ink-100">
               {org.individual_donors.map((d, i) => (
-                <li key={d.name} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                  <span className="w-6 text-right font-semibold tabular-nums text-ink-500">{i + 1}</span>
+                <li
+                  key={d.name}
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm"
+                >
+                  <span className="w-6 text-right font-semibold tabular-nums text-ink-500">
+                    {i + 1}
+                  </span>
                   <span className="flex-1 break-words">{d.name}</span>
-                  <span className="tabular-nums font-medium">{formatMoney(d.total)}</span>
+                  <span className="tabular-nums font-medium">
+                    {formatMoney(d.total)}
+                  </span>
                 </li>
               ))}
             </ol>
@@ -464,21 +663,26 @@ function DonorRankings({ org }: { org: OrgDetail }) {
           <Card>
             <dl className="grid gap-3 text-sm sm:grid-cols-3">
               <div>
-                <dt className="text-ink-600">清冊合計（{formatNumber(summary.lists)} 份）</dt>
+                <dt className="text-ink-600">
+                  清冊合計（{formatNumber(summary.lists)} 份）
+                </dt>
                 <dd className="font-semibold tabular-nums">
-                  {formatNumber(summary.total_rows)} 筆，{formatMoney(summary.total_amount)}
+                  {formatNumber(summary.total_rows)} 筆，
+                  {formatMoney(summary.total_amount)}
                 </dd>
               </div>
               <div>
                 <dt className="text-ink-600">其他個人捐款</dt>
                 <dd className="font-semibold tabular-nums">
-                  {formatNumber(summary.small_individual_count)} 人次，{formatMoney(summary.small_individual_amount)}
+                  {formatNumber(summary.small_individual_count)} 人次，
+                  {formatMoney(summary.small_individual_amount)}
                 </dd>
               </div>
               <div>
                 <dt className="text-ink-600">匿名或不公開</dt>
                 <dd className="font-semibold tabular-nums">
-                  {formatNumber(summary.anonymous_rows)} 筆，{formatMoney(summary.anonymous_amount)}
+                  {formatNumber(summary.anonymous_rows)} 筆，
+                  {formatMoney(summary.anonymous_amount)}
                 </dd>
               </div>
             </dl>
@@ -491,61 +695,137 @@ function DonorRankings({ org }: { org: OrgDetail }) {
 
 function ProjectsTab({ org }: { org: OrgDetail }) {
   if (org.projects.length === 0) {
-    return <EmptyState title="近 5 年沒有收錄到捐款專案">這個組織可能近年沒有經許可的勸募活動，或專案資料尚未整理上架。</EmptyState>;
+    return (
+      <EmptyState title="近 5 年沒有收錄到捐款專案">
+        這個組織可能近年沒有經許可的勸募活動，或專案資料尚未整理上架。
+      </EmptyState>
+    );
   }
   return (
     <ul className="space-y-3">
       {org.projects.map((p) => (
         <li key={p.id}>
-          <Card>
-            <h3 className="font-semibold break-words text-ink-900">{p.name}</h3>
-            {p.category && <p className="mt-1 text-xs text-ink-600">{p.category}</p>}
-            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
-              <div>
-                <dt className="text-ink-600">預募金額</dt>
-                <dd className="tabular-nums">{formatMoney(p.target)}</dd>
-              </div>
-              <div>
-                <dt className="text-ink-600">實募金額</dt>
-                <dd className="tabular-nums">{formatMoney(p.raised)}</dd>
-              </div>
-              <div>
-                <dt className="text-ink-600">成果備查</dt>
-                <dd className="tabular-nums">{p.result_filed_on ? formatRocDate(p.result_filed_on) : "尚未備查"}</dd>
-              </div>
-              <div>
-                <dt className="text-ink-600">結案備查</dt>
-                <dd className="tabular-nums">{p.closed_filed_on ? formatRocDate(p.closed_filed_on) : "尚未結案"}</dd>
-              </div>
-              {(p.start_date || p.end_date) && (
-                <div className="col-span-2">
-                  <dt className="text-ink-600">活動期間</dt>
+          {p.channel === "crowdfunding" ? (
+            <CrowdfundingCard p={p} />
+          ) : (
+            <Card>
+              <h3 className="font-semibold break-words text-ink-900">
+                {p.name}
+              </h3>
+              {p.category && (
+                <p className="mt-1 text-xs text-ink-600">{p.category}</p>
+              )}
+              <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
+                <div>
+                  <dt className="text-ink-600">預募金額</dt>
+                  <dd className="tabular-nums">{formatMoney(p.target)}</dd>
+                </div>
+                <div>
+                  <dt className="text-ink-600">實募金額</dt>
+                  <dd className="tabular-nums">{formatMoney(p.raised)}</dd>
+                </div>
+                <div>
+                  <dt className="text-ink-600">成果備查</dt>
                   <dd className="tabular-nums">
-                    {formatRocDate(p.start_date)} ～ {formatRocDate(p.end_date)}
+                    {p.result_filed_on
+                      ? formatRocDate(p.result_filed_on)
+                      : "尚未備查"}
                   </dd>
                 </div>
-              )}
-              {p.region && (
-                <div className="col-span-2">
-                  <dt className="text-ink-600">活動地區</dt>
-                  <dd>{p.region}</dd>
+                <div>
+                  <dt className="text-ink-600">結案備查</dt>
+                  <dd className="tabular-nums">
+                    {p.closed_filed_on
+                      ? formatRocDate(p.closed_filed_on)
+                      : "尚未結案"}
+                  </dd>
                 </div>
+                {(p.start_date || p.end_date) && (
+                  <div className="col-span-2">
+                    <dt className="text-ink-600">活動期間</dt>
+                    <dd className="tabular-nums">
+                      {formatRocDate(p.start_date)} ～{" "}
+                      {formatRocDate(p.end_date)}
+                    </dd>
+                  </div>
+                )}
+                {p.region && (
+                  <div className="col-span-2">
+                    <dt className="text-ink-600">活動地區</dt>
+                    <dd>{p.region}</dd>
+                  </div>
+                )}
+                {p.permit_no && (
+                  <div className="col-span-2">
+                    <dt className="text-ink-600">許可文號</dt>
+                    <dd className="break-words">{p.permit_no}</dd>
+                  </div>
+                )}
+              </dl>
+              {p.description && (
+                <p className="mt-3 text-sm whitespace-pre-line text-ink-800">
+                  {p.description}
+                </p>
               )}
-              {p.permit_no && (
-                <div className="col-span-2">
-                  <dt className="text-ink-600">許可文號</dt>
-                  <dd className="break-words">{p.permit_no}</dd>
-                </div>
-              )}
-            </dl>
-            {p.description && <p className="mt-3 text-sm whitespace-pre-line text-ink-800">{p.description}</p>}
-            <p className="mt-3">
-              <SourceNote name={p.source_name} url={p.source_url} />
-            </p>
-          </Card>
+              <p className="mt-3">
+                <SourceNote name={p.source_name} url={p.source_url} />
+              </p>
+            </Card>
+          )}
         </li>
       ))}
     </ul>
+  );
+}
+
+/** 群眾集資專案（LK-15）：沒有許可文號與備查，金額是平台的即時數字；定期定額是每月的，不跟一次性的相加。 */
+function CrowdfundingCard({ p }: { p: Project }) {
+  const monthly = p.monthly_raised != null;
+  return (
+    <Card>
+      <p className="text-xs font-medium text-brand-700">群眾集資・挖貝</p>
+      <h3 className="mt-1 font-semibold break-words text-ink-900">{p.name}</h3>
+      {p.category && <p className="mt-1 text-xs text-ink-600">{p.category}</p>}
+      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
+        {p.target != null && (
+          <div>
+            <dt className="text-ink-600">目標金額</dt>
+            <dd className="tabular-nums">{formatMoney(p.target)}</dd>
+          </div>
+        )}
+        <div>
+          <dt className="text-ink-600">{monthly ? "單次贊助" : "已募集"}</dt>
+          <dd className="tabular-nums">{formatMoney(p.raised)}</dd>
+        </div>
+        {monthly && (
+          <div>
+            <dt className="text-ink-600">定期定額</dt>
+            <dd className="tabular-nums">
+              {formatMoney(p.monthly_raised)} / 月
+            </dd>
+          </div>
+        )}
+        <div>
+          <dt className="text-ink-600">參與人次</dt>
+          <dd className="tabular-nums">
+            {p.backers != null ? formatNumber(p.backers) : "—"}
+          </dd>
+        </div>
+        <div className="col-span-2">
+          <dt className="text-ink-600">集資期間</dt>
+          <dd className="tabular-nums">
+            {formatRocDate(p.start_date)} ～{" "}
+            {p.end_date ? formatRocDate(p.end_date) : "長期集資"}
+          </dd>
+        </div>
+      </dl>
+      <p className="mt-3 text-xs text-ink-600">
+        金額為挖貝頁面顯示的即時數字，不併入上方的近 5 年實募合計。
+      </p>
+      <p className="mt-2">
+        <SourceNote name={p.source_name} url={p.source_url} />
+      </p>
+    </Card>
   );
 }
 
@@ -562,9 +842,15 @@ function PenaltiesTab({ org }: { org: OrgDetail }) {
       {org.penalties.map((p) => (
         <li key={p.id}>
           <Card className="border-l-4 border-l-red-600">
-            <p className="text-sm font-semibold tabular-nums text-red-900">處分日期 {formatRocDate(p.decided_on)}</p>
+            <p className="text-sm font-semibold tabular-nums text-red-900">
+              處分日期 {formatRocDate(p.decided_on)}
+            </p>
             <p className="mt-2 break-words text-ink-900">{p.content}</p>
-            {p.fine_text && <p className="mt-2 text-sm font-medium text-ink-800">{p.fine_text}</p>}
+            {p.fine_text && (
+              <p className="mt-2 text-sm font-medium text-ink-800">
+                {p.fine_text}
+              </p>
+            )}
             {(p.authority || p.document_no) && (
               <p className="mt-2 text-xs break-words text-ink-600">
                 {p.authority && <>處分機關：{p.authority}</>}
@@ -574,8 +860,12 @@ function PenaltiesTab({ org }: { org: OrgDetail }) {
             )}
             {p.reason && (
               <details className="mt-2 text-sm">
-                <summary className="cursor-pointer text-brand-800 underline underline-offset-2">處分理由</summary>
-                <p className="mt-1 whitespace-pre-line text-ink-800">{p.reason}</p>
+                <summary className="cursor-pointer text-brand-800 underline underline-offset-2">
+                  處分理由
+                </summary>
+                <p className="mt-1 whitespace-pre-line text-ink-800">
+                  {p.reason}
+                </p>
               </details>
             )}
             <p className="mt-3">
