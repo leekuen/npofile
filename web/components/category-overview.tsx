@@ -46,7 +46,7 @@ export async function CategoryOverviewView({ params }: { params: Promise<{ code:
         </h1>
         <dl className="grid grid-cols-3 gap-2 sm:max-w-2xl sm:gap-3">
           <Stat label="組織" value={formatNumber(c.org_count)} />
-          <Stat label={`近 5 年實募（民國 ${c.since_roc_year} 年起）`} value={formatMoney(c.raised_5y)} />
+          <Stat label={`近 5 年公開募款（民國 ${c.since_roc_year} 年起）`} value={formatMoney(c.raised_5y)} />
           <Stat label="近五年受裁罰" value={formatNumber(c.penalized_5y)} alert={c.penalized_5y > 0} />
         </dl>
         <p className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
@@ -75,7 +75,7 @@ export async function CategoryOverviewView({ params }: { params: Promise<{ code:
             <OrgList rows={c.top_score.map((o) => ({ ...o, right: <ScoreBadge score={o.disclosure_score} /> }))} />
           )}
         </Section>
-        <Section title={`近 5 年實募最多`}>
+        <Section title={`近 5 年公開募款最多`}>
           {c.top_raised.length === 0 ? (
             <EmptyState title="近 5 年沒有公益勸募紀錄" />
           ) : (

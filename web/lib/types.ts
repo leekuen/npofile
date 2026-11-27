@@ -9,6 +9,7 @@ export interface OrgSummary {
   status_label: string;
   disclosure_score: number;
   penalty_count_5y: number;
+  public_raised_5y: number;
   tags: CategoryTag[];
 }
 
@@ -112,6 +113,14 @@ export interface ScoreBreakdown {
   total: number;
 }
 
+/** 近 5 年公開募款（LK-20）：勸募申報＋群眾集資；勸募已申報的年度不再加當年集資 */
+export interface PublicRaised {
+  total: number;
+  permit: number;
+  crowdfunding: number;
+  crowdfunding_counted: number;
+}
+
 /** 政府對民間團體的補(捐)助（LK-19）：金額是核定金額（含累積） */
 export interface Grant {
   id: number;
@@ -128,7 +137,8 @@ export interface Grant {
   source_url: string;
 }
 
-export interface OrgDetail extends OrgSummary {
+export interface OrgDetail extends Omit<OrgSummary, "public_raised_5y"> {
+  public_raised: PublicRaised;
   representative: string;
   registered_address: string;
   contact_address: string;

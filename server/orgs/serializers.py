@@ -15,7 +15,8 @@ class OrganizationListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = (
-            "ubn", "name", "org_type", "city", "status", "status_label", "disclosure_score", "penalty_count_5y", "tags",
+            "ubn", "name", "org_type", "city", "status", "status_label", "disclosure_score", "penalty_count_5y",
+            "public_raised_5y", "tags",
         )
 
     def get_tags(self, obj):
@@ -82,6 +83,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source="get_status_display")
     penalty_count_5y = serializers.IntegerField()
     score = serializers.SerializerMethodField()
+    public_raised = serializers.SerializerMethodField()
     annual_records = AnnualSerializer(many=True)
     projects = ProjectSerializer(many=True)
     penalties = PenaltySerializer(many=True)
@@ -98,13 +100,16 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
         fields = (
             "ubn", "name", "org_type", "representative", "registered_address", "contact_address", "phone",
             "website", "city", "purposes", "status", "status_label", "source_links", "disclosure_score",
-            "penalty_count_5y", "score", "annual_records", "projects", "penalties", "grants", "donations",
+            "penalty_count_5y", "score", "public_raised", "annual_records", "projects", "penalties", "grants", "donations",
             "corporate_donors", "individual_donors", "donor_summary", "since_roc_year", "categories",
             "updated_at",
         )
 
     def get_score(self, obj):
         return scoring.breakdown(obj)
+
+    def get_public_raised(self, obj):
+        return scoring.public_raised(list(obj.annual_records.all()), list(obj.projects.all()))
 
     def get_donations(self, obj):
         qs = donor_rules.visible_donations(obj.donations.select_related("donor"))[:RECENT_DONATIONS]

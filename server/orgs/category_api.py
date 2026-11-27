@@ -9,7 +9,7 @@ from rest_framework.response import Response
 
 from . import donor_rules, period, scoring, taxonomy
 from .categorize import org_filter_q
-from .models import AnnualFundraising, Donation, Donor, OrgCategory, Organization, Penalty
+from .models import Donation, Donor, OrgCategory, Organization, Penalty
 
 TOP = 10
 PENALTIES = 20
@@ -78,12 +78,10 @@ def category_overview(request, code):
         raise Http404
     orgs = Organization.objects.filter(org_filter_q(code))
     since = period.since_roc_year()
-    annual = AnnualFundraising.objects.filter(period.annual_q(), organization__in=orgs)
-    raised_by_org = (
-        annual.values("organization").annotate(total=Sum("raised")).filter(total__gt=0).order_by("-total")[:TOP]
-    )
-    top_raised_ids = [r["organization"] for r in raised_by_org]
-    raised_orgs = Organization.objects.in_bulk(top_raised_ids)
+    # 近 5 年公開募款（勸募申報＋群眾集資，LK-20）：跟首頁排序、組織頁同一個數字
+    # 分類條件可能跨關聯表，先取不重複的組織再加總，避免同一個組織被算兩次
+    unique_orgs = Organization.objects.filter(pk__in=orgs.values("pk"))
+    top_raised = unique_orgs.filter(public_raised_5y__gt=0).order_by("-public_raised_5y", "name")[:TOP]
     donations = donor_rules.ranked_donations(
         Donation.objects.filter(organization__in=orgs, donor__kind__in=Donor.PUBLIC_KINDS)
     )
@@ -107,13 +105,10 @@ def category_overview(request, code):
             ],
             "since_roc_year": since,
             "org_count": orgs.count(),
-            "raised_5y": annual.aggregate(t=Sum("raised"))["t"] or 0,
+            "raised_5y": unique_orgs.aggregate(t=Sum("public_raised_5y"))["t"] or 0,
             "penalized_5y": orgs.filter(scoring.penalty_5y_filter("penalties__")).distinct().count(),
             "top_score": [_org_brief(o) for o in orgs.order_by("-disclosure_score", "name")[:TOP]],
-            "top_raised": [
-                _org_brief(raised_orgs[r["organization"]], {"raised_5y": r["total"]})
-                for r in raised_by_org if r["organization"] in raised_orgs
-            ],
+            "top_raised": [_org_brief(o, {"raised_5y": o.public_raised_5y}) for o in top_raised],
             "top_donors": [
                 {"donor_id": d["donor_id"], "name": d["donor__name"], "kind_label": labels[d["donor__kind"]],
                  "total": d["total"], "org_count": d["org_count"]}

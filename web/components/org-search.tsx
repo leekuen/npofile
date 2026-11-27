@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { formatNumber } from "@/lib/format";
+import { formatMoney, formatNumber } from "@/lib/format";
 import { ApiUnavailableError, getFilters, getTaxonomy, listOrgs, type OrgQuery } from "@/lib/server-api";
 
 import { CategoryBrowser, CategoryChip } from "./categories";
@@ -9,9 +9,12 @@ import { EmptyState, ErrorBox, PenaltyBadge, ScoreBadge, Skeleton, StatusBadge }
 
 const PAGE_SIZE = 20;
 
-/** 列表的欄：指數｜組織｜裁罰｜狀態｜箭頭（手機只留指數、組織、箭頭） */
-const ROW = "grid-cols-[3rem_minmax(0,1fr)_1rem] items-center gap-3 px-4 sm:grid-cols-[3rem_minmax(0,1fr)_6.5rem_6rem_1rem]";
+/** 列表的欄：指數｜組織｜近 5 年公開募款｜裁罰｜狀態｜箭頭（狀態欄從 md 起；手機只留指數、組織、箭頭） */
+const ROW =
+  "grid-cols-[3rem_minmax(0,1fr)_1rem] items-center gap-3 px-4 sm:grid-cols-[3rem_minmax(0,1fr)_8.5rem_5.5rem_1rem] md:grid-cols-[3rem_minmax(0,1fr)_9rem_6rem_6rem_1rem]";
+const DEFAULT_ORDERING = "raised";
 const ORDERINGS = [
+  { value: "raised", label: "近 5 年公開募款高到低" },
   { value: "score", label: "揭露指數高到低" },
   { value: "name", label: "名稱" },
 ];
@@ -27,7 +30,7 @@ function href(query: OrgQuery, patch: Partial<OrgQuery>) {
   const next = { ...query, ...patch };
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(next)) {
-    if (!v || (k === "ordering" && v === "score") || (k === "page" && v === "1")) continue;
+    if (!v || (k === "ordering" && v === DEFAULT_ORDERING) || (k === "page" && v === "1")) continue;
     params.set(k, v);
   }
   const s = params.toString();
@@ -43,7 +46,7 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
     q: pick(sp, "q"),
     city: pick(sp, "city"),
     status: pick(sp, "status"),
-    ordering: pick(sp, "ordering") || "score",
+    ordering: pick(sp, "ordering") || DEFAULT_ORDERING,
     field: pick(sp, "field"),
     sub: pick(sp, "sub"),
     target: pick(sp, "target"),
@@ -199,8 +202,9 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
           <div aria-hidden className={`${ROW} hidden border-b border-ink-100 py-2 text-xs text-ink-500 sm:grid`}>
             <span className="text-center">指數</span>
             <span>組織</span>
+            <span className="text-right">近 5 年公開募款</span>
             <span>近五年裁罰</span>
-            <span>營運狀態</span>
+            <span className="hidden md:block">營運狀態</span>
             <span />
           </div>
           <ul className="divide-y divide-ink-100">
@@ -214,9 +218,14 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
                       <span className="tabular-nums">統編 {org.ubn}</span>
                       {org.city && <span>{org.city}</span>}
                       {org.org_type && <span>{org.org_type}</span>}
-                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:hidden">
+                      {org.public_raised_5y > 0 && (
+                        <span className="tabular-nums sm:hidden">近 5 年公開募款 {formatMoney(org.public_raised_5y)}</span>
+                      )}
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 md:hidden">
                         <StatusBadge status={org.status} label={org.status_label} />
-                        <PenaltyBadge count={org.penalty_count_5y} />
+                        <span className="sm:hidden">
+                          <PenaltyBadge count={org.penalty_count_5y} />
+                        </span>
                       </span>
                     </p>
                     {org.tags.length > 0 && (
@@ -227,6 +236,9 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
                       </p>
                     )}
                   </div>
+                  <span className="hidden text-right font-num text-sm whitespace-nowrap tabular-nums sm:block">
+                    {org.public_raised_5y > 0 ? formatMoney(org.public_raised_5y) : <span className="text-ink-400">—</span>}
+                  </span>
                   <span className="hidden text-sm sm:block">
                     {org.penalty_count_5y > 0 ? (
                       <PenaltyBadge count={org.penalty_count_5y} short />
@@ -234,7 +246,7 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
                       <span className="text-ink-500">無</span>
                     )}
                   </span>
-                  <span className="hidden sm:block">
+                  <span className="hidden md:block">
                     <StatusBadge status={org.status} label={org.status_label} />
                   </span>
                   <span aria-hidden className="text-ink-400">

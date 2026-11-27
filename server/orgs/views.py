@@ -17,7 +17,13 @@ from .serializers import (
     OrganizationListSerializer,
 )
 
-ORDERINGS = {"score": ("-disclosure_score", "name"), "name": ("name",)}
+# 預設「近 5 年公開募款」（勸募申報＋群眾集資，口徑見 tickets/LK-20）；沒有的組織排在後面，依揭露指數、名稱
+ORDERINGS = {
+    "raised": ("-public_raised_5y", "-disclosure_score", "name"),
+    "score": ("-disclosure_score", "name"),
+    "name": ("name",),
+}
+DEFAULT_ORDERING = "raised"
 
 
 class OrganizationList(ListAPIView):
@@ -37,7 +43,7 @@ class OrganizationList(ListAPIView):
         if status := params.get("status", "").strip():
             qs = qs.filter(status=status)
         qs = category_api.filter_orgs(qs, params)
-        ordering = ORDERINGS.get(params.get("ordering", "score"), ORDERINGS["score"])
+        ordering = ORDERINGS.get(params.get("ordering", DEFAULT_ORDERING), ORDERINGS[DEFAULT_ORDERING])
         return scoring.with_penalty_count(qs).prefetch_related("categories").order_by(*ordering)
 
 
