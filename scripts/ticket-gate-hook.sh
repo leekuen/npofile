@@ -13,7 +13,11 @@
 #     而這類工作區沒有可以對照的單一票）。
 # 邊界（誠實聲明）：舊規則那一支只能檢查「有沒有可開發的票」，無法判斷本次修改屬於哪張票。
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Windows（Git Bash/MSYS）上 `pwd` 回傳 posix 式路徑（/c/...），但 harness 傳進來的
+# file_path 是 Windows 式（C:\...）；兩邊比對不上，閘門會整個不擋（已實測釘住，見
+# worktree-gates-test.sh）。`pwd -W` 在 Git Bash 上印 Windows 式路徑，非 Windows 平台
+# 這個選項不存在、指令會失敗，退回原本的 `pwd`。
+ROOT="$(cd "$(dirname "$0")/.." && { pwd -W 2>/dev/null || pwd; })"
 # 先給預設值再讀設定：設定檔沒有這個變數（從舊版升級、還沒補）時，開了 set -u 的 bash 3.2
 # 連取陣列長度都會報 unbound variable——閘門會變成每次寫檔都噴一行錯誤、卻什麼都不擋。
 PRODUCT_DIRS=()
@@ -29,6 +33,8 @@ except Exception:
 ti = d.get("tool_input") or {}
 print(ti.get("file_path") or ti.get("notebook_path") or "")
 ' 2>/dev/null || true)
+# 同一個理由：Windows 式路徑用反斜線，下面所有 case 樣式與字首比對都假設正斜線。
+FILE_PATH="${FILE_PATH//\\//}"
 
 # 尚未設定產品目錄（初始化前）→ 閘門不擋
 [ ${#PRODUCT_DIRS[@]} -eq 0 ] && exit 0

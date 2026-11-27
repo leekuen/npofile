@@ -10,7 +10,11 @@
 # 對畫面層檔案的純邏輯／錯字修正也會被擋。此時經使用者同意後 touch cache/ui-design-override 放行，
 # 完事刪除該檔（比照 ticket-gate 的 hotfix-override）。
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Windows（Git Bash/MSYS）上 `pwd` 回傳 posix 式路徑（/c/...），但 harness 傳進來的
+# file_path 是 Windows 式（C:\...）；兩邊比對不上，閘門會整個不擋（已實測釘住，見
+# worktree-gates-test.sh）。`pwd -W` 在 Git Bash 上印 Windows 式路徑，非 Windows 平台
+# 這個選項不存在、指令會失敗，退回原本的 `pwd`。
+ROOT="$(cd "$(dirname "$0")/.." && { pwd -W 2>/dev/null || pwd; })"
 # 先給預設值再讀設定：設定檔沒有這個變數（從舊版升級、還沒補）時，開了 set -u 的 bash 3.2
 # 連取陣列長度都會報 unbound variable——閘門會變成每次寫檔都噴一行錯誤、卻什麼都不擋。
 UI_PATH_GLOBS=()
@@ -31,6 +35,8 @@ PYEOF
 MAPPED=$(python3 -c "$PAYLOAD" 2>/dev/null || true)
 FILE_PATH=$(printf '%s\n' "$MAPPED" | sed -n '1p')
 SID=$(printf '%s\n' "$MAPPED" | sed -n '2p')
+# Windows 式路徑用反斜線，下面所有 case 樣式與字首比對都假設正斜線。
+FILE_PATH="${FILE_PATH//\\//}"
 
 # 沒設定畫面層範圍 → 閘門不擋
 [ ${#UI_PATH_GLOBS[@]} -eq 0 ] && exit 0

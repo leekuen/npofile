@@ -13,7 +13,11 @@
 # 正是「寫之前沒有先看畫面上已經有什麼」。
 # 放行要自己 touch 標記檔，不自動放行：那一行留在紀錄裡，是「表看過了」的痕跡。
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Windows（Git Bash/MSYS）上 `pwd` 回傳 posix 式路徑（/c/...），但 harness 傳進來的
+# file_path 是 Windows 式（C:\...）；兩邊比對不上，閘門會整個不擋（已實測釘住，見
+# worktree-gates-test.sh）。`pwd -W` 在 Git Bash 上印 Windows 式路徑，非 Windows 平台
+# 這個選項不存在、指令會失敗，退回原本的 `pwd`。
+ROOT="$(cd "$(dirname "$0")/.." && { pwd -W 2>/dev/null || pwd; })"
 
 read -r -d '' PAYLOAD <<'PYEOF' || true
 import json, sys
@@ -29,6 +33,8 @@ PYEOF
 MAPPED=$(python3 -c "$PAYLOAD" 2>/dev/null || true)
 FILE_PATH=$(printf '%s\n' "$MAPPED" | sed -n '1p')
 SID=$(printf '%s\n' "$MAPPED" | sed -n '2p')
+# Windows 式路徑用反斜線，下面所有 case 樣式與字首比對都假設正斜線。
+FILE_PATH="${FILE_PATH//\\//}"
 
 # 拿不到路徑（非檔案類工具）→ 放行
 [ -z "$FILE_PATH" ] && exit 0
