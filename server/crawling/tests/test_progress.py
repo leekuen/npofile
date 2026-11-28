@@ -62,7 +62,7 @@ class PriorityTests(SimpleTestCase):
 
     def row(self, **kw):
         base = {"checked_at": self.now - timedelta(days=8), "checked_raised": 100, "has_donor_list": True,
-                "end_date": self.today - timedelta(days=30)}
+                "end_date": self.today - timedelta(days=30), "result_done": True, "closed_done": True}
         return ActivityProgress(activity_id="1", org_name="x", roc_year=114, **{**base, **kw})
 
     def p(self, row, raised=100):
@@ -80,6 +80,19 @@ class PriorityTests(SimpleTestCase):
         self.assertEqual(self.p(self.row(has_donor_list=False, end_date=None)), 2)  # 還沒結束
         self.assertIsNone(self.p(self.row(unmatched_reason="查無", checked_at=self.now - timedelta(days=10))))
         self.assertEqual(self.p(self.row(unmatched_reason="查無", checked_at=self.now - timedelta(days=31))), 3)
+
+    def test_filing_rules(self):
+        """LK-43：備查狀態沒讀過、或過了期限還沒備查，回頭再看。"""
+        t = self.today
+        self.assertEqual(self.p(self.row(result_done=None, closed_done=None)), 2)  # 還沒讀過活動頁的備查
+        self.assertIsNone(self.p(self.row(result_done=None, checked_at=self.now - timedelta(days=3))))  # 未滿 7 天
+        self.assertEqual(self.p(self.row(result_done=False, result_due_on=t - timedelta(days=1))), 2)  # 成果逾期未交
+        self.assertIsNone(self.p(self.row(result_done=False, result_due_on=t + timedelta(days=5))))  # 還沒到期
+        self.assertIsNone(self.p(self.row(result_done=False, result_due_on=t - timedelta(days=400))))  # 逾期一年不追
+        self.assertIsNone(self.p(self.row(result_done=False, result_due_on=None)))  # 活動頁沒有備查段落
+        closed = {"closed_done": False, "closed_due_on": t - timedelta(days=10)}
+        self.assertIsNone(self.p(self.row(**closed)))  # 結案逾期：30 天才看一次
+        self.assertEqual(self.p(self.row(checked_at=self.now - timedelta(days=31), **closed)), 4)
 
 
 class RunTests(TestCase):

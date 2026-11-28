@@ -185,6 +185,14 @@ class Project(SourceMixin):
     region = models.CharField("活動地區", max_length=100, blank=True)
     result_filed_on = models.DateField("成果備查日期", null=True, blank=True)
     closed_filed_on = models.DateField("結案備查日期", null=True, blank=True)
+    # 活動頁的備查狀態（LK-43）：期限是法定期限（成果＝期滿後 30 日，結案＝使用計畫執行完竣後 30 日）；
+    # 已備查＝活動頁有公開徵信網址或下載檔；逾期＝活動頁標「逾期備查」（不論後來有沒有補交）。沒抓過活動頁是空值
+    result_due_on = models.DateField("成果備查期限", null=True, blank=True)
+    result_done = models.BooleanField("成果已備查", null=True, blank=True)
+    result_late = models.BooleanField("成果逾期備查", default=False)
+    closed_due_on = models.DateField("結案備查期限", null=True, blank=True)
+    closed_done = models.BooleanField("結案已備查", null=True, blank=True)
+    closed_late = models.BooleanField("結案逾期備查", default=False)
     description = models.TextField("成果／說明", blank=True)
     channel = models.CharField(
         "募款管道", max_length=20, choices=Channel.choices, default=Channel.PERMIT,

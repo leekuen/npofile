@@ -110,6 +110,41 @@ class LevelTests(TestCase):
         p.save()
         self.assertEqual(self.level(org), 2)
 
+    def test_activity_page_filing_counts_as_filed(self):
+        """LK-43：團體頁列表只列最近幾筆，舊活動的備查狀態從活動頁讀（逾期補交也算交了）。"""
+        org = full_identity()
+        p = Project.objects.create(organization=org, name="a", raised=10, start_date=on_year(roc_now() - 1))
+        self.assertEqual(self.level(org), 1)
+        p.result_done, p.result_late = True, True
+        p.save()
+        self.assertEqual(self.level(org), 2)
+
+    def test_due_follows_legal_deadline(self):
+        """LK-43：到期看活動頁的法定期限（期滿後 30 日），不是活動年度。"""
+        today = scoring.today()
+        org = full_identity()
+        # 去年開始、下個月才結束的活動：還沒到期
+        Project.objects.create(organization=org, name="跨年", raised=10, start_date=on_year(roc_now() - 1),
+                               end_date=today + timedelta(days=30), result_due_on=today + timedelta(days=60),
+                               result_done=False)
+        lv = scoring.levels(org)
+        self.assertEqual((lv["level"], lv["results_due"]), (2, 0))
+        # 今年開始、上個月期限已過、沒備查：到期了
+        Project.objects.create(organization=org, name="今年逾期", raised=10, start_date=on_year(roc_now()),
+                               result_due_on=today - timedelta(days=1), result_done=False, result_late=True)
+        lv = scoring.levels(org)
+        self.assertEqual((lv["level"], lv["results_due"], lv["results_filed"]), (1, 1, 0))
+
+    def test_end_date_plus_30_days_when_no_deadline(self):
+        today = scoring.today()
+        org = full_identity()
+        Project.objects.create(organization=org, name="期滿未滿 30 日", raised=10, start_date=on_year(roc_now() - 1),
+                               end_date=today - timedelta(days=29))
+        self.assertEqual(scoring.levels(org)["results_due"], 0)
+        Project.objects.create(organization=org, name="期滿 31 日", raised=10, start_date=on_year(roc_now()),
+                               end_date=today - timedelta(days=31))
+        self.assertEqual(scoring.levels(org)["results_due"], 1)
+
     def test_this_year_and_unknown_year_are_not_due(self):
         org = full_identity()
         Project.objects.create(organization=org, name="今年", raised=10, start_date=on_year(roc_now()))

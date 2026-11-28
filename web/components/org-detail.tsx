@@ -1089,19 +1089,11 @@ function ProjectsTab({ org }: { org: OrgDetail }) {
                 </div>
                 <div>
                   <dt className="text-ink-600">成果備查</dt>
-                  <dd className="tabular-nums">
-                    {p.result_filed_on
-                      ? formatRocDate(p.result_filed_on)
-                      : "尚未備查"}
-                  </dd>
+                  <FilingStatus filedOn={p.result_filed_on} done={p.result_done} late={p.result_late} dueOn={p.result_due_on} />
                 </div>
                 <div>
                   <dt className="text-ink-600">結案備查</dt>
-                  <dd className="tabular-nums">
-                    {p.closed_filed_on
-                      ? formatRocDate(p.closed_filed_on)
-                      : "尚未結案"}
-                  </dd>
+                  <FilingStatus filedOn={p.closed_filed_on} done={p.closed_done} late={p.closed_late} dueOn={p.closed_due_on} />
                 </div>
                 {(p.start_date || p.end_date) && (
                   <div className="col-span-2">
@@ -1333,4 +1325,32 @@ export function OrgDetailSkeleton() {
       <Skeleton className="h-64 w-full" />
     </div>
   );
+}
+
+/** 成果／結案備查一格（LK-43）：有日期寫日期；活動頁看得到已備查寫「已備查」；還沒備查寫期限，過了期限標紅字「逾期未備查」。
+ * 逾期才補交的加註「逾期」。期限是公益勸募條例的法定期限（成果＝期滿後 30 日，結案＝財物用完後 30 日）。 */
+function FilingStatus({ filedOn, done, late, dueOn }: { filedOn: string | null; done: boolean | null; late: boolean; dueOn: string | null }) {
+  const lateNote = late ? <span className="ml-1 text-xs text-ink-600">（逾期）</span> : null;
+  if (filedOn || done) {
+    return (
+      <dd className="tabular-nums">
+        {filedOn ? formatRocDate(filedOn) : "已備查"}
+        {lateNote}
+      </dd>
+    );
+  }
+  if (dueOn) {
+    const overdue = new Date(dueOn) < new Date(new Date().toDateString());
+    return (
+      <dd className="tabular-nums">
+        {overdue ? (
+          <span className="font-medium text-red-700">逾期未備查</span>
+        ) : (
+          <>還沒到期</>
+        )}
+        <span className="block text-xs text-ink-600">期限 {formatRocDate(dueOn)}</span>
+      </dd>
+    );
+  }
+  return <dd className="tabular-nums">尚未備查</dd>;
 }
