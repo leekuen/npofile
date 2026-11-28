@@ -168,7 +168,7 @@ async function AboutBody() {
               <tr>
                 <td className="py-2 pr-4 whitespace-nowrap tabular-nums">鑽石</td>
                 <td className="py-2 pr-4 whitespace-nowrap font-medium">長期可查</td>
-                <td className="py-2">連續 3 個年度都有財務報告、最近一年的財報經會計師查核，而且最近兩個年度內有年報或工作／成果報告</td>
+                <td className="py-2">連續 3 個年度都有財務報告，而且最近兩個年度內有年報或工作／成果報告（不看有沒有經會計師查核：公開了財報就算）</td>
               </tr>
             </tbody>
           </table>

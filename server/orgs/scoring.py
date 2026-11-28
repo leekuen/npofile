@@ -120,12 +120,11 @@ def levels(org: Organization, *, projects=None, financials=None, documents=None,
     consecutive = any(
         all(y - i in years for i in range(CONSECUTIVE_YEARS)) for y in fin_years if y >= recent_from
     )
-    latest = max((f for f in financials if _has_numbers(f)), key=lambda f: f.year, default=None)
+    # 不看會計師查核：衛福部決算不公布查核與否，「敢發出財報就算有提供」（使用者 2026-11-28，LK-45）
     reports = any(d.kind in (OrgDocument.Kind.ANNUAL, OrgDocument.Kind.WORK) and d.year >= recent_from
                   for d in documents)
     layer4 = [
         _check("financial_consecutive", f"連續 {CONSECUTIVE_YEARS} 個年度的財務報告", consecutive),
-        _check("audited", "最近一年財報經會計師查核", bool(latest and latest.audited)),
         _check("report", f"{recent_from} 年以後的年報或工作／成果報告", reports),
     ]
 

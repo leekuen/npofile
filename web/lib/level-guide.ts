@@ -58,9 +58,6 @@ export const CHECK_GUIDE: Record<string, CheckGuide> = {
   financial_consecutive: {
     how: "連續 3 個年度都公開財務報告，不要只放最新一年；舊年度的報告請留在官網上。",
   },
-  audited: {
-    how: "最近一年的財務報告請會計師查核簽證，並把查核報告一起公開（報告上要看得出經會計師查核）。",
-  },
   report: {
     how: "在官網公開最近兩個年度內的年報、工作報告或成果報告，說明這一年做了什麼、幫了多少人。",
   },
@@ -71,7 +68,7 @@ export const LEVEL_SUMMARY: Record<number, string> = {
   1: "查得到你們是誰：營運中、有統編、類型、地址、宗旨與聯絡方式。",
   2: "查得到你們在做什麼：近 5 年有活動，往年的勸募都已交代成果。",
   3: "查得到你們的錢：最近兩年內公開過財務報告。",
-  4: "查得到你們長期的樣子：連續 3 年財報、經會計師查核、也公開年報或成果報告。",
+  4: "查得到你們長期的樣子：連續 3 年財報，也公開年報或成果報告。",
 };
 
 /** 每一級的條件代號（順序跟後端一樣；給組織頁不必呼叫 API 就能列出條件） */
@@ -91,7 +88,6 @@ export const LEVEL_CHECKS: Record<number, { key: string; label: string }[]> = {
   3: [{ key: "financial_recent", label: "最近兩個年度內的財務報告" }],
   4: [
     { key: "financial_consecutive", label: "連續 3 個年度的財務報告" },
-    { key: "audited", label: "最近一年財報經會計師查核" },
     { key: "report", label: "最近兩個年度內的年報或工作／成果報告" },
   ],
 };
