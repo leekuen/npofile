@@ -109,6 +109,8 @@ export interface DonationRow {
   donor_kind: DonorKind | null;
   purpose: string;
   amount: number;
+  /** 金額讀不出確定數字時的原文（LK-49，例「新台幣20-30萬元」）；有值就顯示它、不算進加總 */
+  amount_note: string;
   donated_on: string | null;
   /** 財團法人年度捐贈名單清冊（LK-48）只有年度（民國）、沒有日期；其他是 null */
   year: number | null;
@@ -411,6 +413,8 @@ export interface DonorDetail extends DonorSummaryRow {
     donated_on: string | null;
     year: number | null;
     amount: number;
+    /** 見 DonationRow.amount_note（LK-49） */
+    amount_note: string;
     purpose: string;
     org_ubn: string;
     org_name: string;

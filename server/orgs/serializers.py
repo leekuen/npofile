@@ -152,8 +152,8 @@ class DonationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Donation
-        fields = ("id", "donor_name", "donor_id", "donor_kind", "amount", "donated_on", "year", "purpose", "source_name",
-                  "source_url")
+        fields = ("id", "donor_name", "donor_id", "donor_kind", "amount", "amount_note", "donated_on", "year", "purpose",
+                  "source_name", "source_url")
 
     def get_donor_id(self, obj):
         return obj.donor_id if obj.donor_id and obj.donor.is_public else None
@@ -285,8 +285,8 @@ class DonorDonationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Donation
-        fields = ("id", "donated_on", "year", "amount", "purpose", "org_ubn", "org_name", "project_name", "source_name",
-                  "source_url")
+        fields = ("id", "donated_on", "year", "amount", "amount_note", "purpose", "org_ubn", "org_name", "project_name",
+                  "source_name", "source_url")
 
 
 class DonorDetailSerializer(DonorListSerializer):
