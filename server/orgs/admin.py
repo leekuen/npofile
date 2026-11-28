@@ -63,7 +63,7 @@ class PenaltyInline(admin.StackedInline):
     model = Penalty
     extra = 0
     fields = (
-        ("decided_on", "authority", "document_no"), "content", "fine_text", "reason",
+        ("decided_on", "authority", "document_no"), ("category", "law"), "content", "fine_text", "reason",
         ("source_name", "source_url", "external_id"),
     )
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
-from . import fia, grants, judicial, labor, mohw, orgsite, registries, swft, twnpos, violations, wabay
+from . import environment, fia, grants, judicial, labor, mohw, orgsite, registries, swft, twnpos, violations, wabay
 from .http import PoliteClient
 from .items import Item
 
@@ -24,7 +24,7 @@ class Source:
     # plan＝記住抓到哪裡的 mohw.ActivityPlan（後端用資料庫版本）、revisit＝要回頭再看的專案編號、orgs＝（統編, 名稱）名冊、
     # orgs_city＝（統編, 名稱, 所在縣市）名冊、seen_regs＝已存過的法院登記公告編號、floor_reached＝法院登記公告回補完了沒、listed＝列表讀到幾筆（[0]，給 crawl 判斷網站改版）、
     # targets＝要爬的（統編, 官網）、extractor＝讀報告數字的 financials.ClaudeExtractor（沒設金鑰是 None）、seen_docs＝已讀過數字的檔案網址
-    # have＝已經收過的財報編號（不再下載）
+    # have＝已經收過的財報編號（不再下載）、moenv_api_key＝環境部開放資料 API 金鑰、since_date＝上次成功抓取往前推的日期（只抓新的）
     options: tuple[str, ...] = ()
     # 統編不在組織資料庫的資料不存（例：挖貝上公司提的商品集資），不進審核清單
     known_orgs_only: bool = False
@@ -32,6 +32,8 @@ class Source:
     update_approved: bool = False
     # 整份重新下載的年更資料（LK-32）：「crawl all」距上次成功不到這麼多天就略過（0＝每次都跑）；指名跑不受限
     every_days: int = 0
+    # 要設了這個設定（環境變數）才跑得動：沒設時「crawl all」略過、不當成失敗；指名跑會失敗並寫明原因（LK-36）
+    requires_setting: str = ""
 
     @property
     def record_name(self) -> str:
@@ -85,6 +87,11 @@ SOURCES = {
                    options=("orgs",))
             for spec in labor.SPECS
         ),
+        Source("moenv_penalties", environment.SOURCE_NAME, environment.DATASET_PAGE, True, environment.fetch,
+               "政府公開資料：各縣市環保局與環境部對列管事業的污染源裁處（每天更新）；用統一編號對組織，只收站上已有的組織，"
+               "不進審核清單；第一次全部回補，之後每天只抓上次以來新匯入的。違規人名稱與地址不存。要設 MOENV_API_KEY 才會跑",
+               options=("orgs", "moenv_api_key", "since_date", "listed"), known_orgs_only=True,
+               requires_setting="MOENV_API_KEY"),
         Source("judicial", judicial.SOURCE_NAME, judicial.LIST_PAGE, True, judicial.fetch,
                "政府公開資料：司法院每天公告的社團法人、財團法人設立、變更、解散、清算登記（108-12-09 起全部保留）；"
                "法人名稱跟組織名稱完全相同且唯一才連（同名的用法院所在縣市挑），對不到的記下不顯示、後台可手動指定；"

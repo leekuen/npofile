@@ -273,6 +273,13 @@ class Grant(SourceMixin):
 
 
 class Penalty(SourceMixin):
+    class Category(models.TextChoices):
+        # 前台依這個分開標示（LK-36）；加新類別：這裡加一項、前台 PENALTY_CATEGORY 加標籤（改 choices 不動資料表）
+        FUNDRAISING = "fundraising", "公益勸募"
+        LABOR = "labor", "勞動法令"
+        ENVIRONMENT = "environment", "環境保護"
+        PROCUREMENT = "procurement", "政府採購停權"
+
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="penalties", verbose_name="組織")
     external_id = models.CharField("來源編號", max_length=50, blank=True)
     decided_on = models.DateField("處分日期", null=True, blank=True)
@@ -281,6 +288,9 @@ class Penalty(SourceMixin):
     content = models.TextField("處分內容")
     fine_text = models.CharField("罰鍰", max_length=300, blank=True)
     reason = models.TextField("處分理由", blank=True)
+    category = models.CharField("類別", max_length=20, choices=Category.choices, default=Category.FUNDRAISING,
+                                db_index=True)
+    law = models.CharField("違反法條", max_length=300, blank=True, help_text="例：廢棄物清理法第27條第11款")
 
     class Meta:
         verbose_name = "受裁罰紀錄"
