@@ -1,11 +1,13 @@
 """上市櫃公司 ESG（LK-39）：寫入、對捐款人（統編優先、全名比對）、解除對應不接回、API 只給最新年度。"""
 
 import json
+from io import StringIO
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
 from django.contrib.admin.sites import AdminSite
+from django.core.management import call_command
 from django.test import TestCase
 from rest_framework.test import APIClient
 from npofile_crawler import esg
@@ -93,6 +95,12 @@ class CompanyEsgTests(TestCase):
         self.assertIsNone(self.api.get(f"/api/donors/{self.otc.pk}").json()["esg"])
         group = self.donor("台灣水泥扶輪社", kind=Donor.Kind.GROUP)
         self.assertIsNone(self.api.get(f"/api/donors/{group.pk}").json()["esg"])
+
+    def test_link_only_command_links_new_donors(self):
+        company_esg.store(records())
+        CompanyESG.objects.update(donor=None)
+        call_command("sync_esg", "--link-only", stdout=StringIO())
+        self.assertEqual(CompanyESG.objects.get(code="2357").donor, self.asus)
 
     def test_admin_is_read_only(self):
         admin = CompanyESGAdmin(CompanyESG, AdminSite())
