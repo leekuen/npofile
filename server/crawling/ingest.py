@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections.abc import Iterable
 from datetime import date, timedelta
@@ -502,7 +503,10 @@ def _apply_gift(rec: CrawlRecord, org: Organization, source_name: str) -> None:
     on = _date(d.get("donated_on"))
     amount = d.get("amount") or 0
     note = "" if d.get("amount") else (d.get("amount_text") or "未列金額")[:100]
-    key = f"{donor.id}|{org.id}|{on.isoformat() if on else ''}|{amount or note}"[:60]
+    # 同一份表上同一天、同一對象、同金額列兩次＝兩筆真的捐款（爬蟲給第二筆的編號加「-2」）：各自保留；
+    # 第一筆不帶序號，才能跟別的來源的同一筆對上
+    seq = m.group(1) if (m := re.search(r"-(\d+)$", rec.external_id or "")) else ""
+    key = f"{donor.id}|{org.id}|{on.isoformat() if on else ''}|{amount or note}{'#' + seq if seq else ''}"[:60]
     values = {
         "donor": donor, "donor_name": donor.name[:200], "amount": amount, "amount_note": note, "donated_on": on,
         "purpose": (d.get("purpose") or "")[:200], "source_name": source_name, "source_url": rec.source_url,

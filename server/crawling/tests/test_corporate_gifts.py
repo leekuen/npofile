@@ -97,3 +97,8 @@ class CorporateGiftTests(TestCase):
         run_source(self.ins, items=[insurer(ORG, on=date(period.since_roc_year() + 1911 - 2, 6, 1))])
         self.assertEqual(Donation.objects.count(), 1)
         self.assertEqual(self.counted().count(), 0)
+
+    def test_same_row_twice_in_one_table_counts_twice(self):
+        on = recent()
+        run_source(self.ins, items=[insurer(ORG, on=on, amount=15_488, ext="i9"), insurer(ORG, on=on, amount=15_488, ext="i9-2")])
+        self.assertEqual(self.counted().count(), 2)
