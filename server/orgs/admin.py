@@ -6,6 +6,7 @@ from . import company_esg, taxonomy
 
 from .models import (
     CRAWLABLE_FIELDS,
+    AnnualDonorList,
     AnnualFundraising,
     CompanyESG,
     CourtRegistration,
@@ -299,10 +300,45 @@ class ProjectAdmin(admin.ModelAdmin):
     inlines = [DonorListSummaryInline]
 
 
+class AnnualListDonationInline(admin.TabularInline):
+    model = Donation
+    fk_name = "annual_list"
+    extra = 0
+    can_delete = False
+    fields = ("organization", "donor", "donor_name", "amount", "year", "duplicate")
+    readonly_fields = fields
+    show_change_link = True
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(AnnualDonorList)
+class AnnualDonorListAdmin(admin.ModelAdmin):
+    """財團法人年度捐贈名單清冊（LK-48）：收到哪些檔、解析出幾筆。內容由爬蟲寫，這裡只看；
+    要讓某位捐款人不出現，到「捐款人」勾隱藏。"""
+
+    list_display = ("organization", "year", "direction", "title", "file_format", "scanned", "total_rows", "kept_rows",
+                    "unmatched_count", "updated_at")
+    list_filter = ("direction", "scanned", "file_format", "year")
+    search_fields = ("organization__name", "organization__ubn", "title", "url")
+    autocomplete_fields = ("organization",)
+    readonly_fields = [f.name for f in AnnualDonorList._meta.fields if f.name != "id"]
+    inlines = [AnnualListDonationInline]
+
+    @admin.display(description="對不上組織")
+    def unmatched_count(self, obj):
+        return len(obj.unmatched or [])
+
+    def has_add_permission(self, request):
+        return False
+
+
 @admin.register(Donation)
 class DonationAdmin(admin.ModelAdmin):
-    list_display = ("organization", "donor_display", "amount", "donated_on", "project", "receipt_no")
-    list_filter = ("donor__kind",)
+    list_display = ("organization", "donor_display", "amount", "donated_on", "year", "project", "source_name",
+                    "duplicate", "receipt_no")
+    list_filter = ("donor__kind", "source_name", "duplicate")
     search_fields = ("donor_name", "donor__name", "receipt_no", "organization__name", "organization__ubn")
     autocomplete_fields = ("organization", "donor", "project")
     list_select_related = ("organization", "donor", "project")

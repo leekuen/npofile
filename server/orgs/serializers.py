@@ -152,7 +152,8 @@ class DonationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Donation
-        fields = ("id", "donor_name", "donor_id", "donor_kind", "amount", "donated_on", "purpose", "source_name", "source_url")
+        fields = ("id", "donor_name", "donor_id", "donor_kind", "amount", "donated_on", "year", "purpose", "source_name",
+                  "source_url")
 
     def get_donor_id(self, obj):
         return obj.donor_id if obj.donor_id and obj.donor.is_public else None
@@ -198,6 +199,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     corporate_donors = serializers.SerializerMethodField()
     individual_donors = serializers.SerializerMethodField()
     donor_summary = serializers.SerializerMethodField()
+    annual_donor_lists = serializers.SerializerMethodField()
     since_roc_year = serializers.SerializerMethodField()
     categories = serializers.SerializerMethodField()
 
@@ -208,7 +210,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
             "website", "city", "purposes", "status", "status_label", "source_links", "disclosure_level",
             "penalty_count_5y", "levels", "public_raised", "annual_records", "financials", "documents", "projects",
             "penalties", "grants", "court_registrations", "court_dissolution", "registries", "donation_codes", "donation_trend", "donations",
-            "corporate_donors", "individual_donors", "donor_summary", "since_roc_year", "categories",
+            "corporate_donors", "individual_donors", "donor_summary", "annual_donor_lists", "since_roc_year", "categories",
             "updated_at",
         )
 
@@ -230,7 +232,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
         return scoring.public_raised(list(obj.annual_records.all()), list(obj.projects.all()))
 
     def get_donations(self, obj):
-        qs = donor_rules.visible_donations(obj.donations.select_related("donor"))[:RECENT_DONATIONS]
+        qs = donor_rules.recent_first(donor_rules.visible_donations(obj.donations.select_related("donor")))[:RECENT_DONATIONS]
         return DonationSerializer(qs, many=True).data
 
     def get_corporate_donors(self, obj):
@@ -241,6 +243,14 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
 
     def get_donor_summary(self, obj):
         return donor_rules.org_summary(obj)
+
+    def get_annual_donor_lists(self, obj):
+        """官網公開的年度捐贈名單清冊（LK-48）：財務與年報分頁列出，掃描檔標「尚未讀取」。原始解析紀錄只在後台。"""
+        return [
+            {"year": x.year, "direction": x.direction, "direction_label": x.get_direction_display(), "title": x.title,
+             "url": x.url, "scanned": x.scanned, "kept_rows": x.kept_rows}
+            for x in obj.annual_donor_lists.filter(period.annual_q()).order_by("-year", "direction", "title")
+        ]
 
     def get_donation_codes(self, obj):
         # 用統編對（讀的時候才對）：清單沒變、組織後來才進財政部名冊也對得到
@@ -275,7 +285,8 @@ class DonorDonationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Donation
-        fields = ("id", "donated_on", "amount", "purpose", "org_ubn", "org_name", "project_name", "source_name", "source_url")
+        fields = ("id", "donated_on", "year", "amount", "purpose", "org_ubn", "org_name", "project_name", "source_name",
+                  "source_url")
 
 
 class DonorDetailSerializer(DonorListSerializer):
@@ -328,6 +339,5 @@ class DonorDetailSerializer(DonorListSerializer):
         return donor_rules.donor_by_org(obj)
 
     def get_donations(self, obj):
-        qs = obj.donations.filter(period.donation_q()).select_related("organization", "project")
-        qs = qs.order_by("-donated_on", "-amount")
+        qs = donor_rules.recent_first(obj.donations.filter(period.donation_q()).select_related("organization", "project"))
         return DonorDonationSerializer(qs[:DONOR_DETAIL_DONATIONS], many=True).data

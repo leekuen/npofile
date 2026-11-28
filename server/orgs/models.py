@@ -152,6 +152,15 @@ class Donation(SourceMixin):
     donated_on = models.DateField("捐款日期", null=True, blank=True)
     receipt_no = models.CharField("收據編號", max_length=50, blank=True)
     purpose = models.CharField("捐贈用途", max_length=200, blank=True)
+    # 財團法人年度捐贈名單清冊（LK-48）：只有年度、沒有日期；「近 5 年」看這個年度
+    year = models.PositiveSmallIntegerField("年度（民國）", null=True, blank=True, db_index=True)
+    annual_list = models.ForeignKey(
+        "AnnualDonorList", on_delete=models.CASCADE, null=True, blank=True, related_name="donations", verbose_name="年度清冊"
+    )
+    duplicate = models.BooleanField(
+        "重複（不計）", default=False, editable=False, db_index=True,
+        help_text="同一年、同一對捐款者與受捐組織、同金額已經在別份清冊算過（衛福部清冊＞接受清冊＞支付清冊），這筆不算（LK-48）。",
+    )
 
     class Meta:
         verbose_name = "捐款紀錄"
@@ -253,6 +262,54 @@ class DonorListSummary(models.Model):
 
     def __str__(self):
         return f"{self.project} 清冊摘要"
+
+
+class AnnualDonorList(models.Model):
+    """財團法人在官網公開的年度捐贈名單清冊（LK-48，《財團法人法》第 25 條第 3 項第 2 款）。
+
+    接受清冊：列上的是捐給這個組織的；支付清冊：列上的是這個組織捐出去的，受捐者對得上站上組織才記成對方的捐款。
+    小額個人與匿名只留數字；掃描檔只記下來、不解析。"""
+
+    class Direction(models.TextChoices):
+        RECEIVE = "receive", "接受"
+        PAY = "pay", "支付"
+
+    SOURCE_LABELS = {"receive": "財團法人年度清冊（接受）", "pay": "財團法人年度清冊（支付）"}
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="annual_donor_lists", verbose_name="組織")
+    year = models.PositiveSmallIntegerField("年度（民國）", db_index=True)
+    direction = models.CharField("接受／支付", max_length=10, choices=Direction.choices)
+    title = models.CharField("標題", max_length=200)
+    url = models.URLField("檔案網址", max_length=1000)
+    found_on = models.URLField("在哪一頁找到", max_length=1000, blank=True)
+    file_format = models.CharField("格式", max_length=10, blank=True)
+    scanned = models.BooleanField("掃描檔（尚未讀取）", default=False)
+    total_rows = models.PositiveIntegerField("清冊總筆數", default=0)
+    total_amount = models.BigIntegerField("清冊總金額", default=0)
+    kept_rows = models.PositiveIntegerField("存成捐款的筆數", default=0)
+    small_individual_count = models.PositiveIntegerField("小額個人人數", default=0)
+    small_individual_amount = models.BigIntegerField("小額個人金額", default=0)
+    anonymous_rows = models.PositiveIntegerField("匿名筆數", default=0)
+    anonymous_amount = models.BigIntegerField("匿名金額", default=0)
+    threshold = models.BigIntegerField("個人顯示門檻", default=0)
+    unmatched = models.JSONField(
+        "對不上組織的受捐者", default=list, blank=True, help_text="支付清冊上名稱對不上站上組織的團體／企業（只在後台看）。"
+    )
+    source_name = models.CharField("來源名稱", max_length=100, blank=True)
+    updated_at = models.DateTimeField("更新時間", auto_now=True)
+
+    class Meta:
+        verbose_name = "年度捐贈名單清冊"
+        verbose_name_plural = "年度捐贈名單清冊"
+        ordering = ["-year", "direction"]
+        constraints = [models.UniqueConstraint(fields=["organization", "url"], name="uniq_annual_donor_list_url")]
+
+    def __str__(self):
+        return f"{self.year} {self.get_direction_display()} {self.title}"
+
+    @property
+    def source_label(self) -> str:
+        return self.SOURCE_LABELS[self.direction]
 
 
 class Grant(SourceMixin):

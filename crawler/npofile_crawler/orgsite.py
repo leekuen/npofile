@@ -6,6 +6,8 @@
 
 Item 種類：
 - document：{year, doc_kind, title, url, found_on}
+- annual_list：財團法人年度接受／支付捐贈名單清冊（LK-48）{year, direction, title, url, found_on, format, scanned,
+  rows: [{name, kind, amount}], summary}；讀檔與分類見 annual_donors.py
 - financial：{year, audited, <financials.AMOUNT_FIELDS>…, document_url, document_title, method}
 """
 
@@ -21,6 +23,7 @@ from urllib.robotparser import RobotFileParser
 
 from bs4 import BeautifulSoup
 
+from . import annual_donors
 from .http import USER_AGENT, PoliteClient
 from .items import Item
 
@@ -57,16 +60,25 @@ ROC_YEAR_RE = re.compile(r"(?<!\d)(?:民國\s*)?(1[01]\d)\s*(?:年|學年)")
 # 「113勸募收支彙總表」這種開頭就是民國年、後面直接接中文的標題
 LEADING_ROC_RE = re.compile(r"^(1[01]\d)(?=[\u4e00-\u9fff])")
 AD_YEAR_RE = re.compile(r"(?<!\d)(20[0-3]\d)(?!\d)")
+# 年度捐贈名單清冊可以是 PDF、Excel、ODS（舊版 .xls 讀不了，照樣不收）
+LIST_FILE_RE = re.compile(r"\.(?:pdf|xlsx|ods)$", re.I)
+LIST_PREFIX = "donor_"  # DocLink.doc_kind：donor_receive / donor_pay
 DRIVE_FILE_RE = re.compile(r"drive\.google\.com/(?:file/d/|open\?id=|uc\?)", re.I)
 
 
 @dataclass(frozen=True)
 class DocLink:
+    """doc_kind：financial | annual | work（報告），或 donor_receive | donor_pay（年度捐贈名單清冊，LK-48）"""
+
     year: int  # 民國
-    doc_kind: str  # financial | annual | work
+    doc_kind: str
     title: str
     url: str
     found_on: str
+
+    @property
+    def is_donor_list(self) -> bool:
+        return self.doc_kind.startswith(LIST_PREFIX)
 
     def item(self, ubn: str) -> Item:
         return Item(
@@ -118,6 +130,10 @@ def classify(text: str) -> str | None:
     return None
 
 
+def is_list_file(url: str) -> bool:
+    return bool(LIST_FILE_RE.search(urlparse(url).path)) or bool(DRIVE_FILE_RE.search(url))
+
+
 def is_document_url(url: str) -> bool:
     path = urlparse(url).path.lower()
     return path.endswith(".pdf") or bool(DRIVE_FILE_RE.search(url))
@@ -157,6 +173,18 @@ def _context(a, year: int | None, kind: str | None) -> tuple[int | None, str | N
     return year, kind, ctx
 
 
+def _title(own: str, url_text: str, year: int, label: str) -> str:
+    filename = url_text.rsplit("/", 1)[-1]
+    stem, _, ext = filename.rpartition(".")
+    if own and not GENERIC_TITLES.match(own) and not re.fullmatch(r"[\d\s年度]+", own):
+        title = own
+    elif stem and ext.lower() in ("pdf", "xlsx", "ods") and not re.fullmatch(r"[\d_\-]+", stem):
+        title = stem
+    else:
+        title = f"{year} 年度{label}"
+    return title[:200]
+
+
 def parse_links(html: str, page_url: str) -> tuple[list[DocLink], list[str]]:
     """一頁裡的（報告檔、要往下走的同站連結）。年度與種類先看連結自己的字和網址，看不出來才看外面那一層。"""
     soup = BeautifulSoup(html, "html.parser")
@@ -169,10 +197,19 @@ def parse_links(html: str, page_url: str) -> tuple[list[DocLink], list[str]]:
         url = urljoin(page_url, href).split("#", 1)[0]
         own = _clean(" ".join([a.get_text(" "), a.get("title", ""), a.get("aria-label", "")]))
         url_text = unquote(urlparse(url).path)
+        own_all = f"{own} {url_text}"
+        list_dir = annual_donors.direction(own_all)
+        if list_dir and url not in docs and (is_list_file(url) or _host(url) == _host(page_url)):
+            # 年度捐贈名單清冊（LK-48）：檔案或同站的網頁表格；標題要看得出年度，看不出來的不收
+            year = find_year(own_all)
+            if year is None:
+                year, _, _ = _context(a, None, "skip")
+            if year is not None:
+                docs[url] = DocLink(year, LIST_PREFIX + list_dir, _title(own, url_text, year, "捐贈名單清冊"), url, page_url)
+            continue
         if is_document_url(url):
             if url in docs:
                 continue
-            own_all = f"{own} {url_text}"
             if EXCLUDE_RE.search(own_all):
                 continue
             year, kind = find_year(own_all), classify(own_all)
@@ -181,14 +218,7 @@ def parse_links(html: str, page_url: str) -> tuple[list[DocLink], list[str]]:
                 year, kind, ctx = _context(a, year, kind)
             if year is None or kind is None:
                 continue
-            filename = url_text.rsplit("/", 1)[-1]
-            if own and not GENERIC_TITLES.match(own) and not re.fullmatch(r"[\d\s年度]+", own):
-                title = own
-            elif filename.lower().endswith(".pdf") and not re.fullmatch(r"[\d_\-]+\.pdf", filename.lower()):
-                title = filename[:-4]
-            else:
-                title = f"{year} 年度{KIND_LABELS[kind]}"
-            docs[url] = DocLink(year, kind, title[:200], url, page_url)
+            docs[url] = DocLink(year, kind, _title(own, url_text, year, KIND_LABELS[kind]), url, page_url)
         elif _host(url) == _host(page_url) and (NAV_RE.search(own) or NAV_RE.search(unquote(url))):
             nav.append(url)
     return list(docs.values()), nav
@@ -252,6 +282,29 @@ def download_url(url: str) -> str:
     return url
 
 
+def download_list(client: PoliteClient, d: DocLink) -> Item | None:
+    """下載一份年度捐贈名單清冊、讀出名稱與金額（LK-48）。下載失敗、格式讀不了回 None；掃描檔照樣回傳（scanned）。"""
+    try:
+        resp = client.get(download_url(d.url))
+    except Exception as exc:
+        log.info("orgsite: list download failed %s (%s)", d.url, exc)
+        return None
+    body = resp.content
+    if len(body) > MAX_PDF_BYTES:
+        return None
+    parsed = annual_donors.parse(d.url, body, resp.headers.get("content-type", ""))
+    if parsed is None:
+        return None
+    direction = d.doc_kind[len(LIST_PREFIX):]
+    result = annual_donors.summarize(direction, parsed.rows)
+    return Item(
+        "annual_list", "",
+        {"year": d.year, "direction": direction, "title": d.title, "url": d.url, "found_on": d.found_on,
+         "format": parsed.format, "scanned": parsed.scanned, **result},
+        source_url=d.url, external_id=url_id(d.url),
+    )
+
+
 def download_pdf(client: PoliteClient, url: str) -> bytes | None:
     try:
         resp = client.get(download_url(url))
@@ -271,7 +324,7 @@ def pick_for_extraction(docs: Iterable[DocLink]) -> list[DocLink]:
     """每年挑一份來讀數字：財務報告優先，其次年報；工作／成果報告通常沒有完整報表，不讀。"""
     best: dict[int, DocLink] = {}
     for d in docs:
-        if d.doc_kind == "work":
+        if d.doc_kind not in KIND_PRIORITY:  # 工作／成果報告通常沒有完整報表；捐贈名單清冊另外讀
             continue
         cur = best.get(d.year)
         if cur is None or KIND_PRIORITY[d.doc_kind] < KIND_PRIORITY[cur.doc_kind]:
@@ -299,7 +352,13 @@ def fetch(client: PoliteClient, limit: int | None = None, since_roc: int | None 
             log.warning("orgsite: %s %s failed: %s", ubn, website, exc)
             continue
         for d in docs:
-            yield d.item(ubn)
+            if not d.is_donor_list:
+                yield d.item(ubn)
+                continue
+            item = download_list(client, d)
+            if item is not None:
+                item.ubn = ubn
+                yield item
         if extractor is None:
             continue
         for d in pick_for_extraction(docs):
