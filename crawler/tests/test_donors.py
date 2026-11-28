@@ -200,6 +200,22 @@ class FetchActivitiesTests(unittest.TestCase):
         self.assertIn("annual", kinds)
         self.assertEqual(kinds.count("donor_list"), 6)  # 列表上 6 個活動，每個都有清冊
 
+    def test_donor_download_waits_past_site_delay(self):
+        # 網站固定先等約 120 秒才給檔案（LK-40）；逾時要留足餘裕，並且真的傳給清冊那一個請求
+        self.assertGreaterEqual(mohw.DONOR_FILE_TIMEOUT, 180)
+        seen = {}
+        client = self.make_client()
+        original = client.get
+
+        def get(url, **kw):
+            if "downloadDonors" in url:
+                seen["timeout"] = kw.get("timeout")
+            return original(url, **kw)
+
+        client.get = get
+        list(mohw.fetch_activities_for(client, ["10057"]))
+        self.assertEqual(seen["timeout"], mohw.DONOR_FILE_TIMEOUT)
+
     def test_timeout_skips_only_that_list(self):
         import httpx
 

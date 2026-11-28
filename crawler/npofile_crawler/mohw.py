@@ -207,7 +207,9 @@ def parse_group(html: str, url: str, since_roc: int | None = None) -> list[Item]
 ACTIVITY_INDEX_URL = BASE + "/app39/fundactivity/fundactivityIndex?qorg={org}&offset={offset}&max={size}"
 ACTIVITY_URL = BASE + "/app39/fundactivity/fundactivityDetails/{aid}"
 DONORS_RE = re.compile(r"/fundactivity/downloadDonors\?refid=\d+")
-DONOR_FILE_TIMEOUT = 120.0
+# 衛福部的 downloadDonors 會先讓請求等約 120 秒（2026-11-28 實測 120.1–120.6 秒，連小清冊也一樣），
+# 才轉到 iframeDownload 給檔案；逾時設 120 秒會每一份都差一點拿不到（LK-40）
+DONOR_FILE_TIMEOUT = 300.0
 log = logging.getLogger(__name__)
 
 
