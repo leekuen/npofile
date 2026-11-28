@@ -210,6 +210,10 @@ DONORS_RE = re.compile(r"/fundactivity/downloadDonors\?refid=\d+")
 # 衛福部的 downloadDonors 會先讓請求等約 120 秒（2026-11-28 實測 120.1–120.6 秒，連小清冊也一樣），
 # 才轉到 iframeDownload 給檔案；逾時設 120 秒會每一份都差一點拿不到（LK-40）
 DONOR_FILE_TIMEOUT = 300.0
+# 2026-11-28 起衛福部的清冊下載等完 120 秒後只回 4 個位元組「null」（網站端的問題，換 cookie、瀏覽器點都一樣）。
+# 連續這麼多份都是空檔就這一輪不再下載清冊（每份還是要白等 2 分鐘），只抓活動頁；沒抓到的下一輪會再試（LK-40）
+MAX_EMPTY_DONOR_FILES = 3
+EMPTY_DONOR_FILE = object()  # _donor_list 的回傳：衛福部回空檔（跟「下載或解析失敗」分開算）
 log = logging.getLogger(__name__)
 
 
@@ -372,6 +376,7 @@ def fetch_activities(client: PoliteClient, limit: int | None = None,
     groups: dict[str, tuple[str | None, str]] = {}  # 申請單位 → (統編, 對不到的原因)；同一次執行同名只查一次
     seen: set[str] = set()
     count = 0
+    empty_streak = 0  # 連續幾份清冊衛福部回空檔
     # 去年 → 往前到 since_roc，再今年、明年：清冊在活動結束後才有，已結束的年度先抓，不讓進行中的活動佔掉時間上限
     # （補齊之後過去的年度 7 天才翻一次，平常很快就輪到今年）
     first = since_roc if since_roc and since_roc < this_roc else this_roc
@@ -401,9 +406,14 @@ def fetch_activities(client: PoliteClient, limit: int | None = None,
                 continue
             yield project
             fetched = False
-            if donors_url and plan.need_donors(card):
+            if donors_url and plan.need_donors(card) and empty_streak < MAX_EMPTY_DONOR_FILES:
                 item = _donor_list(client, donors_url, project, ubn, url, threshold)
-                if item is not None:
+                if item is EMPTY_DONOR_FILE:
+                    empty_streak += 1
+                    if empty_streak == MAX_EMPTY_DONOR_FILES:
+                        log.warning("衛福部連續 %d 份清冊都回空檔，這一輪先不下載清冊、只抓活動頁", empty_streak)
+                elif item is not None:
+                    empty_streak = 0
                     yield item
                     fetched = True
             plan.done(card, ubn, end_date=project.data.get("end_date"), has_donor_link=bool(donors_url),
@@ -425,10 +435,13 @@ def _find_group(client: PoliteClient, name: str, since_roc: int | None) -> tuple
     return org.ubn, "", items
 
 
-def _donor_list(client: PoliteClient, donors_url: str, project: Item, ubn: str, url: str, threshold: int) -> Item | None:
+def _donor_list(client: PoliteClient, donors_url: str, project: Item, ubn: str, url: str, threshold: int) -> Item | object | None:
     try:
         # 大型團體的清冊有好幾 MB、十幾萬列，下載給長一點的時間
         data = client.get(donors_url, timeout=DONOR_FILE_TIMEOUT).content
+        if data.strip() in (b"", b"null"):
+            log.warning("衛福部回空檔（不是清冊）%s：%r", donors_url, data[:20])
+            return EMPTY_DONOR_FILE
         result = donors.summarize(donors.parse_ods(data), threshold)
     except (httpx.HTTPError, zipfile.BadZipFile, ParseError) as exc:
         # 一份清冊壞掉不拖垮其他活動；下次重跑會再試（內容沒存，不會被去重擋掉）
@@ -465,7 +478,7 @@ def fetch_activities_for(client: PoliteClient, group_ids, threshold: int = donor
             yield project
             if donors_url:
                 item = _donor_list(client, donors_url, project, org.ubn, url, threshold)
-                if item is not None:
+                if item is not None and item is not EMPTY_DONOR_FILE:
                     yield item
 
 

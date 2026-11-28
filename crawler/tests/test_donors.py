@@ -251,7 +251,7 @@ class FetchByYearTests(unittest.TestCase):
 
     FakeResp = FetchActivitiesTests.FakeResp
 
-    def make_client(self, search=None, log=None):
+    def make_client(self, search=None, log=None, donor_bytes=None):
         test = self
         search = search if search is not None else search_html("10057")
 
@@ -267,10 +267,21 @@ class FetchByYearTests(unittest.TestCase):
                 if "fundactivityDetails" in url:
                     return test.FakeResp(read("activity_with_donors.html"))
                 if "downloadDonors" in url:
-                    return test.FakeResp(content=(FX / "donors_sample.ods").read_bytes())
+                    return test.FakeResp(content=donor_bytes if donor_bytes is not None else (FX / "donors_sample.ods").read_bytes())
                 raise AssertionError(url)
 
         return FakeClient()
+
+    def test_null_files_stop_donor_downloads_for_this_run(self):
+        # 衛福部回「null」（LK-40）：連續 3 份就不再下載，活動頁照抓、不標成有清冊
+        log = []
+        with self.assertLogs("npofile_crawler.mohw", "WARNING") as logs:
+            items = list(mohw.fetch_activities(self.make_client(log=log, donor_bytes=b"null"), since_roc=114, this_roc=114))
+        kinds = [i.kind for i in items]
+        self.assertEqual(kinds.count("donor_list"), 0)
+        self.assertGreaterEqual(kinds.count("project"), 6)  # 6 個活動頁都還在（團體頁也會帶專案）
+        self.assertEqual(sum("downloadDonors" in u for u in log), mohw.MAX_EMPTY_DONOR_FILES)
+        self.assertTrue(any("空檔" in m for m in logs.output))
 
     def test_lists_years_and_fetches_every_card(self):
         log = []
