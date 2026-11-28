@@ -112,6 +112,8 @@ export interface LevelCheck {
 
 export interface LevelLayer {
   level: number;
+  /** 銅、銀、金、鑽石 */
+  medal: string;
   name: string;
   met: boolean;
   checks: LevelCheck[];
@@ -119,6 +121,8 @@ export interface LevelLayer {
 
 export interface DisclosureLevels {
   level: number;
+  /** 未分級、銅、銀、金、鑽石 */
+  medal: string;
   name: string;
   max_level: number;
   active: boolean;

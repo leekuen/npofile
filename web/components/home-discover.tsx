@@ -5,7 +5,7 @@ import { ApiUnavailableError, getDiscover, getFieldPicks, type OrgQuery } from "
 import type { DiscoverEnding, DiscoverGift, DiscoverPenalty, FieldPickOrg } from "@/lib/types";
 
 import { DiscoverTabs } from "./discover-tabs";
-import { Skeleton } from "./ui";
+import { levelMedal, Skeleton } from "./ui";
 
 const link = "text-brand-800 underline underline-offset-2 hover:text-brand-950";
 const box = "surface p-4 sm:p-6";
@@ -28,7 +28,7 @@ function EndingCard({ e }: { e: DiscoverEnding }) {
       <span className="line-clamp-2 font-semibold text-ink-900">{e.name}</span>
       <span className="min-w-0">
         <span className="block truncate text-sm text-brand-900">{e.org_name}</span>
-        <span className="text-xs tabular-nums text-ink-600">揭露層級 {e.org_level}／4</span>
+        <span className="text-xs tabular-nums text-ink-600">揭露層級 {levelMedal(e.org_level)}</span>
       </span>
       <span className="mt-auto text-sm tabular-nums text-ink-600">
         預募 {formatMoney(e.target)}・至 {formatRocDate(e.end_date)}
@@ -147,7 +147,7 @@ function PickCard({ o }: { o: FieldPickOrg }) {
       <span>
         <span className="block font-semibold text-brand-900">{o.name}</span>
         <span className="text-xs tabular-nums text-ink-600">
-          {o.city ? `${o.city}・` : ""}揭露層級 {o.level}／4
+          {o.city ? `${o.city}・` : ""}揭露層級 {levelMedal(o.level)}
         </span>
       </span>
       {c ? (

@@ -69,7 +69,8 @@ class LevelTests(TestCase):
     def test_empty_org_has_no_level(self):
         org = make_org()
         lv = scoring.levels(org)
-        self.assertEqual((lv["level"], lv["name"]), (0, "資料不足"))
+        self.assertEqual((lv["level"], lv["medal"], lv["name"]), (0, "未分級", "資料不足"))
+        self.assertEqual([l["medal"] for l in lv["layers"]], ["銅", "銀", "金", "鑽石"])
         self.assertEqual(self.level(org), 0)
         missing = [c["key"] for c in lv["layers"][0]["checks"] if not c["met"]]
         self.assertEqual(missing, ["org_type", "address", "purpose", "contact"])
