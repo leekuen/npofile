@@ -21,7 +21,7 @@ PENALTY_LIMIT = 5
 GIFT_MIN_AMOUNT = 100_000
 GIFT_LIMIT = 6
 PICK_LIMIT = 3
-PICK_SCAN = 3000  # 依揭露指數排好的候選，最多看這麼多個找「名稱看得出相關」的
+PICK_SCAN = 3000  # 依揭露層級排好的候選，最多看這麼多個找「名稱看得出相關」的
 
 # 處分理由 → 白話的違規類型（依序比對，第一個中的算；都沒中就不寫，不硬湊）
 PENALTY_KINDS = (

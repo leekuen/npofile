@@ -6,7 +6,7 @@ import { ApiUnavailableError, getFilters, getTaxonomy, listOrgs, type OrgQuery }
 
 import { CategoryBrowser, CategoryChip } from "./categories";
 import { FieldPicksSection, HomeDiscover, HomeSectionSkeleton } from "./home-discover";
-import { EmptyState, ErrorBox, PenaltyBadge, ScoreBadge, Skeleton, StatusBadge } from "./ui";
+import { EmptyState, ErrorBox, LevelBadge, PenaltyBadge, Skeleton, StatusBadge } from "./ui";
 
 const PAGE_SIZE = 20;
 
@@ -16,7 +16,7 @@ const ROW =
 const DEFAULT_ORDERING = "raised";
 const ORDERINGS = [
   { value: "raised", label: "近 5 年公開募款高到低" },
-  { value: "score", label: "揭露指數高到低" },
+  { value: "level", label: "揭露層級高到低" },
   { value: "name", label: "名稱" },
 ];
 
@@ -215,7 +215,7 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
       ) : (
         <div className="overflow-hidden rounded-2xl border border-ink-200 bg-white">
           <div aria-hidden className={`${ROW} hidden border-b border-ink-100 py-2 text-xs text-ink-500 sm:grid`}>
-            <span className="text-center">指數</span>
+            <span className="text-center">層級</span>
             <span>組織</span>
             <span className="text-right">近 5 年公開募款</span>
             <span>近五年裁罰</span>
@@ -226,7 +226,7 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
             {page.results.map((org) => (
               <li key={org.ubn}>
                 <Link href={`/orgs/${org.ubn}`} className={`group ${ROW} grid py-3 hover:bg-ink-50`}>
-                  <ScoreBadge score={org.disclosure_score} />
+                  <LevelBadge level={org.disclosure_level} />
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-brand-900 underline-offset-2 group-hover:underline">{org.name}</p>
                     <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-600">

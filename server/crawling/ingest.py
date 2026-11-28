@@ -165,7 +165,7 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
     return run
 
 
-# 不影響揭露指數與分類的資料：存了不用重算
+# 不影響揭露層級與分類的資料：存了不用重算
 NO_SCORE_KINDS = {"court_reg"}
 
 
@@ -192,7 +192,7 @@ def revisit_ids(source: CrawlerSource) -> list[str]:
 
 
 def recompute_ubns(ubns: set[str], chunk: int = 900) -> None:
-    """資料有更新的組織：重算揭露指數、重新分類。SQLite 單一查詢的參數有上限，分批送。"""
+    """資料有更新的組織：重算揭露層級、重新分類。SQLite 單一查詢的參數有上限，分批送。"""
     items = sorted(ubns)
     for i in range(0, len(items), chunk):
         orgs = Organization.objects.filter(ubn__in=items[i : i + chunk])
@@ -255,7 +255,7 @@ def _approved_updates(source: CrawlerSource, saved: list[CrawlRecord]) -> list[C
 @transaction.atomic
 def apply_records(records: list[CrawlRecord], status: str, user=None) -> tuple[int, int]:
     """把紀錄寫進組織資料；回傳（成功筆數, 失敗筆數）。失敗的保持原狀態並寫備註。
-    揭露指數不在這裡逐筆重算：呼叫的人寫完後用 recompute_ubns 一次算。"""
+    揭露層級不在這裡逐筆重算：呼叫的人寫完後用 recompute_ubns 一次算。"""
     with suspend_scoring():
         return _apply_records(records, status, user)
 

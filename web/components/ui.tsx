@@ -54,40 +54,35 @@ export function PenaltyBadge({ count, short = false }: { count: number; short?: 
   );
 }
 
-/** 揭露指數的圓環顏色：只分「揭露得多／中等／少」，不做好壞評等 */
-export function scoreStroke(score: number) {
-  if (score >= 70) return "stroke-brand-600";
-  if (score >= 40) return "stroke-brand-400";
-  return "stroke-ink-400";
+/** 揭露層級的名稱（LK-35；跟後端 orgs/scoring.py 的 LEVEL_NAMES 同一套） */
+export const LEVEL_NAMES = ["資料不足", "身分可查", "活動可查", "財務可查", "長期可查"] as const;
+export const MAX_LEVEL = 4;
+
+export function levelName(level: number) {
+  return LEVEL_NAMES[Math.max(0, Math.min(MAX_LEVEL, level))];
 }
 
-/** 揭露指數圓環：環的長度＝分數，中間是數字 */
-export function ScoreBadge({ score, size = "sm" }: { score: number; size?: "sm" | "lg" }) {
+/** 揭露層級：四格進度條＋「N／4」，大尺寸再寫名稱。只代表公開了多少，不做好壞評等 */
+export function LevelBadge({ level, size = "sm" }: { level: number; size?: "sm" | "lg" }) {
   const lg = size === "lg";
-  const r = 16;
-  const c = 2 * Math.PI * r;
-  const pct = Math.max(0, Math.min(100, score));
+  const n = Math.max(0, Math.min(MAX_LEVEL, level));
   return (
     <span
-      className={`relative inline-flex shrink-0 items-center justify-center ${lg ? "h-24 w-24" : "h-12 w-12"}`}
-      title={`揭露指數 ${score} 分（滿分 100）`}
+      className={`inline-flex shrink-0 flex-col ${lg ? "gap-1.5" : "w-12 gap-1"}`}
+      title={`揭露層級 ${n}／${MAX_LEVEL}：${levelName(n)}`}
     >
-      <svg viewBox="0 0 40 40" className="absolute inset-0 -rotate-90" aria-hidden>
-        <circle cx="20" cy="20" r={r} fill="none" strokeWidth={lg ? 3.5 : 4} className="stroke-ink-200" />
-        <circle
-          cx="20"
-          cy="20"
-          r={r}
-          fill="none"
-          strokeWidth={lg ? 3.5 : 4}
-          strokeLinecap="round"
-          strokeDasharray={`${(pct / 100) * c} ${c}`}
-          className={scoreStroke(score)}
-        />
-      </svg>
-      <span className="relative flex flex-col items-center leading-none">
-        <span className={`font-num font-semibold tabular-nums text-ink-900 ${lg ? "text-3xl" : "text-sm"}`}>{score}</span>
-        {lg && <span className="mt-1 text-xs text-ink-500">／100</span>}
+      <span className={`flex ${lg ? "gap-1" : "gap-0.5"}`} aria-hidden>
+        {Array.from({ length: MAX_LEVEL }, (_, i) => (
+          <span
+            key={i}
+            className={`${lg ? "h-2.5 w-10" : "h-1.5 flex-1"} rounded-sm ${i < n ? "bg-brand-600" : "bg-ink-200"}`}
+          />
+        ))}
+      </span>
+      <span className={`font-num tabular-nums leading-none ${lg ? "text-sm text-ink-700" : "text-xs text-ink-700"}`}>
+        <span className="sr-only">揭露層級 </span>
+        {n}／{MAX_LEVEL}
+        {lg && <span className="ml-1.5 font-sans font-semibold text-ink-900">{levelName(n)}</span>}
       </span>
     </span>
   );

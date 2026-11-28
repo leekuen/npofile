@@ -61,7 +61,7 @@ const SOURCES = [
   {
     name: "挖貝 WaBay 群眾集資平台",
     url: "https://wabay.tw",
-    what: "非營利組織提的集資專案（非政府資料，另外標示，不算進揭露指數與任何加總）",
+    what: "非營利組織提的集資專案（非政府資料，另外標示，不算進揭露層級與任何加總）",
   },
 ];
 
@@ -127,42 +127,45 @@ async function AboutBody() {
         </p>
       </Section>
 
-      <Section id="score" title="揭露指數怎麼算">
-        <p>揭露指數只看組織把資料公開得齊不齊，滿分 100。它不是好壞評等，也不代表本站背書；受裁罰不扣分，另外標示。</p>
+      <Section id="score" title="揭露層級怎麼算">
+        <p>
+          揭露層級看組織在政府與公開來源上留下了多少看得到的資料，分四層，要依序達到：前一層達到了，下一層才算。
+          每一條都是站上查得到來源的資料，不收組織自己填的內容。層級不是好壞評等，也不代表本站背書；受裁罰不影響層級，另外標示。
+        </p>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[28rem] border-collapse text-sm">
             <thead>
               <tr className="border-b border-ink-200 text-left text-ink-600">
-                <th scope="col" className="py-2 pr-4 font-medium">項目</th>
-                <th scope="col" className="py-2 pr-4 font-medium">怎麼拿分</th>
-                <th scope="col" className="py-2 text-right font-medium">分數</th>
+                <th scope="col" className="py-2 pr-4 font-medium">層級</th>
+                <th scope="col" className="py-2 pr-4 font-medium">名稱</th>
+                <th scope="col" className="py-2 font-medium">要有哪些資料（全部都要）</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
               <tr>
-                <td className="py-2 pr-4 whitespace-nowrap">基本資料</td>
-                <td className="py-2 pr-4">統一編號、團體類型、地址、電話、官網、勸募用途，有一項 5 分</td>
-                <td className="py-2 text-right tabular-nums">30</td>
+                <td className="py-2 pr-4 whitespace-nowrap tabular-nums">第 1 層</td>
+                <td className="py-2 pr-4 whitespace-nowrap font-medium">身分可查</td>
+                <td className="py-2">營運中，而且統一編號、團體類型、地址、宗旨（勸募用途或主管機關名冊的成立宗旨）、電話或官網都有</td>
               </tr>
               <tr>
-                <td className="py-2 pr-4 whitespace-nowrap">募款紀錄</td>
-                <td className="py-2 pr-4">近 5 年有實際募到款，或有捐款紀錄</td>
-                <td className="py-2 text-right tabular-nums">25</td>
+                <td className="py-2 pr-4 whitespace-nowrap tabular-nums">第 2 層</td>
+                <td className="py-2 pr-4 whitespace-nowrap font-medium">活動可查</td>
+                <td className="py-2">近 5 年有看得到的活動：政府許可的勸募活動、政府補助，或主管機關名冊上的主要業務。有辦勸募的，去年以前募到款的活動都要已向主管機關成果備查（今年的還在期限內，先不算）</td>
               </tr>
               <tr>
-                <td className="py-2 pr-4 whitespace-nowrap">勸募活動</td>
-                <td className="py-2 pr-4">近 5 年有經政府許可的勸募活動</td>
-                <td className="py-2 text-right tabular-nums">20</td>
+                <td className="py-2 pr-4 whitespace-nowrap tabular-nums">第 3 層</td>
+                <td className="py-2 pr-4 whitespace-nowrap font-medium">財務可查</td>
+                <td className="py-2">最近兩個年度內有財務報告，至少看得到總收入與總支出</td>
               </tr>
               <tr>
-                <td className="py-2 pr-4 whitespace-nowrap">成果備查</td>
-                <td className="py-2 pr-4">有募到款的勸募活動中，已向主管機關成果備查的比例 × 25</td>
-                <td className="py-2 text-right tabular-nums">25</td>
+                <td className="py-2 pr-4 whitespace-nowrap tabular-nums">第 4 層</td>
+                <td className="py-2 pr-4 whitespace-nowrap font-medium">長期可查</td>
+                <td className="py-2">連續 3 個年度都有財務報告、最近一年的財報經會計師查核，而且最近兩個年度內有年報或工作／成果報告</td>
               </tr>
             </tbody>
           </table>
         </div>
-        <p className="text-ink-600">群眾集資平台上的專案沒有政府的成果備查，不算進揭露指數。</p>
+        <p className="text-ink-600">還沒達到第 1 層的叫「資料不足」，多半是只有財政部名冊上的名稱與縣市。已註銷、撤銷或歇業的組織不分層級。群眾集資平台上的專案沒有政府的成果備查，不算勸募活動。</p>
       </Section>
 
       <Section id="categories" title="分類怎麼來">

@@ -11,7 +11,6 @@ import type {
   OrgDetail,
   Project,
   RegistryEntry,
-  ScoreBreakdown,
 } from "@/lib/types";
 
 import { OrgCategoryTags } from "./categories";
@@ -22,7 +21,7 @@ import {
   Card,
   EmptyState,
   ErrorBox,
-  ScoreBadge,
+  LevelBadge,
   Skeleton,
   SourceNote,
   StatusBadge,
@@ -112,14 +111,14 @@ export async function OrgDetailView({
         )}
       </header>
 
-      {/* 桌機：左欄摘要＋分頁，右欄揭露指數＋基本資料；手機依序疊成摘要、右欄、分頁 */}
+      {/* 桌機：左欄摘要＋分頁，右欄揭露層級＋基本資料；手機依序疊成摘要、右欄、分頁 */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
         <div className="lg:col-start-1">
           <OrgSummary org={org} />
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-6 lg:col-start-2 lg:row-span-2 lg:row-start-1">
-          <ScorePanel score={org.score} />
+          <LevelPanel org={org} />
           <FinanceSummaryCard org={org} />
           <ContactCard org={org} />
           <CourtRegistrationsCard regs={org.court_registrations} />
@@ -250,107 +249,85 @@ function OrgSummary({ org }: { org: OrgDetail }) {
   );
 }
 
-function ScorePanel({ score }: { score: ScoreBreakdown }) {
-  const missing = (
-    [
-      ["org_type", "團體類型"],
-      ["address", "地址"],
-      ["phone", "電話"],
-      ["website", "官網"],
-      ["purposes", "勸募用途"],
-    ] as const
-  )
-    .filter(([k]) => !score.basic_present[k])
-    .map(([, label]) => label);
+// 條件沒達到時，點過去看得到相關資料的分頁
+const CHECK_TAB: Record<string, string> = {
+  results_filed: "projects",
+  financial_recent: "finance",
+  financial_consecutive: "finance",
+  audited: "finance",
+  report: "finance",
+};
 
-  const rows: { label: string; got: number; max: number; note: string }[] = [
-    {
-      label: "基本資料",
-      got: score.basic,
-      max: score.basic_max,
-      note: missing.length ? `缺：${missing.join("、")}` : "齊全",
-    },
-    {
-      label: "近五年募款紀錄",
-      got: score.fundraising,
-      max: score.fundraising_max,
-      note: score.fundraising ? "有" : "沒有",
-    },
-    {
-      label: "捐款專案",
-      got: score.project,
-      max: score.project_max,
-      note: score.project ? "有" : "沒有",
-    },
-    {
-      label: "專案成果備查",
-      got: score.result,
-      max: score.result_max,
-      note: score.result_funded_projects
-        ? `${score.result_filed_projects} / ${score.result_funded_projects} 個有募到款的專案已備查`
-        : "沒有募到款的專案",
-    },
-  ];
-
-  const full = rows.filter((r) => r.max > 0 && r.got >= r.max);
-  const partial = rows.filter((r) => !(r.max > 0 && r.got >= r.max));
-  // 手機版只留一句：扣在哪
-  const oneLine = partial.length
-    ? `${partial.map((r) => `${r.label} ${r.got}/${r.max}`).join("、")}${full.length ? "，其餘滿分" : ""}`
-    : "每一項都拿到滿分";
+/** 揭露層級卡（LK-35）：四層依序達成；沒達到的寫還差哪一條 */
+function LevelPanel({ org }: { org: OrgDetail }) {
+  const lv = org.levels;
+  const next = lv.layers.find((l) => l.level === lv.level + 1);
+  const nextMissing = next ? next.checks.filter((c) => !c.met).map((c) => (c.hint ? `${c.label}（${c.hint}）` : c.label)) : [];
+  // 手機版只留一句：下一層還差什麼
+  const oneLine = !lv.active
+    ? `${org.status_label}，不分層級`
+    : next
+      ? `下一層「${next.name}」還差：${nextMissing.join("、")}`
+      : "四層都達到了";
 
   return (
-    <section
-      aria-label="揭露指數"
-      className="rounded-2xl bg-sun-50 p-4 ring-1 ring-sun-100 lg:space-y-4 lg:p-5"
-    >
-      <div className="flex items-center gap-4">
-        <ScoreBadge score={score.total} size="lg" />
-        <div>
-          <p className="font-display text-lg font-bold text-ink-900">
-            揭露指數
-          </p>
-          <p className="text-xs text-ink-600">資料公開得越完整，分數越高</p>
-          <p className="mt-1 text-sm text-ink-800 lg:hidden">{oneLine}</p>
+    <section aria-label="揭露層級" className="rounded-2xl bg-sun-50 p-4 ring-1 ring-sun-100 lg:space-y-4 lg:p-5">
+      <div>
+        <p className="font-display text-lg font-bold text-ink-900">揭露層級</p>
+        <div className="mt-2">
+          <LevelBadge level={lv.level} size="lg" />
         </div>
+        <p className="mt-2 text-sm text-ink-800 lg:hidden">{oneLine}</p>
       </div>
-      <div className="hidden space-y-3 text-sm lg:block">
-        {partial.length > 0 && (
-          <ul className="space-y-3">
-            {partial.map((r) => (
-              <li key={r.label}>
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="font-medium text-ink-800">{r.label}</span>
-                  <span className="font-num tabular-nums text-ink-900">
-                    {r.got} / {r.max}
-                  </span>
-                </div>
-                <div
-                  className="mt-1 h-1.5 overflow-hidden rounded-full bg-white"
+      <ol className={`hidden space-y-3 text-sm ${lv.active ? "lg:block" : ""}`}>
+        {lv.layers.map((layer) => {
+          const reached = layer.level <= lv.level;
+          return (
+            <li key={layer.level}>
+              <p className="flex items-baseline gap-1.5">
+                <span
                   aria-hidden
+                  className={`w-4 shrink-0 text-center font-bold ${reached ? "text-emerald-700" : "text-ink-400"}`}
                 >
-                  <div
-                    className="h-full rounded-full bg-brand-600"
-                    style={{ width: `${r.max ? (r.got / r.max) * 100 : 0}%` }}
-                  />
-                </div>
-                <p className="mt-0.5 text-xs text-ink-600">{r.note}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-        {full.length > 0 && (
-          <p className="text-ink-700">
-            <span aria-hidden className="mr-1 font-bold text-emerald-700">
-              ✓
-            </span>
-            {full.map((r) => r.label).join("、")}拿到滿分
-          </p>
-        )}
-        <p className="text-xs text-ink-500">
-          受裁罰紀錄不影響揭露指數，另外標示。
-        </p>
-      </div>
+                  {reached ? "✓" : "○"}
+                </span>
+                <span className={reached ? "font-medium text-ink-900" : "font-medium text-ink-600"}>
+                  第 {layer.level} 層　{layer.name}
+                </span>
+                <span className="sr-only">{reached ? "已達到" : "未達到"}</span>
+              </p>
+              {/* 只列下一層還差什麼；更後面的層級只寫名稱，免得一長串 */}
+              {layer.level === lv.level + 1 && (
+                <ul className="mt-1 space-y-0.5 pl-6 text-xs text-ink-600">
+                  {layer.checks
+                    .filter((c) => !c.met)
+                    .map((c) => (
+                      <li key={c.key}>
+                        還差：
+                        {CHECK_TAB[c.key] ? (
+                          <Link
+                            href={`/orgs/${org.ubn}?tab=${CHECK_TAB[c.key]}`}
+                            scroll={false}
+                            className="text-brand-800 underline underline-offset-2"
+                          >
+                            {c.label}
+                          </Link>
+                        ) : (
+                          c.label
+                        )}
+                        {c.hint && `（${c.hint}）`}
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+      {!lv.active && <p className="hidden text-sm text-ink-800 lg:block">{org.status_label}的組織不分層級。</p>}
+      <p className="hidden text-xs text-ink-500 lg:block">
+        層級只代表公開了多少資料，不代表本站背書或評價；受裁罰紀錄不影響層級，另外標示。
+      </p>
     </section>
   );
 }

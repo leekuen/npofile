@@ -56,7 +56,7 @@ class CrawlerSourceAdmin(admin.ModelAdmin):
         self.message_user(
             request,
             f"已排入完整爬取 #{req.pk}：{'、'.join(s.name for s in sources)}。排程一分鐘內會開始，"
-            "跑完會清掉舊資料並重算揭露指數；進度看「完整爬取請求」與「爬蟲執行紀錄」。"
+            "跑完會清掉舊資料並重算揭露層級；進度看「完整爬取請求」與「爬蟲執行紀錄」。"
             + (f"略過停用的來源：{'、'.join(skipped)}。" if skipped else ""),
             messages.SUCCESS,
         )
