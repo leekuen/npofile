@@ -31,7 +31,7 @@ export function DiscoverTabs({ tabs }: { tabs: { key: string; label: string; pan
             aria-controls={`${id}-panel-${t.key}`}
             tabIndex={i === active ? 0 : -1}
             onClick={() => setActive(i)}
-            className={`-mb-px shrink-0 border-b-2 px-3 py-3 text-sm font-medium whitespace-nowrap ${
+            className={`-mb-px shrink-0 border-b-2 px-3 py-3 transition-colors duration-200 text-sm font-medium whitespace-nowrap ${
               i === active ? "border-brand-700 font-bold text-brand-900" : "border-transparent text-ink-600 hover:text-ink-900"
             }`}
           >
@@ -40,7 +40,7 @@ export function DiscoverTabs({ tabs }: { tabs: { key: string; label: string; pan
         ))}
       </div>
       {tabs.map((t, i) => (
-        <div key={t.key} role="tabpanel" id={`${id}-panel-${t.key}`} aria-labelledby={`${id}-tab-${t.key}`} hidden={i !== active}>
+        <div key={t.key} role="tabpanel" id={`${id}-panel-${t.key}`} aria-labelledby={`${id}-tab-${t.key}`} hidden={i !== active} className="animate-rise">
           {t.panel}
         </div>
       ))}
