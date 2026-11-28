@@ -15,9 +15,9 @@ const ROW =
   "grid-cols-[3rem_minmax(0,1fr)_1rem] items-center gap-3 px-4 sm:grid-cols-[3rem_minmax(0,1fr)_8.5rem_5.5rem_1rem] md:grid-cols-[3rem_minmax(0,1fr)_9rem_6rem_6rem_1rem]";
 const DEFAULT_ORDERING = "raised";
 const ORDERINGS = [
-  { value: "raised", label: "近 5 年公開募款高到低" },
-  { value: "score", label: "揭露指數高到低" },
-  { value: "name", label: "名稱" },
+  { value: "raised", label: "依近 5 年公開募款排序" },
+  { value: "score", label: "依揭露指數排序" },
+  { value: "name", label: "依名稱排序" },
 ];
 
 type Search = Record<string, string | string[] | undefined>;
@@ -39,7 +39,7 @@ function href(query: OrgQuery, patch: Partial<OrgQuery>) {
 }
 
 const selectCls =
-  "w-full rounded-xl border border-ink-300 bg-white px-3 py-2 text-sm text-ink-900 focus:border-brand-600 focus:outline-none";
+  "w-full truncate rounded-xl border border-ink-300 bg-white px-3 py-2.5 text-sm text-ink-900 hover:border-ink-400 focus:border-brand-600 focus:outline-none";
 
 export async function OrgSearch({ searchParams, stats }: { searchParams: Promise<Search>; stats?: ReactNode }) {
   const sp = await searchParams;
@@ -87,10 +87,15 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
     <div className="space-y-8">
       <section
         aria-labelledby="search-title"
-        className="grid gap-6 rounded-3xl bg-white p-5 ring-1 ring-ink-200 sm:p-8 lg:grid-cols-[minmax(0,1fr)_15rem] lg:items-center lg:gap-10"
+        className="surface relative isolate grid gap-6 overflow-hidden p-5 sm:p-8 lg:grid-cols-[minmax(0,1fr)_14rem] lg:items-stretch lg:gap-10 lg:p-10"
       >
+        {/* 淡淡的靛藍＋暖黃光暈，只當背景，不放任何資訊 */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60rem_24rem_at_0%_0%,var(--color-brand-50),transparent_60%),radial-gradient(28rem_18rem_at_100%_0%,var(--color-sun-50),transparent_70%)]"
+        />
         <div className="min-w-0 space-y-5">
-        <h1 id="search-title" className="font-display max-w-2xl text-3xl font-extrabold text-balance text-ink-900 sm:text-4xl">
+        <h1 id="search-title" className="font-display max-w-2xl text-3xl leading-tight font-extrabold text-balance text-ink-900 sm:text-[2.5rem]">
           查一個非營利組織的募款與裁罰紀錄
         </h1>
         <form
@@ -111,16 +116,16 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
               name="q"
               defaultValue={query.q}
               placeholder="組織名稱或統一編號"
-              className="min-w-0 flex-1 rounded-l-xl border-2 border-r-0 border-ink-900 bg-white px-4 py-3 text-base text-ink-900 placeholder:text-ink-500 focus:border-brand-700 focus:outline-none"
+              className="min-w-0 flex-1 rounded-l-xl border-2 border-r-0 border-ink-900 bg-white px-4 py-3 text-base text-ink-900 placeholder:text-ink-500 focus:border-brand-700 focus:outline-none sm:py-3.5 sm:text-lg"
             />
             <button
               type="submit"
-              className="shrink-0 rounded-r-xl bg-sun-400 px-6 text-base font-bold text-ink-900 hover:bg-sun-500"
+              className="shrink-0 rounded-r-xl border-2 border-l-0 border-ink-900 bg-sun-400 px-6 text-base font-bold text-ink-900 transition-colors hover:bg-sun-500 sm:px-8"
             >
               搜尋
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.4fr)]">
             <label className="text-sm">
               <span className="sr-only">縣市</span>
               <select name="city" defaultValue={query.city} className={selectCls}>
@@ -141,7 +146,7 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
                 ))}
               </select>
             </label>
-            <label className="col-span-2 text-sm sm:col-span-1">
+            <label className="text-sm">
               <span className="sr-only">服務對象</span>
               <select name="target" defaultValue={query.target} className={selectCls}>
                 <option value="">全部服務對象</option>
@@ -152,8 +157,8 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
                 ))}
               </select>
             </label>
-            <label className="col-span-2 flex items-center gap-2 text-sm sm:col-span-1">
-              <span className="shrink-0 text-ink-600">排序</span>
+            <label className="text-sm">
+              <span className="sr-only">排序</span>
               <select name="ordering" defaultValue={query.ordering} className={selectCls}>
                 {ORDERINGS.map((o) => (
                   <option key={o.value} value={o.value}>
@@ -190,14 +195,14 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
         組織列表
       </h2>
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-ink-700">
+        <span className="mr-1 text-ink-700">
           共 <strong className="tabular-nums">{formatNumber(page.count)}</strong> 個組織
         </span>
         {chips.map((c) => (
           <Link
             key={c.label}
             href={href(query, { ...c.clear, page: "1" })}
-            className="inline-flex items-center gap-1 rounded-full border border-ink-300 bg-white px-3 py-1 text-ink-800 hover:bg-ink-100"
+            className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-brand-900 hover:border-brand-400"
             aria-label={`移除條件：${c.label}`}
           >
             {c.label}
@@ -213,19 +218,19 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
           換個關鍵字，或移除上面的條件再試一次。
         </EmptyState>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-ink-200 bg-white">
-          <div aria-hidden className={`${ROW} hidden border-b border-ink-100 py-2 text-xs text-ink-500 sm:grid`}>
+        <div className="overflow-hidden surface">
+          <div aria-hidden className={`${ROW} hidden border-b border-ink-200 bg-ink-50/70 py-2.5 text-xs font-medium text-ink-600 sm:grid`}>
             <span className="text-center">指數</span>
             <span>組織</span>
             <span className="text-right">近 5 年公開募款</span>
-            <span>近五年裁罰</span>
+            <span>近 5 年裁罰</span>
             <span className="hidden md:block">營運狀態</span>
             <span />
           </div>
           <ul className="divide-y divide-ink-100">
             {page.results.map((org) => (
               <li key={org.ubn}>
-                <Link href={`/orgs/${org.ubn}`} className={`group ${ROW} grid py-3 hover:bg-ink-50`}>
+                <Link href={`/orgs/${org.ubn}`} className={`group ${ROW} grid py-3.5 transition-colors hover:bg-brand-50/50`}>
                   <ScoreBadge score={org.disclosure_score} />
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-brand-900 underline-offset-2 group-hover:underline">{org.name}</p>
@@ -269,7 +274,7 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
                   <span className="hidden md:block">
                     <StatusBadge status={org.status} label={org.status_label} />
                   </span>
-                  <span aria-hidden className="text-ink-400">
+                  <span aria-hidden className="text-ink-400 transition-transform group-hover:translate-x-0.5 group-hover:text-brand-700">
                     ›
                   </span>
                 </Link>
@@ -282,7 +287,7 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
       {lastPage > 1 && (
         <nav aria-label="分頁" className="flex items-center justify-between text-sm">
           {current > 1 ? (
-            <Link href={href(query, { page: String(current - 1) })} className="rounded-xl border border-ink-300 bg-white px-4 py-2 hover:bg-ink-50">
+            <Link href={href(query, { page: String(current - 1) })} className="surface px-4 py-2 font-medium text-ink-800 hover:text-brand-800">
               ‹ 上一頁
             </Link>
           ) : (
@@ -292,7 +297,7 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
             第 {formatNumber(current)} / {formatNumber(lastPage)} 頁
           </span>
           {current < lastPage ? (
-            <Link href={href(query, { page: String(current + 1) })} className="rounded-xl border border-ink-300 bg-white px-4 py-2 hover:bg-ink-50">
+            <Link href={href(query, { page: String(current + 1) })} className="surface px-4 py-2 font-medium text-ink-800 hover:text-brand-800">
               下一頁 ›
             </Link>
           ) : (
@@ -308,12 +313,12 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
 export function OrgSearchSkeleton() {
   return (
     <div className="space-y-8">
-      <div className="space-y-5 border-b border-ink-200 pb-8">
+      <div className="surface space-y-5 p-5 sm:p-8">
         <Skeleton className="h-10 w-2/3" />
         <Skeleton className="h-12 w-full max-w-3xl" />
         <Skeleton className="h-9 w-full max-w-xl" />
       </div>
-      <div className="space-y-px overflow-hidden rounded-2xl border border-ink-200 bg-white">
+      <div className="space-y-px overflow-hidden surface">
         {Array.from({ length: 6 }, (_, i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3">
             <Skeleton className="h-12 w-12 rounded-full" />

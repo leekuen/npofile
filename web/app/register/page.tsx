@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "註冊" };
 
 export default function RegisterPage() {
   return (
-    <div className="mx-auto max-w-sm space-y-4">
+    <div className="mx-auto max-w-sm space-y-5 sm:py-8">
       <h1 className="font-display text-2xl font-extrabold text-ink-900">註冊</h1>
       <Card>
         <Suspense>

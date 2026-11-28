@@ -6,7 +6,7 @@ import { ErrorBox, Skeleton } from "./ui";
 const ITEMS = [
   { key: "organizations", label: "收錄組織" },
   { key: "with_fundraising", label: "近 5 年有公益勸募紀錄" },
-  { key: "penalized_5y", label: "近五年受裁罰" },
+  { key: "penalized_5y", label: "近 5 年受裁罰" },
 ] as const;
 
 /** 首頁搜尋框下方的一行統計：數字是背景資訊，不搶搜尋框 */
@@ -21,11 +21,11 @@ export async function StatsCards() {
     throw e;
   }
   return (
-    <dl className="grid grid-cols-3 gap-3 border-t border-ink-100 pt-5 lg:grid-cols-1 lg:gap-0 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8">
+    <dl className="grid grid-cols-3 gap-3 border-t border-ink-200/70 pt-5 lg:grid-cols-1 lg:content-center lg:gap-0 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8">
       {ITEMS.map(({ key, label }) => (
-        <div key={key} className="flex flex-col justify-between lg:flex-row lg:items-baseline lg:justify-between lg:gap-3 lg:border-b lg:border-dashed lg:border-ink-200 lg:py-3 lg:last:border-b-0">
-          <dt className="text-xs text-ink-600 lg:text-sm">{label}</dt>
-          <dd className={`font-num text-lg font-semibold tabular-nums lg:text-xl ${key === "penalized_5y" ? "text-red-700" : "text-ink-900"}`}>
+        <div key={key} className="flex flex-col-reverse justify-end gap-0.5 lg:border-b lg:border-ink-200/70 lg:py-4 lg:first:pt-0 lg:last:border-b-0 lg:last:pb-0">
+          <dt className="text-xs text-balance text-ink-600 lg:text-sm">{label}</dt>
+          <dd className={`font-num text-xl font-bold tabular-nums sm:text-2xl lg:text-[1.75rem] lg:leading-tight ${key === "penalized_5y" ? "text-red-700" : "text-ink-900"}`}>
             {formatNumber(stats[key])}
           </dd>
         </div>

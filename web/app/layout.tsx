@@ -25,8 +25,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="zh-Hant-TW" className={`h-full antialiased ${notoSansTC.variable} ${goRound.variable} ${inter.variable}`}>
       <body className="flex min-h-full flex-col font-sans">
         <AuthProvider>
-          <header className="border-b border-ink-200 bg-white">
-            <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
+          <a
+            href="#main"
+            className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-xl focus:bg-white focus:px-4 focus:py-2 focus:shadow"
+          >
+            跳到主要內容
+          </a>
+          <header className="sticky top-0 z-30 border-b border-ink-200/80 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/75">
+            <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
               <div className="flex min-w-0 items-center gap-3 sm:gap-5">
                 <Link href="/" className="flex shrink-0 items-center gap-2 text-ink-900">
                   <span
@@ -45,13 +51,43 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <AuthStatus />
             </div>
           </header>
-          <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
-          <footer className="border-t border-ink-200 bg-white">
-            <div className="mx-auto max-w-5xl px-4 py-5 text-xs text-ink-600">
-              資料來源：衛生福利部公益勸募管理系統（含捐贈人清冊）、{GRANT_AGENCIES}的補(捐)助季報、臺北市政府勞動局違反勞動基準法事業單位公布總表、財政部非營利事業機關團體資料集、經濟部商工登記公示資料（政府資料開放授權）；挖貝 WaBay 群眾集資專案頁。資料以各來源公告為準。
-              <Link href="/about" className="ml-1 text-brand-800 underline underline-offset-2 hover:text-brand-950">
-                資料說明
-              </Link>
+          <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
+            {children}
+          </main>
+          <footer className="mt-8 border-t border-ink-200 bg-white">
+            <div className="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:px-6 md:grid-cols-[16rem_minmax(0,1fr)] md:gap-12">
+              <div className="space-y-3">
+                <p className="flex items-center gap-2 font-display font-bold text-ink-900">
+                  <span aria-hidden className="grid h-7 w-7 place-items-center rounded-lg bg-brand-700 text-sm text-white">
+                    檔
+                  </span>
+                  非營利檔案
+                </p>
+                <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                  <li>
+                    <Link href="/" className="text-ink-700 hover:text-brand-800 hover:underline">
+                      組織
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/donors" className="text-ink-700 hover:text-brand-800 hover:underline">
+                      捐款企業
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/about" className="text-ink-700 hover:text-brand-800 hover:underline">
+                      資料說明
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+              <p className="text-xs leading-relaxed text-ink-600">
+                <span className="font-semibold text-ink-700">資料來源</span>
+                <span aria-hidden className="mx-1.5 text-ink-300">
+                  |
+                </span>
+                衛生福利部公益勸募管理系統（含捐贈人清冊）、{GRANT_AGENCIES}的補(捐)助季報、臺北市政府勞動局違反勞動基準法事業單位公布總表、財政部非營利事業機關團體資料集、經濟部商工登記公示資料（政府資料開放授權）；挖貝 WaBay 群眾集資專案頁。資料以各來源公告為準。
+              </p>
             </div>
           </footer>
         </AuthProvider>
