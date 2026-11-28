@@ -103,7 +103,7 @@ export async function DonorDetailView({ params }: { params: Promise<{ id: string
                     )}
                   </span>
                 </span>
-                <span className="font-medium tabular-nums">{formatMoney(o.total)}</span>
+                <span className="font-medium tabular-nums">{o.total > 0 ? formatMoney(o.total) : "金額見明細"}</span>
               </li>
             ))}
           </ol>

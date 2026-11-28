@@ -875,7 +875,8 @@ function DonorRankings({ org }: { org: OrgDetail }) {
                     )}
                   </span>
                   <span className="tabular-nums font-medium">
-                    {formatMoney(d.total)}
+                    {/* 只有範圍金額（LK-49）的捐款人加總是 0：原文在捐款明細 */}
+                    {d.total > 0 ? formatMoney(d.total) : "金額見明細"}
                   </span>
                 </li>
               ))}

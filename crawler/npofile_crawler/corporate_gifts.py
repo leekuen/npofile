@@ -46,40 +46,55 @@ _CN_DIGITS = {"零": 0, "〇": 0, "一": 1, "壹": 1, "二": 2, "貳": 2, "兩":
               "五": 5, "伍": 5, "六": 6, "陸": 6, "七": 7, "柒": 7, "八": 8, "捌": 8, "九": 9, "玖": 9}
 _CN_UNITS = {"十": 10, "拾": 10, "百": 100, "佰": 100, "千": 1000, "仟": 1000}
 _CN_BIG = {"萬": 10_000, "億": 100_000_000}
-_CN_RE = re.compile(r"[零〇一壹二貳兩三參叁四肆五伍六陸七柒八捌九玖十拾百佰千仟萬億]+")
-_NUM_RE = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*(億|萬|千)?")
-# 範圍：「20-30萬」「20～30萬」「20至30萬」「最高 30 萬」「不超過…」「以內」「為上限」
-_RANGE_RE = re.compile(r"\d\s*[-－~～〜至到]\s*\d|上限|以內|不超過|最高|最多|預估|約")
+# 一段金額：阿拉伯數字（可含千分位、小數）與中文數字、單位混寫都算，例「2億7仟5佰萬」「1,250,000」「壹佰萬」
+_AMOUNT_RE = re.compile(r"[0-9,.零〇一壹二貳兩三參叁四肆五伍六陸七柒八捌九玖十拾百佰千仟萬億]*[0-9零〇一壹二貳兩三參叁四肆五伍六陸七柒八捌九玖十拾百佰千仟萬億]")
+# 範圍：「20-30萬」「20～30萬」「壹佰萬至貳佰萬區間」「最高 30 萬」「不超過…」「以內」「為上限」
+_N = "0-9零〇一壹二貳兩三參叁四肆五伍六陸七柒八捌九玖十拾百佰千仟萬億"
+_RANGE_RE = re.compile(rf"[{_N}]\s*[-－~～〜至到]\s*[{_N}]|區間|上限|以內|不超過|最高|最多|預估|約")
+# 不是新台幣的：照原文顯示、不換算
+_FOREIGN_RE = re.compile(r"人民幣|美元|美金|US\$|USD|日圓|日幣|港幣|歐元|RMB", re.I)
 
 
-def _cn_number(text: str) -> int | None:
-    total, section, digit = 0, 0, 0
-    for ch in text:
+def _number(token: str) -> int | None:
+    """「2億7仟5佰萬」→ 275000000；「9仟4佰萬」→ 94000000；「1,250,000」→ 1250000；「1.5億」→ 150000000。"""
+    total, section, num, digits = 0.0, 0.0, 0.0, ""
+    for ch in token.replace(",", "") + "|":
+        if ch.isdigit() or ch == ".":
+            digits += ch
+            continue
+        if digits:
+            try:
+                num = float(digits)
+            except ValueError:
+                return None
+            digits = ""
         if ch in _CN_DIGITS:
-            digit = _CN_DIGITS[ch]
+            num = _CN_DIGITS[ch]
         elif ch in _CN_UNITS:
-            section += (digit or 1) * _CN_UNITS[ch]
-            digit = 0
+            section += (num or 1) * _CN_UNITS[ch]
+            num = 0
         elif ch in _CN_BIG:
-            total += (section + digit) * _CN_BIG[ch]
-            section = digit = 0
-    value = total + section + digit
+            total += (section + num) * _CN_BIG[ch]
+            section = num = 0
+    value = int(round(total + section + num))
     return value or None
 
 
-def parse_amount(text: str) -> int | None:
-    """「新台幣130萬元」→ 1300000；「新臺幣 4,870,204 元」→ 4870204；「新台幣壹佰萬元」→ 1000000。
-    範圍、上限、約略的（「20-30萬元」「最高 30 萬」）與讀不出數字的回 None。"""
+def parse_amount(text: str, need_yuan: bool = False) -> int | None:
+    """「新台幣130萬元」→ 1300000；「新臺幣 4,870,204 元」→ 4870204；「新台幣9仟4佰萬元」→ 94000000。
+    範圍、上限、約略的（「20-30萬元」「最高 30 萬」）、外幣與讀不出數字的回 None。
+    need_yuan：一定要寫到「…元」或「…萬」「…億」才算（重大訊息的金額欄有時只寫年度或日期，例「依115年度預算」）。"""
     text = (text or "").translate(str.maketrans("０１２３４５６７８９，．", "0123456789,."))
-    if not text or _RANGE_RE.search(text):
+    text = text.replace("新臺幣", "").replace("新台幣", "").replace("NT$", "")
+    if not text or _RANGE_RE.search(text) or _FOREIGN_RE.search(text):
         return None
-    m = _NUM_RE.search(text)
-    if m:
-        value = float(m.group(1).replace(",", ""))
-        value *= {"億": 100_000_000, "萬": 10_000, "千": 1000}.get(m.group(2) or "", 1)
-        return int(round(value)) or None
-    m = _CN_RE.search(text.replace("新臺幣", "").replace("新台幣", ""))
-    return _cn_number(m.group(0)) if m else None
+    for m in _AMOUNT_RE.finditer(text):
+        if need_yuan and not (re.match(r"\s*元", text[m.end():]) or m.group(0)[-1] in "萬億"):
+            continue
+        value = _number(m.group(0))
+        if value:
+            return value
+    return None
 
 
 # ---- 共用 ----
@@ -165,7 +180,7 @@ def mops_items(gifts: Iterable[dict], matcher: OrgMatcher, day: date) -> Iterato
         if not g["recipient"]:
             continue
         on = roc_date(g["fact_on"]) or _western(g["spoke_on"]) or day
-        amount = parse_amount(g["amount_text"])
+        amount = parse_amount(g["amount_text"], need_yuan=True)
         donor = g["subsidiary"] or g["company_short"].rstrip("*＊ ")  # 簡稱後的 * 是外國企業的標記
         yield _gift_item(
             matcher, recipient=g["recipient"],

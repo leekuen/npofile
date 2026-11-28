@@ -71,6 +71,16 @@ class CorporateGiftsTest(unittest.TestCase):
         assert g.parse_amount("最高新台幣50萬元") is None
         assert g.parse_amount("$0") is None
         assert g.parse_amount("") is None
+        # 數字與中文單位混寫（2026-11-10 台積電的兩則就是這樣寫）
+        assert g.parse_amount("新台幣9仟4佰萬元", need_yuan=True) == 94_000_000
+        assert g.parse_amount("新台幣2億7仟5佰萬元", need_yuan=True) == 275_000_000
+        assert g.parse_amount("新臺幣1000萬元", need_yuan=True) == 10_000_000
+        # 外幣不換算；重大訊息的金額欄只寫年度或日期的不算數
+        assert g.parse_amount("人民幣200萬元") is None
+        assert g.parse_amount("依115年度預算辦理", need_yuan=True) is None
+        assert g.parse_amount("109/12/30公告", need_yuan=True) is None
+        assert g.parse_amount("新臺幣100萬", need_yuan=True) == 1_000_000
+        assert g.parse_amount("新台幣壹佰萬至貳佰萬區間", need_yuan=True) is None
 
     def test_parse_mops_day_picks_donations_only(self):
         page = mops_page(
