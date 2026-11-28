@@ -116,6 +116,8 @@ docker compose up -d --build
 
 失敗通知：`.env` 設 `HEALTHCHECKS_PING_KEY`（healthchecks.io），做法見 `deploy/README.md`〈排程失敗通知〉。
 
+環境部裁處（`moenv_penalties`）：`.env` 設 `MOENV_API_KEY`（到 data.moenv.gov.tw 免費申請），改完 `docker compose up -d` 讓容器吃到。
+
 ## 看紀錄
 
 ```bash
