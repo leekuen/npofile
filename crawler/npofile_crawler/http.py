@@ -19,6 +19,12 @@ class PoliteClient:
         )
 
     def get(self, url: str, **kwargs) -> httpx.Response:
+        return self.request("GET", url, **kwargs)
+
+    def post(self, url: str, **kwargs) -> httpx.Response:
+        return self.request("POST", url, **kwargs)
+
+    def request(self, method: str, url: str, **kwargs) -> httpx.Response:
         attempt = 0
         while True:
             wait = self.min_interval - (time.monotonic() - self._last)
@@ -26,7 +32,7 @@ class PoliteClient:
                 time.sleep(wait)
             self._last = time.monotonic()
             try:
-                resp = self._client.get(url, **kwargs)
+                resp = self._client.request(method, url, **kwargs)
                 if resp.status_code < 500:
                     resp.raise_for_status()
                     return resp

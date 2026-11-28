@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
-from . import fia, grants, judicial, labor, mohw, orgsite, registries, violations, wabay
+from . import fia, grants, judicial, labor, mohw, orgsite, registries, swft, twnpos, violations, wabay
 from .http import PoliteClient
 from .items import Item
 
@@ -24,6 +24,7 @@ class Source:
     # plan＝記住抓到哪裡的 mohw.ActivityPlan（後端用資料庫版本）、revisit＝要回頭再看的專案編號、orgs＝（統編, 名稱）名冊、
     # orgs_city＝（統編, 名稱, 所在縣市）名冊、seen_regs＝已存過的法院登記公告編號、floor_reached＝法院登記公告回補完了沒、listed＝列表讀到幾筆（[0]，給 crawl 判斷網站改版）、
     # targets＝要爬的（統編, 官網）、extractor＝讀報告數字的 financials.ClaudeExtractor（沒設金鑰是 None）、seen_docs＝已讀過數字的檔案網址
+    # have＝已經收過的財報編號（不再下載）
     options: tuple[str, ...] = ()
     # 統編不在組織資料庫的資料不存（例：挖貝上公司提的商品集資），不進審核清單
     known_orgs_only: bool = False
@@ -93,6 +94,15 @@ SOURCES = {
                "組織自己官網公開的近 5 年財務報告、年報、工作／成果報告；設了 ANTHROPIC_API_KEY 才會讀出報告裡的數字"
                "（會產生 API 費用）。「每次最多抓幾筆」算的是組織數",
                data_name=orgsite.SOURCE_NAME, options=("since_roc", "targets", "extractor", "seen_docs")),
+        Source("swft", swft.SOURCE_NAME, swft.SITE_URL, True, swft.fetch,
+               "政府公開資料：全國性社會福利財團法人送衛福部備查的年度決算，從「年度決算總表」讀收入、支出、餘絀與資產負債（寫進年度財務）；"
+               "近 5 年、到去年為止，已收過的年度不再下載；名稱跟組織完全相同才收；「每次最多抓幾筆」算的是決算份數",
+               options=("since_roc", "orgs", "have")),
+        Source("twnpos", twnpos.SOURCE_NAME, twnpos.SITE_URL, False, twnpos.fetch,
+               "自律聯盟會員自己上傳的年度財務報告（公開雲端資料夾的 PDF），讀出捐款收入與收入合計；掃描檔用影像辨識，"
+               "讀不到就只留報告連結；近 5 年，已收過的年度不再下載；名稱跟組織完全相同才收；"
+               "影像辨識很慢，每次最多跑的分鐘數到了就停，下次接著抓",
+               options=("since_roc", "orgs", "have"), known_orgs_only=True),
         Source("moe_registry", registries.MOE_NAME, registries.DATASET_PAGE.format(id=registries.MOE_DATASET), True,
                registries.fetch_moe,
                "政府公開資料：教育部主管的教育財團法人名冊（主管機關、登記財產、成立宗旨、服務對象、基金會狀態）；"
