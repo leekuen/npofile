@@ -153,7 +153,7 @@ export function Comments({ ubn }: { ubn: string }) {
       ) : (
         <ul className="space-y-3">
           {rows.map((c) => (
-            <li key={c.id} className="rounded-2xl border border-ink-200 bg-white p-4">
+            <li key={c.id} className="surface p-4">
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="font-semibold text-ink-900">{c.author_name}</span>
                 <span className="text-xs text-ink-500 tabular-nums">{formatDateTime(c.created_at)}</span>
