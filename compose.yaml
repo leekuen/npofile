@@ -24,6 +24,10 @@ x-app-env: &app-env
   HEALTHCHECKS_PING_KEY: ${HEALTHCHECKS_PING_KEY:-}
   # 環境部開放資料 API 金鑰（環境部裁處來源 moenv_penalties，LK-36）；沒設那個來源會失敗、其他照跑
   MOENV_API_KEY: ${MOENV_API_KEY:-}
+  # 組織官網財報讀數字（LK-17）：二選一。API 金鑰按用量付費；Claude Code 權杖走訂閱帳號（`claude setup-token` 拿），每次最多讀幾份
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
+  FINANCIAL_EXTRACT_MAX_PER_RUN: ${FINANCIAL_EXTRACT_MAX_PER_RUN:-10}
   BACKUP_DIR: /backups
   BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
   LOG_DIR: /logs

@@ -1,5 +1,7 @@
 import base64
 import json
+import os
+import subprocess
 import unittest
 from types import SimpleNamespace
 
@@ -201,6 +203,57 @@ class ExtractorTests(unittest.TestCase):
             beta = SimpleNamespace(messages=SimpleNamespace(create=lambda **k: (_ for _ in ()).throw(RuntimeError("x"))))
 
         self.assertIsNone(financials.ClaudeExtractor(Boom())(b"%PDF", 113, "t"))
+
+
+class FakeRun:
+    """假的 subprocess.run：記下指令，確認 PDF 有放進暫存資料夾，回傳 claude -p 的 JSON 輸出。"""
+
+    def __init__(self, out=None, returncode=0, stdout=None):
+        self.out, self.returncode, self.stdout = out, returncode, stdout
+        self.calls = []
+
+    def __call__(self, args, cwd, input, **kwargs):
+        with open(os.path.join(cwd, "report.pdf"), "rb") as f:
+            self.calls.append({"args": args, "input": input, "pdf": f.read(), "files": os.listdir(cwd)})
+        stdout = self.stdout if self.stdout is not None else json.dumps(self.out)
+        return SimpleNamespace(returncode=self.returncode, stdout=stdout, stderr="")
+
+
+class ClaudeCodeExtractorTests(unittest.TestCase):
+    def test_runs_cli_with_only_read_tool_and_parses_structured_output(self):
+        run = FakeRun({"type": "result", "is_error": False, "result": "", "structured_output": RAW})
+        d = financials.ClaudeCodeExtractor("claude", run=run)(b"%PDF-1.4 x", 113, "113年度財務報告")
+        self.assertEqual(d["total_revenue"], 36914991)
+        self.assertEqual(d["model"], financials.DEFAULT_MODEL)
+        call = run.calls[0]
+        self.assertEqual(call["pdf"], b"%PDF-1.4 x")
+        self.assertEqual(call["files"], ["report.pdf"])  # 暫存資料夾裡只有這份 PDF
+        args = call["args"]
+        self.assertEqual(args[args.index("--tools") + 1], "Read")
+        self.assertIn("--strict-mcp-config", args)
+        self.assertEqual(json.loads(args[args.index("--json-schema") + 1]), financials.SCHEMA)
+        self.assertIn("113年度財務報告", call["input"])
+
+    def test_falls_back_to_result_text(self):
+        run = FakeRun({"is_error": False, "result": json.dumps(RAW)})
+        self.assertEqual(financials.ClaudeCodeExtractor(run=run)(b"%PDF", 113, "t")["total_expenses"], 34405607)
+
+    def test_errors_return_none(self):
+        self.assertIsNone(financials.ClaudeCodeExtractor(run=FakeRun({"is_error": True, "result": "usage limit"}))(b"%PDF", 113, "t"))
+        self.assertIsNone(financials.ClaudeCodeExtractor(run=FakeRun(stdout="not json", returncode=1))(b"%PDF", 113, "t"))
+
+        def boom(*a, **k):
+            raise subprocess.TimeoutExpired("claude", 1)
+
+        self.assertIsNone(financials.ClaudeCodeExtractor(run=boom)(b"%PDF", 113, "t"))
+
+    def test_max_calls_per_run(self):
+        run = FakeRun({"is_error": False, "structured_output": RAW})
+        ex = financials.ClaudeCodeExtractor(run=run, max_calls=2)
+        results = [ex(b"%PDF", 113, "t") for _ in range(3)]
+        self.assertIsNotNone(results[1])
+        self.assertIsNone(results[2])
+        self.assertEqual(len(run.calls), 2)
 
 
 if __name__ == "__main__":
