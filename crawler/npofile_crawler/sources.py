@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
-from . import environment, fia, grants, judicial, labor, mohw, orgsite, registries, swft, twnpos, violations, wabay
+from . import environment, fia, grants, judicial, labor, mohw, orgsite, procurement, registries, swft, twnpos, violations, wabay
 from .http import PoliteClient
 from .items import Item
 
@@ -101,6 +101,10 @@ SOURCES = {
                "不進審核清單；第一次全部回補，之後每天只抓上次以來新匯入的。違規人名稱與地址不存。要設 MOENV_API_KEY 才會跑",
                options=("orgs", "moenv_api_key", "since_date", "listed"), known_orgs_only=True,
                requires_setting="MOENV_API_KEY"),
+        Source("pcc_debarment", procurement.SOURCE_NAME, procurement.DATASET_PAGE, True, procurement.fetch,
+               "政府公開資料：工程會公告中的拒絕往來廠商（政府採購法第 101 條停權，每天整份讀一次）；用統一編號對組織，"
+               "只收站上已有的組織，不進審核清單；到期從名單消失的照樣保留。負責人、身分證、聯絡人與地址不存",
+               options=("orgs", "listed"), known_orgs_only=True),
         Source("judicial", judicial.SOURCE_NAME, judicial.LIST_PAGE, True, judicial.fetch,
                "政府公開資料：司法院每天公告的社團法人、財團法人設立、變更、解散、清算登記（108-12-09 起全部保留）；"
                "法人名稱跟組織名稱完全相同且唯一才連（同名的用法院所在縣市挑），對不到的記下不顯示、後台可手動指定；"
