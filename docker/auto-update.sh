@@ -38,6 +38,8 @@ update_once() {
   services=$(docker compose config --services | grep -vx updater | tr '\n' ' ')
   log "重建並重啟：$services"
   if docker compose up -d --build --remove-orphans $services; then
+    # 保險：nginx.conf 已改成每次請求重新解析，但舊版設定或手動改壞時，重啟 nginx 也能接上新容器的 IP
+    docker compose restart nginx >/dev/null 2>&1 || log "重啟 nginx 失敗"
     docker image prune -f >/dev/null 2>&1 || true
     log "更新完成，現在版本：$(git log -1 --format='%h %s')"
   else
