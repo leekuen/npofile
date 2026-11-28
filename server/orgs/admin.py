@@ -21,6 +21,7 @@ from .models import (
     Organization,
     Penalty,
     Project,
+    OrgMission,
     RegistryEntry,
 )
 
@@ -222,6 +223,29 @@ class RegistryEntryAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         if "organization" in form.changed_data:
             obj.org_manual = True
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(OrgMission)
+class OrgMissionAdmin(admin.ModelAdmin):
+    """組織理念（LK-54）：官網抓到、核准後的成立宗旨與一句話介紹。在這裡改過就鎖住，官網重抓不覆蓋；
+    名冊上已有宗旨的組織，在這裡新增一筆也會優先顯示（管理員改過的最優先）。"""
+
+    list_display = ("organization", "summary", "summary_method", "source_name", "fetched_on", "locked")
+    list_filter = ("summary_method", "locked", "source_name")
+    search_fields = ("organization__name", "organization__ubn", "summary", "text")
+    autocomplete_fields = ("organization",)
+    fields = ("organization", "summary", "text", "summary_method", "source_name", "source_url", "fetched_on", "locked")
+    readonly_fields = ("summary_method", "source_name", "fetched_on")
+
+    def save_model(self, request, obj, form, change):
+        if "locked" in form.changed_data and not obj.locked:  # 管理員取消勾選：放回給官網重抓
+            super().save_model(request, obj, form, change)
+            return
+        obj.locked = True
+        obj.summary_method = OrgMission.Method.MANUAL
+        if not obj.source_name:
+            obj.source_name = "管理員填寫"
         super().save_model(request, obj, form, change)
 
 

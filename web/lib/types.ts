@@ -256,6 +256,22 @@ export interface RegistryEntry {
   source_url: string;
 }
 
+/** 組織理念（LK-54）：一句話介紹＋宗旨原文。優先順序：管理員改過 > 主管機關名冊 > 組織官網（核准後） */
+export interface OrgMission {
+  /** 40 字內，顯示在組織名稱下方與推薦卡 */
+  summary: string;
+  text: string;
+  origin: "manual" | "registry" | "website";
+  /** 原文出處的名稱：「教育部名冊」「組織官網」「本站整理」 */
+  origin_label: string;
+  source_name: string;
+  source_url: string;
+  summary_method: "claude" | "first_sentence" | "manual";
+  /** 一句話是本站濃縮的（不是組織自己那一句）：旁邊要標「由本站摘要」 */
+  summarized_by_site: boolean;
+  fetched_on: string | null;
+}
+
 /** 電子發票捐贈碼（LK-32）：用統編對到這個組織 */
 export interface DonationCode {
   code: string;
@@ -296,6 +312,8 @@ export interface OrgDetail extends Omit<OrgSummary, "public_raised_5y"> {
   annual_donor_lists: AnnualDonorListLink[];
   since_roc_year: number;
   categories: OrgCategories;
+  /** 沒有理念是 null */
+  mission: OrgMission | null;
   updated_at: string;
 }
 

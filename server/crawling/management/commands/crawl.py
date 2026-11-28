@@ -55,6 +55,9 @@ class Command(BaseCommand):
             if not source.enabled and not force:
                 self.stdout.write(f"略過（已停用）：{source.name}")
                 continue
+            if sources == ["all"] and source.key in SOURCES and SOURCES[source.key].own_schedule:
+                self.stdout.write(f"略過（另外排程，要跑請指名：crawl {source.key}）：{source.name}")
+                continue
             if sources == ["all"] and not force and (days := recent_success_days(source)) is not None:
                 self.stdout.write(f"略過（{days} 天內檢查過，每 {SOURCES[source.key].every_days} 天檢查一次）：{source.name}")
                 continue

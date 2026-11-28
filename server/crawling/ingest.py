@@ -32,6 +32,7 @@ from orgs.models import (
     Grant,
     OrgDocument,
     Organization,
+    OrgMission,
     CourtRegistration,
     Penalty,
     Project,
@@ -39,7 +40,7 @@ from orgs.models import (
 )
 from orgs.signals import suspend_scoring
 
-from . import orgsite_targets, progress
+from . import mission_targets, orgsite_targets, progress
 from .models import CrawlerSource, CrawlRecord, CrawlRun
 from .progress import DbActivityPlan
 
@@ -48,7 +49,8 @@ log = logging.getLogger(__name__)
 BATCH = 500
 STORE_EVERY = 60  # 秒
 KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4, "grant": 5, "document": 6, "financial": 7,
-              "court_reg": 8, "registry": 9, "einvoice": 10, "annual_list": 11}
+              "court_reg": 8, "registry": 9, "einvoice": 10, "annual_list": 11,
+              "mission": 12}
 PROJECT_FIELDS = (
     "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
     "result_filed_on", "closed_filed_on", "description", "channel", "monthly_raised", "backers",
@@ -65,7 +67,7 @@ def record_source_name(source: CrawlerSource) -> str:
 
 
 # 新建來源時的「每次最多跑幾分鐘」：勸募活動與捐贈人清冊每晚接著抓，不讓一次跑整晚（已存在的來源照後台設定）
-DEFAULT_MINUTES = {"mohw_activities": 120, "judicial": 120, "twnpos": 120}  # twnpos：自律聯盟財報要影像辨識，很慢（LK-25）
+DEFAULT_MINUTES = {"mohw_activities": 120, "judicial": 120, "twnpos": 120, "orgsite_mission": 180}  # twnpos：自律聯盟財報要影像辨識，很慢（LK-25）
 
 
 def ensure_sources() -> None:
@@ -144,6 +146,8 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
                         values["labor_docs"] = labor_docs(source.key)
                     if source.key == "orgsite":
                         values.update(orgsite_targets.options(source))
+                    if source.key == "orgsite_mission":
+                        values.update(mission_targets.options(source))
                     items = src.fetch(client, limit, **{k: values[k] for k in src.options})
                 org_ubns = None
                 if source.key in SOURCES and SOURCES[source.key].known_orgs_only:
@@ -469,6 +473,26 @@ def _apply_child(rec: CrawlRecord, org: Organization, source_name: str) -> None:
         _apply_financial(rec, org, source_name)
     elif rec.kind == "annual_list":
         _apply_annual_donor_list(rec, org, source_name)
+    elif rec.kind == "mission":
+        _apply_mission(rec, org, source_name)
+
+
+def _apply_mission(rec: CrawlRecord, org: Organization, source_name: str) -> None:
+    """官網成立宗旨（LK-54）：一個組織一筆，新的取代舊的；管理員改過（locked）的不動。"""
+    d = rec.payload
+    existing = OrgMission.objects.filter(organization=org).first()
+    if existing and existing.locked:
+        rec.review_note = "這個組織的理念管理員改過，沒有覆蓋"
+        return
+    method = d.get("summary_method")
+    if method not in OrgMission.Method.values:
+        method = OrgMission.Method.FIRST_SENTENCE
+    OrgMission.objects.update_or_create(
+        organization=org,
+        defaults={"text": d.get("text") or "", "summary": (d.get("summary") or "")[:80], "summary_method": method,
+                  "source_name": source_name, "source_url": (d.get("page_url") or rec.source_url)[:1000],
+                  "fetched_on": rec.created_at.date() if rec.created_at else timezone.now().date()},
+    )
 
 
 def _apply_registry(rec: CrawlRecord, org: Organization | None, source_name: str) -> None:

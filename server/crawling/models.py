@@ -67,6 +67,7 @@ class CrawlRecord(models.Model):
         REGISTRY = "registry", "主管機關名冊"
         EINVOICE = "einvoice", "發票捐贈碼"
         ANNUAL_LIST = "annual_list", "年度捐贈名單清冊"
+        MISSION = "mission", "成立宗旨"
 
     class Status(models.TextChoices):
         PENDING = "pending", "待審核"
@@ -174,6 +175,22 @@ class OrgSiteCheck(models.Model):
     class Meta:
         verbose_name = "組織官網爬取進度"
         verbose_name_plural = "組織官網爬取進度"
+        ordering = ["-checked_at"]
+
+    def __str__(self):
+        return f"{self.ubn} {self.checked_at:%Y-%m-%d}"
+
+
+class OrgMissionCheck(models.Model):
+    """組織官網成立宗旨最近一次被找的時間（LK-54）：每次從最久沒找（或從沒找過）的組織開始。"""
+
+    ubn = models.CharField("統一編號", max_length=8, unique=True)
+    website = models.URLField("官網", max_length=500, blank=True)
+    checked_at = models.DateTimeField("最近爬取", db_index=True)
+
+    class Meta:
+        verbose_name = "組織官網成立宗旨爬取進度"
+        verbose_name_plural = "組織官網成立宗旨爬取進度"
         ordering = ["-checked_at"]
 
     def __str__(self):

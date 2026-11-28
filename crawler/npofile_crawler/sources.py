@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
-from . import environment, fia, grants, judicial, labor, mohw, orgsite, procurement, registries, swft, twnpos, violations, wabay
+from . import environment, fia, grants, judicial, labor, mission, mohw, orgsite, procurement, registries, swft, twnpos, violations, wabay
 from .http import PoliteClient
 from .items import Item
 
@@ -25,6 +25,8 @@ class Source:
     # orgs_city＝（統編, 名稱, 所在縣市）名冊、seen_regs＝已存過的法院登記公告編號、floor_reached＝法院登記公告回補完了沒、listed＝列表讀到幾筆（[0]，給 crawl 判斷網站改版）、
     # targets＝要爬的（統編, 官網）、extractor＝讀報告數字的 financials.ClaudeExtractor（沒設金鑰是 None）、seen_docs＝已讀過數字的檔案網址
     # have＝已經收過的財報編號（不再下載）、labor_docs＝別的勞動來源已收過的處分字號（同一張處分不收兩次）
+    # mission_targets＝要找成立宗旨的（統編, 名稱, 官網）、summarizer＝一句話介紹用的 mission.ClaudeSummarizer（沒設金鑰是 None）、
+    # mission_seen＝{統編: 上次抓到的宗旨原文雜湊}（沒變就不再送審）
     # moenv_api_key＝環境部開放資料 API 金鑰、since_date＝上次成功抓取往前推的日期（只抓新的）
     options: tuple[str, ...] = ()
     # 統編不在組織資料庫的資料不存（例：挖貝上公司提的商品集資），不進審核清單
@@ -35,6 +37,8 @@ class Source:
     every_days: int = 0
     # 要設了這個設定（環境變數）才跑得動：沒設時「crawl all」略過、不當成失敗；指名跑會失敗並寫明原因（LK-36）
     requires_setting: str = ""
+    # 有自己的排程（例：每週一次的官網成立宗旨，LK-54）：「crawl all」一律略過，只有指名跑才跑
+    own_schedule: bool = False
 
     @property
     def record_name(self) -> str:
@@ -114,6 +118,12 @@ SOURCES = {
                "組織自己官網公開的近 5 年財務報告、年報、工作／成果報告；設了 Claude Code 權杖（CLAUDE_CODE_OAUTH_TOKEN，走訂閱）或 ANTHROPIC_API_KEY 才會讀出報告裡的數字，讀出的數字一律先待審核"
                "（會產生 API 費用）。「每次最多抓幾筆」算的是組織數",
                data_name=orgsite.SOURCE_NAME, options=("since_roc", "targets", "extractor", "seen_docs")),
+        Source("orgsite_mission", "組織官網（成立宗旨與一句話介紹）", "", False, mission.fetch,
+               "組織自己官網「關於我們／宗旨／緣起」頁上的成立宗旨；只找教育部名冊沒有宗旨、管理員也沒改過的組織。"
+               "設了 ANTHROPIC_API_KEY 才請 Claude 濃縮成 40 字內的一句話介紹（會產生 API 費用），沒設就取原文第一句；"
+               "一律先待審核，核准後才在組織頁顯示。原文跟上次一樣的不再送審。每週日另外排程跑一次，不在每晚的 crawl all 裡；"
+               "「每次最多抓幾筆」算的是組織數",
+               data_name=mission.SOURCE_NAME, options=("mission_targets", "summarizer", "mission_seen"), own_schedule=True),
         Source("swft", swft.SOURCE_NAME, swft.SITE_URL, True, swft.fetch,
                "政府公開資料：全國性社會福利財團法人送衛福部備查的年度決算，從「年度決算總表」讀收入、支出、餘絀與資產負債（寫進年度財務）；"
                "近 5 年、到去年為止，已收過的年度不再下載；名稱跟組織完全相同才收；「每次最多抓幾筆」算的是決算份數",

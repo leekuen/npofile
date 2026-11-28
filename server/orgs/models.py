@@ -573,6 +573,38 @@ class RegistryEntry(SourceMixin):
         return f"{self.authority} {self.registry_name}"
 
 
+class OrgMission(models.Model):
+    """組織理念（LK-54）：從組織官網抓到、管理員核准後的成立宗旨與一句話介紹。一個組織一筆。
+
+    前台顯示的優先順序在 orgs/mission.py：管理員改過的 > 教育部等主管機關名冊的宗旨 > 這裡的官網宗旨。
+    管理員在後台改過就勾 locked，之後官網重抓、核准都不覆蓋。"""
+
+    class Method(models.TextChoices):
+        CLAUDE = "claude", "Claude 摘要"
+        FIRST_SENTENCE = "first_sentence", "取原文第一句"
+        MANUAL = "manual", "管理員填寫"
+
+    organization = models.OneToOneField(
+        Organization, on_delete=models.CASCADE, related_name="mission", verbose_name="組織"
+    )
+    text = models.TextField("宗旨原文")
+    summary = models.CharField("一句話介紹", max_length=80, help_text="40 字內；顯示在組織名稱下方與推薦卡。")
+    summary_method = models.CharField("摘要方式", max_length=20, choices=Method.choices, default=Method.FIRST_SENTENCE)
+    source_name = models.CharField("來源", max_length=100, blank=True)
+    source_url = models.URLField("原文網址", max_length=1000, blank=True)
+    fetched_on = models.DateField("抓取日", null=True, blank=True)
+    locked = models.BooleanField("管理員改過", default=False, help_text="勾起後官網重抓不會覆蓋。")
+    updated_at = models.DateTimeField("更新時間", auto_now=True)
+
+    class Meta:
+        verbose_name = "組織理念（官網）"
+        verbose_name_plural = "組織理念（官網）"
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return f"{self.organization_id} {self.summary}"
+
+
 class DonationCode(SourceMixin):
     """電子發票捐贈碼（LK-32）：用清單上的統編對組織（讀的時候才對，財政部名冊之後才出現的組織也對得到）；
     統編不在組織名冊的照樣存、前台不顯示。"""

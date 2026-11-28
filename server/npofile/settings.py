@@ -148,3 +148,6 @@ FINANCIAL_EXTRACT_MODEL = os.environ.get("FINANCIAL_EXTRACT_MODEL", "claude-opus
 CLAUDE_CODE_OAUTH_TOKEN = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "")
 FINANCIAL_EXTRACT_CLI = os.environ.get("FINANCIAL_EXTRACT_CLI", "claude")
 FINANCIAL_EXTRACT_MAX_PER_RUN = int(os.environ.get("FINANCIAL_EXTRACT_MAX_PER_RUN", "10"))
+# 組織官網成立宗旨（LK-54）：設了 ANTHROPIC_API_KEY 才請 Claude 濃縮成一句話介紹；每次最多摘要幾個組織（0＝不限）
+MISSION_SUMMARY_MODEL = os.environ.get("MISSION_SUMMARY_MODEL", "claude-haiku-5-5")
+MISSION_SUMMARY_MAX_PER_RUN = int(os.environ.get("MISSION_SUMMARY_MAX_PER_RUN", "500"))

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from . import category_api, company_esg, donor_rules, period, scoring
+from . import mission as org_mission
 
 from .models import (
     AnnualFundraising,
@@ -202,6 +203,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     annual_donor_lists = serializers.SerializerMethodField()
     since_roc_year = serializers.SerializerMethodField()
     categories = serializers.SerializerMethodField()
+    mission = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
@@ -211,7 +213,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
             "penalty_count_5y", "levels", "public_raised", "annual_records", "financials", "documents", "projects",
             "penalties", "grants", "court_registrations", "court_dissolution", "registries", "donation_codes", "donation_trend", "donations",
             "corporate_donors", "individual_donors", "donor_summary", "annual_donor_lists", "since_roc_year", "categories",
-            "updated_at",
+            "mission", "updated_at",
         )
 
     def get_grants(self, obj):
@@ -255,6 +257,10 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     def get_donation_codes(self, obj):
         # 用統編對（讀的時候才對）：清單沒變、組織後來才進財政部名冊也對得到
         return DonationCodeSerializer(DonationCode.objects.filter(ubn=obj.ubn).order_by("code"), many=True).data
+
+    def get_mission(self, obj):
+        """組織理念（LK-54）：官網抓到的要管理員核准才有；優先順序見 orgs/mission.py。"""
+        return org_mission.for_org(obj)
 
     def get_since_roc_year(self, obj):
         return period.since_roc_year()

@@ -74,7 +74,7 @@ def organization_detail(request, ubn):
             Prefetch("court_registrations", queryset=CourtRegistration.objects.order_by("-posted_on", "-id")),
             "categories",
             "registry_entries",
-        )
+        ).select_related("mission")
     )
     org = get_object_or_404(qs, ubn=ubn)
     return Response(OrganizationDetailSerializer(org).data)

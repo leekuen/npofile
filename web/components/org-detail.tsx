@@ -9,6 +9,7 @@ import type {
   CourtRegistration,
   Grant,
   OrgDetail,
+  OrgMission,
   Project,
   RegistryEntry,
 } from "@/lib/types";
@@ -82,6 +83,7 @@ export async function OrgDetailView({
   return (
     <div className="space-y-8">
       <PageHeader crumbs={[{ href: "/", label: "組織" }]} title={org.name}>
+        {org.mission && <MissionBlurb mission={org.mission} />}
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-600">
           <StatusBadge status={org.status} label={org.status_label} />
           <span className="font-num tabular-nums">統一編號 {org.ubn}</span>
@@ -182,6 +184,36 @@ export async function OrgDetailView({
       </div>
 
       <Comments ubn={org.ubn} />
+    </div>
+  );
+}
+
+/** 組織理念（LK-54）：名稱下方一句話；展開看宗旨原文與出處 */
+function MissionBlurb({ mission }: { mission: OrgMission }) {
+  const full = mission.text.trim() !== mission.summary.trim();
+  const source = mission.source_url ? (
+    <TextLink href={mission.source_url}>{mission.origin_label}</TextLink>
+  ) : (
+    mission.origin_label
+  );
+  return (
+    <div className="max-w-prose space-y-1">
+      <p className="text-base text-ink-800 sm:text-lg">{mission.summary}</p>
+      {full ? (
+        <details className="group/mission text-sm text-ink-600">
+          <summary className="cursor-pointer list-none">
+            {mission.summarized_by_site && <span>由本站摘要，</span>}
+            <span className="text-brand-800 underline underline-offset-2 group-open/mission:hidden">看宗旨原文</span>
+            <span className="hidden text-brand-800 underline underline-offset-2 group-open/mission:inline">收起</span>
+          </summary>
+          <blockquote className="mt-2 whitespace-pre-line break-words border-l-2 border-ink-200 pl-3 text-ink-800">
+            {mission.text}
+          </blockquote>
+          <p className="mt-1 pl-3 text-xs text-ink-500">出處：{source}</p>
+        </details>
+      ) : (
+        <p className="text-xs text-ink-500">出處：{source}</p>
+      )}
     </div>
   );
 }

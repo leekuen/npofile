@@ -8,11 +8,11 @@ from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 from npofile_crawler.financials import AMOUNT_FIELDS
 
-from orgs.models import FinancialYear, OrgDocument, Organization
+from orgs.models import FinancialYear, OrgDocument, Organization, OrgMission
 
 from . import progress
 from .ingest import apply_records, recompute_ubns, run_source
-from .models import ActivityProgress, CrawlerSource, CrawlRecord, CrawlRequest, CrawlRun, OrgSiteCheck
+from .models import ActivityProgress, CrawlerSource, CrawlRecord, CrawlRequest, CrawlRun, OrgMissionCheck, OrgSiteCheck
 
 TRIAL_LIMIT = 5
 
@@ -180,6 +180,33 @@ def _financial_table(rec):
     )
 
 
+SUMMARY_METHOD_LABELS = dict(OrgMission.Method.choices)
+
+
+def _mission_table(rec):
+    """官網成立宗旨（LK-54）：原文、一句話介紹、在哪一頁找到；核准後要改字到「組織理念（官網）」改（改過會鎖住）。"""
+    p = rec.payload
+    rows = [
+        ("一句話介紹", p.get("summary") or "—"),
+        ("摘要方式", SUMMARY_METHOD_LABELS.get(p.get("summary_method"), p.get("summary_method") or "—")),
+        ("宗旨原文", p.get("text") or "—"),
+    ]
+    body = format_html_join("", "<tr><th style='text-align:left;padding-right:1em;vertical-align:top'>{}</th>"
+                                "<td style='white-space:pre-wrap'>{}</td></tr>", rows)
+    extra = ""
+    if rec.status in (CrawlRecord.Status.APPROVED, CrawlRecord.Status.AUTO) and rec.organization_id:
+        m = OrgMission.objects.filter(organization_id=rec.organization_id).first()
+        if m:
+            extra = format_html(
+                '<p>已上架。字要改：<a href="{}">到組織理念修改</a>（改過會鎖住，官網重抓不覆蓋）</p>',
+                reverse("admin:orgs_orgmission_change", args=[m.pk]),
+            )
+    return format_html(
+        "<p>{}　請打開原頁確認這段真的是在講組織的宗旨（不是新聞、活動或捐款說明）再核准。</p><table>{}</table>{}",
+        _ext_link(p.get("page_url"), "打開原頁"), body, extra,
+    )
+
+
 class MatchFilter(admin.SimpleListFilter):
     """名稱對不上組織的（統編空白，LK-29 勞動局處分）：管理員指定組織後核准，或退回略過。"""
 
@@ -227,6 +254,8 @@ class CrawlRecordAdmin(admin.ModelAdmin):
             return f"{p.get('year')} 年 總收入 {total:,} 元" if isinstance(total, int) else f"{p.get('year')} 年"
         if obj.kind == CrawlRecord.Kind.DOCUMENT:
             return f"{p.get('year')} 年 {DOC_KIND_LABELS.get(p.get('doc_kind'), '')}：{p.get('title', '')}"[:60]
+        if obj.kind == CrawlRecord.Kind.MISSION:
+            return (p.get("summary") or "")[:60]
         if obj.kind == CrawlRecord.Kind.PENALTY and p.get("org_name"):
             return f"{p['org_name']}：{p.get('content', '')}"[:60]
         return str(p.get("name") or p.get("content") or p.get("title") or p.get("year") or "")[:40]
@@ -243,6 +272,8 @@ class CrawlRecordAdmin(admin.ModelAdmin):
         p = obj.payload
         if obj.kind == CrawlRecord.Kind.FINANCIAL:
             return _financial_table(obj)
+        if obj.kind == CrawlRecord.Kind.MISSION:
+            return _mission_table(obj)
         if obj.kind == CrawlRecord.Kind.DOCUMENT:
             return format_html(
                 "<table><tr><th>年度</th><td>民國 {} 年</td></tr><tr><th>種類</th><td>{}</td></tr>"
@@ -319,6 +350,16 @@ class CrawlRequestAdmin(admin.ModelAdmin):
 
 @admin.register(OrgSiteCheck)
 class OrgSiteCheckAdmin(admin.ModelAdmin):
+    list_display = ("ubn", "website", "checked_at")
+    search_fields = ("ubn", "website")
+    readonly_fields = ("ubn", "website", "checked_at")
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(OrgMissionCheck)
+class OrgMissionCheckAdmin(admin.ModelAdmin):
     list_display = ("ubn", "website", "checked_at")
     search_fields = ("ubn", "website")
     readonly_fields = ("ubn", "website", "checked_at")
