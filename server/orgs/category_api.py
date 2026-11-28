@@ -69,7 +69,7 @@ def short_tags(org: Organization, limit: int = 3) -> list[dict]:
 
 
 def _org_brief(org: Organization, extra: dict | None = None) -> dict:
-    return {"ubn": org.ubn, "name": org.name, "city": org.city, "disclosure_score": org.disclosure_score, **(extra or {})}
+    return {"ubn": org.ubn, "name": org.name, "city": org.city, "disclosure_level": org.disclosure_level, **(extra or {})}
 
 
 @api_view(["GET"])
@@ -107,7 +107,7 @@ def category_overview(request, code):
             "org_count": orgs.count(),
             "raised_5y": unique_orgs.aggregate(t=Sum("public_raised_5y"))["t"] or 0,
             "penalized_5y": orgs.filter(scoring.penalty_5y_filter("penalties__")).distinct().count(),
-            "top_score": [_org_brief(o) for o in orgs.order_by("-disclosure_score", "name")[:TOP]],
+            "top_level": [_org_brief(o) for o in orgs.order_by("-disclosure_level", "-public_raised_5y", "name")[:TOP]],
             "top_raised": [_org_brief(o, {"raised_5y": o.public_raised_5y}) for o in top_raised],
             "top_donors": [
                 {"donor_id": d["donor_id"], "name": d["donor__name"], "kind_label": labels[d["donor__kind"]],

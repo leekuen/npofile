@@ -83,7 +83,7 @@ class DonorListImportTests(TestCase):
         self.assertEqual((summary["anonymous_rows"], summary["anonymous_amount"]), (3, 60000))
         self.assertNotIn("receipt_no", str(r))
         self.assertNotIn("A001", str(r))
-        self.assertEqual(Organization.objects.get(ubn=UBN).disclosure_score, 100)
+        self.assertEqual(Organization.objects.get(ubn=UBN).disclosure_level, 2)  # 身分＋勸募活動都齊，沒有財報
 
     def test_donor_ranking_excludes_individuals(self):
         self.import_all()

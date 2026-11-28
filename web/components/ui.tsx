@@ -54,41 +54,47 @@ export function PenaltyBadge({ count, short = false }: { count: number; short?: 
   );
 }
 
-/** 揭露指數的圓環顏色：只分「揭露得多／中等／少」，不做好壞評等 */
-export function scoreStroke(score: number) {
-  if (score >= 70) return "stroke-brand-600";
-  if (score >= 40) return "stroke-brand-400";
-  return "stroke-ink-400";
+/** 揭露層級（LK-35；跟後端 orgs/scoring.py 的 LEVEL_MEDALS／LEVEL_NAMES 同一套）：
+ * 給人看的是獎牌名稱，副標是這一級代表什麼 */
+export const LEVEL_MEDALS = ["未分級", "銅", "銀", "金", "鑽石"] as const;
+export const LEVEL_NAMES = ["資料不足", "身分可查", "活動可查", "財務可查", "長期可查"] as const;
+export const MAX_LEVEL = 4;
+
+const MEDAL_STYLES = [
+  "bg-ink-50 text-ink-500 ring-ink-200",
+  "bg-orange-100 text-orange-900 ring-orange-300",
+  "bg-zinc-100 text-zinc-800 ring-zinc-400",
+  "bg-amber-100 text-amber-900 ring-amber-400",
+  "bg-sky-100 text-sky-900 ring-sky-400",
+];
+
+function clampLevel(level: number) {
+  return Math.max(0, Math.min(MAX_LEVEL, level));
 }
 
-/** 揭露指數圓環：環的長度＝分數，中間是數字 */
-export function ScoreBadge({ score, size = "sm" }: { score: number; size?: "sm" | "lg" }) {
+export function levelMedal(level: number) {
+  return LEVEL_MEDALS[clampLevel(level)];
+}
+
+export function levelName(level: number) {
+  return LEVEL_NAMES[clampLevel(level)];
+}
+
+/** 揭露層級徽章：獎牌名稱（顏色只是輔助，一定有字）；大尺寸再寫這一級代表什麼。只代表公開了多少，不做好壞評等 */
+export function LevelBadge({ level, size = "sm" }: { level: number; size?: "sm" | "lg" }) {
   const lg = size === "lg";
-  const r = 16;
-  const c = 2 * Math.PI * r;
-  const pct = Math.max(0, Math.min(100, score));
+  const n = clampLevel(level);
   return (
-    <span
-      className={`relative inline-flex shrink-0 items-center justify-center ${lg ? "h-24 w-24" : "h-12 w-12"}`}
-      title={`揭露指數 ${score} 分（滿分 100）`}
-    >
-      <svg viewBox="0 0 40 40" className="absolute inset-0 -rotate-90" aria-hidden>
-        <circle cx="20" cy="20" r={r} fill="none" strokeWidth={lg ? 3.5 : 4} className="stroke-ink-200" />
-        <circle
-          cx="20"
-          cy="20"
-          r={r}
-          fill="none"
-          strokeWidth={lg ? 3.5 : 4}
-          strokeLinecap="round"
-          strokeDasharray={`${(pct / 100) * c} ${c}`}
-          className={scoreStroke(score)}
-        />
-      </svg>
-      <span className="relative flex flex-col items-center leading-none">
-        <span className={`font-num font-semibold tabular-nums text-ink-900 ${lg ? "text-3xl" : "text-sm"}`}>{score}</span>
-        {lg && <span className="mt-1 text-xs text-ink-500">／100</span>}
+    <span className={`inline-flex shrink-0 items-center ${lg ? "gap-2" : ""}`} title={`揭露層級：${levelMedal(n)}（${levelName(n)}）`}>
+      <span
+        className={`inline-flex items-center justify-center whitespace-nowrap rounded-full font-semibold ring-1 ${MEDAL_STYLES[n]} ${
+          lg ? "px-3 py-1 text-base" : "min-w-10 px-1.5 py-0.5 text-xs"
+        }`}
+      >
+        <span className="sr-only">揭露層級 </span>
+        {levelMedal(n)}
       </span>
+      {lg && <span className="text-sm text-ink-700">{levelName(n)}</span>}
     </span>
   );
 }

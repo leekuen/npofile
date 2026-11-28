@@ -17,10 +17,11 @@ from .serializers import (
     OrganizationListSerializer,
 )
 
-# 預設「近 5 年公開募款」（勸募申報＋群眾集資，口徑見 tickets/LK-20）；沒有的組織排在後面，依揭露指數、名稱
+# 預設「近 5 年公開募款」（勸募申報＋群眾集資，口徑見 tickets/LK-20）；沒有的組織排在後面，依揭露層級、名稱
 ORDERINGS = {
-    "raised": ("-public_raised_5y", "-disclosure_score", "name"),
-    "score": ("-disclosure_score", "name"),
+    "raised": ("-public_raised_5y", "-disclosure_level", "name"),
+    "level": ("-disclosure_level", "-public_raised_5y", "name"),
+    "score": ("-disclosure_level", "-public_raised_5y", "name"),  # 舊網址（揭露指數時代）照樣能用
     "name": ("name",),
 }
 DEFAULT_ORDERING = "raised"

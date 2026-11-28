@@ -125,12 +125,12 @@ class RegistryIngestTests(TestCase):
     def test_does_not_touch_fia_fields_or_categories(self):
         OrgCategory.objects.create(organization=self.org, code="education", source=OrgCategory.Source.ADMIN)
         before_org, before_cats = snapshot(self.org), list(self.org.categories.values_list("code", "source", "excluded"))
-        score = self.org.disclosure_score
+        score = self.org.disclosure_level
         run_source(self.moe, items=moe_items(self.orgs))
         run_source(self.codes, items=code_items())
         self.assertEqual(snapshot(self.org), before_org)
         self.assertEqual(list(self.org.categories.values_list("code", "source", "excluded")), before_cats)
-        self.assertEqual(Organization.objects.get(pk=self.org.pk).disclosure_score, score)
+        self.assertEqual(Organization.objects.get(pk=self.org.pk).disclosure_level, score)
 
     def test_fia_rerun_keeps_registry(self):
         fia_src = CrawlerSource.objects.get(key="fia")
