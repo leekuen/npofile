@@ -256,7 +256,6 @@ const CHECK_TAB: Record<string, string> = {
   results_filed: "projects",
   financial_recent: "finance",
   financial_consecutive: "finance",
-  audited: "finance",
   report: "finance",
 };
 
