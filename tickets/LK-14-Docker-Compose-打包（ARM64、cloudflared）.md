@@ -1,13 +1,13 @@
 ---
 id: LK-14
 title: Docker Compose 打包（ARM64、cloudflared）
-status: 開發中
+status: 完成
 roles: [管理員/維運]
 owner: claude-cc-LK-14
 depends: []
 spec: docs/SPEC.md#3-功能細節
 created: 2026-11-27
-updated: 2026-11-27
+updated: 2026-11-28
 ---
 
 ## 目的（要解決什麼問題）
@@ -71,3 +71,4 @@ updated: 2026-11-27
 - 走查（HTTP 腳本）W1 `git diff origin/stage -- deploy/` 沒有輸出（主機版部署檔沒動，container 只是引用 run-job.sh、backup-db.sh）。
 - CI 驗收（2026-11-27，run 45963324143）：`ubuntu-24.04-arm` 與 `ubuntu-24.04` 都綠。ARM64 那台 backend／web container 都是 aarch64；經 nginx 打 `/`、`/login`、`/api/stats`、`/admin/login/`、`/static/admin/css/base.css` 都 200；登入 API 帶 CSRF token 回 invalid_credentials、不帶回 403；`manage.py test` 97 個在 PostgreSQL 上全過；scheduler 跑 backup 產生 88KB、24 張表的 dump。第一次 run 因為沒開 tunnel 也要求 CLOUDFLARE_TUNNEL_TOKEN 而失敗，已改成選填。
 - CI 驗收（2026-11-27，run 45964803471，x86 與 ARM64 都綠）自動更新：ARM64 那台退回 127ff94 後 updater 偵測到 31953af、重建並重啟 db／backend／web／nginx／scheduler（19 秒）、HEAD 快轉到最新，之後首頁與 `/api/stats` 200；已是最新時再跑不做事。
+- 2026-11-28 正式站驗收（prod `634d2f1`）：CI 兩種架構都通過，正式站已在 Docker Compose 上運作。

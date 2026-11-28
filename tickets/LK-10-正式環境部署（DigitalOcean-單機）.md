@@ -1,13 +1,13 @@
 ---
 id: LK-10
 title: 正式環境部署（DigitalOcean 單機）
-status: 開發中
+status: 作廢
 roles: [管理員/維運]
 owner: claude-cc-LK-10
 depends: []
 spec: docs/SPEC.md#3-功能細節
 created: 2026-11-27
-updated: 2026-11-27
+updated: 2026-11-28
 ---
 
 ## 目的（要解決什麼問題）
@@ -73,3 +73,4 @@ updated: 2026-11-27
 - 實際裝機（2026-11-27）：使用者的 Droplet（168.144.130.162，512MB）已經在跑 LINE CRM（Docker＋Caddy 佔 80/443），使用者選「先擠同一台」。改成主機 nginx 聽 8080、由 CRM 的 Caddy 依 `NPOFILE_ADDRESS` 轉過來；加 2GB swap、gunicorn 2 workers、Next.js heap 256MB、PostgreSQL 小主機設定。做法與要補進 CRM repo 的改動寫在 `deploy/README.md`〈與 LINE CRM 共用主機〉。
 - 伺服器驗收（2026-11-27，用 http://168.144.130.162）：首頁、`/api/stats`、`/admin/login/`、`/static/admin/css/base.css` 都回 200；CRM `kuen-crm.duckdns.org` 回 303 與改動前相同。登入與留言要等有網域、走 HTTPS 才能驗（cookie 只走 HTTPS）。
 - 換成網域（2026-11-27）：`npofile-kuen.duckdns.org`，CRM 的 Caddy 自動申請到 Let's Encrypt 憑證；http 會 308 轉 https。HTTPS 下首頁、`/api/stats`、`/admin/login/`、後台 CSS、`/login` 都回 200；登入 API 帶 CSRF token 用不存在的帳密回「Email 或密碼不正確」（CSRF 與 secure cookie 通過）、不帶 token 回 403。沒有在正式站建測試帳號，實際註冊＋留言由使用者第一次使用時確認。
+- 2026-11-28 作廢：DigitalOcean 部署已不再使用：正式站先改 Docker Compose（LK-14），再搬到 Ubuntu VM；Droplet 上的 NPOFile 已清除。
