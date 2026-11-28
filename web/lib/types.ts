@@ -138,7 +138,7 @@ export interface FinancialYear {
   net_assets: number | null;
   program_expense_ratio: number | null;
   audited: boolean | null;
-  method: "ai" | "manual";
+  method: "ai" | "manual" | "official" | "text" | "ocr";
   document_url: string;
   document_title: string;
 }

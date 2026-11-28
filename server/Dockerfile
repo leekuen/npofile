@@ -11,8 +11,9 @@ ENV PYTHONUNBUFFERED=1 \
     TZ=Asia/Taipei
 
 # postgresql-client：備份用的 pg_dump／pg_restore（trixie 是 17 版，可以備份 16 版的資料庫）
+# libgl1、libglib2.0-0：自律聯盟財報的影像辨識（rapidocr 用到 OpenCV）需要（LK-25）
 RUN apt-get update \
- && apt-get install -y --no-install-recommends postgresql-client curl tzdata \
+ && apt-get install -y --no-install-recommends postgresql-client curl tzdata libgl1 libglib2.0-0 \
  && rm -rf /var/lib/apt/lists/*
 
 # supercronic：給 container 用的 cron（環境變數照常傳得進去、輸出到 stdout）

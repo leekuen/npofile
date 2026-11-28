@@ -1022,6 +1022,7 @@ function FinanceTab({ org }: { org: OrgDetail }) {
                             <TextLink href={f.document_url}>原始報告</TextLink>
                           </span>
                         )}
+                        {f.method === "ocr" && <span className="mt-0.5 inline-block rounded bg-sun-100 px-1.5 text-xs text-ink-700">影像辨識</span>}
                       </td>
                       {FIN_COLUMNS.map((c) => {
                         const v = f[c.key];
@@ -1036,7 +1037,9 @@ function FinanceTab({ org }: { org: OrgDetail }) {
                 </tbody>
               </table>
             </Card>
-            <p className="text-xs text-ink-600">金額單位：元。業務支出占比＝業務（服務）支出 ÷ 總支出。報告沒有列的項目顯示「—」。</p>
+            <p className="text-xs text-ink-600">金額單位：元。業務支出占比＝業務（服務）支出 ÷ 總支出。報告沒有列的項目顯示「—」。
+              {years.some((f) => f.method === "ocr") && "標「影像辨識」的年度是從掃描檔讀出的數字，可能有誤，請以原始報告為準。"}
+            </p>
           </div>
         )}
       </section>

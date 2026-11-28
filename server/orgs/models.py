@@ -351,6 +351,10 @@ class FinancialYear(models.Model):
     class Method(models.TextChoices):
         AI = "ai", "AI 讀取報告"
         MANUAL = "manual", "管理員輸入"
+        # LK-25：政府網站公開的決算（衛福部社家署）、讀報告 PDF 文字、掃描檔影像辨識
+        OFFICIAL = "official", "政府公開決算"
+        TEXT = "text", "讀取報告文字"
+        OCR = "ocr", "影像辨識（可能有誤）"
 
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="financials", verbose_name="組織")
     year = models.PositiveSmallIntegerField("年度（民國）", db_index=True)

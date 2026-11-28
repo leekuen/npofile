@@ -62,7 +62,7 @@ def record_source_name(source: CrawlerSource) -> str:
 
 
 # 新建來源時的「每次最多跑幾分鐘」：勸募活動與捐贈人清冊每晚接著抓，不讓一次跑整晚（已存在的來源照後台設定）
-DEFAULT_MINUTES = {"mohw_activities": 120, "judicial": 120}
+DEFAULT_MINUTES = {"mohw_activities": 120, "judicial": 120, "twnpos": 120}  # twnpos：自律聯盟財報要影像辨識，很慢（LK-25）
 
 
 def ensure_sources() -> None:
@@ -113,6 +113,8 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
                         values["revisit"] = revisit_ids(source)
                     if "orgs" in src.options:  # 名稱對統編的名冊（約十萬筆，逐筆讀，不一次載入物件）
                         values["orgs"] = Organization.objects.values_list("ubn", "name").iterator(chunk_size=5000)
+                    if "have" in src.options:  # 已經收過的財報（決算、會員財報備查後不會再變），不再下載
+                        values["have"] = set(CrawlRecord.objects.filter(source=source).values_list("external_id", flat=True))
                     if "orgs_city" in src.options:
                         values["orgs_city"] = Organization.objects.values_list("ubn", "name", "city").iterator(chunk_size=5000)
                     if "listed" in src.options:
@@ -447,18 +449,33 @@ FINANCIAL_FIELDS = (
 )
 
 
+# 同一年有多個來源時誰的數字優先（LK-25）：政府公開決算 > 讀報告（AI／文字）> 影像辨識；
+# 沒有任何數字的（只有報告連結）不算數，誰都可以蓋過
+METHOD_RANK = {"official": 3, "ai": 2, "text": 2, "manual": 2, "ocr": 1}
+
+
+def _has_numbers(values) -> bool:
+    return any(values.get(f) is not None for f in FINANCIAL_FIELDS)
+
+
 def _apply_financial(rec: CrawlRecord, org: Organization, source_name: str) -> None:
-    """同一年整列取代；管理員改過（locked）的那一年不動。"""
+    """同一年整列取代；管理員改過（locked）的那一年不動；可信度較低的來源不蓋過較高的。"""
     d = rec.payload
     existing = FinancialYear.objects.filter(organization=org, year=d["year"]).first()
     if existing and existing.locked:
         rec.review_note = "這一年的財務數字管理員改過，沒有覆蓋"
         return
+    method = d.get("method") if d.get("method") in FinancialYear.Method.values else FinancialYear.Method.MANUAL
+    if existing:
+        have = METHOD_RANK.get(existing.method, 0) if _has_numbers(vars(existing)) else 0
+        new = METHOD_RANK.get(method, 0) if _has_numbers(d) else 0
+        if new < have:
+            rec.review_note = f"這一年已有{existing.get_method_display()}的數字（{existing.source_name}），沒有覆蓋"
+            return
     values = {f: d.get(f) for f in FINANCIAL_FIELDS}
     values.update(
         document_url=(d.get("document_url") or "")[:1000], document_title=(d.get("document_title") or "")[:200],
-        method=FinancialYear.Method.AI if d.get("method") == "ai" else FinancialYear.Method.MANUAL,
-        notes=(d.get("notes") or "")[:300], source_name=source_name,
+        method=method, notes=(d.get("notes") or "")[:300], source_name=source_name,
     )
     FinancialYear.objects.update_or_create(organization=org, year=d["year"], defaults=values)
 
