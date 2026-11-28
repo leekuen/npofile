@@ -6,8 +6,8 @@
 0 2 * * * /app/deploy/run-job.sh backup /app/deploy/backup-db.sh
 # 每天 02:30 跑所有啟用中的爬蟲來源（每次抓幾筆照管理後台的設定）
 30 2 * * * /app/deploy/run-job.sh crawl python manage.py crawl all
-# 每天 05:30 清掉近 5 年以外的資料、重算揭露指數（「近五年」隨日期移動）
-30 5 * * * /app/deploy/run-job.sh scores bash -c "python manage.py prune_old_records && python manage.py recompute_scores && python manage.py match_court_registrations"
+# 每天 05:30 清掉近 5 年以外的資料、重算揭露指數（「近五年」隨日期移動）；重新對上市櫃公司 ESG 到企業捐款人（LK-39）
+30 5 * * * /app/deploy/run-job.sh scores bash -c "python manage.py prune_old_records && python manage.py recompute_scores && python manage.py match_court_registrations && python manage.py sync_esg --link-only"
 # 每週日 06:30 更新上市櫃公司 ESG 彙總資料並對到企業捐款人（LK-39；證交所約每年 6 月更新年度資料）
 30 6 * * 0 /app/deploy/run-job.sh esg python manage.py sync_esg
 # 每分鐘看有沒有後台按的「排入完整爬取」（LK-26）；沒有就馬上結束，一次只跑一個
