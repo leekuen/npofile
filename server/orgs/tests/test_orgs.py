@@ -251,3 +251,55 @@ class OrgListRaisedOrderingTests(TestCase):
         r = self.client.get("/api/orgs?ordering=score").json()["results"]
         scores = [o["disclosure_score"] for o in r]
         self.assertEqual(scores, sorted(scores, reverse=True))
+
+
+class DonationTrendTests(TestCase):
+    """LK-33：組織頁近 5 年受捐款趨勢——勸募、集資、補助各自逐年加總，不相加。"""
+
+    def setUp(self):
+        from orgs.models import Grant
+
+        self.since = period.since_roc_year()
+        self.this_year = self.since + period.YEARS - 1
+        y = self.this_year
+        self.org = make_org("10000011", name="趨勢協會")
+        AnnualFundraising.objects.create(organization=self.org, year=y - 1, raised=300)
+        AnnualFundraising.objects.create(organization=self.org, year=y - 3, raised=100)
+        AnnualFundraising.objects.create(organization=self.org, year=self.since - 1, raised=9999)  # 早於近 5 年
+        Project.objects.create(organization=self.org, name="去年集資", channel="crowdfunding", raised=70,
+                               start_date=date(y + 1910, 3, 1))
+        Project.objects.create(organization=self.org, name="定期定額", channel="crowdfunding", raised=None,
+                               monthly_raised=999, start_date=date(y + 1910, 5, 1))
+        Project.objects.create(organization=self.org, name="勸募活動", channel="permit", raised=5000,
+                               start_date=date(y + 1910, 1, 1))
+        common = dict(organization=self.org, year=y - 1, agency="衛福部", recipient="趨勢協會", purpose="服務",
+                      approved_on=date(y + 1910, 6, 1), amount=200)
+        Grant.objects.create(source_name="甲表", external_id="g1", **common)
+        Grant.objects.create(source_name="乙表", external_id="g1", **common)  # 別的部會表重複列 → 只算一次
+        Grant.objects.create(source_name="甲表", external_id="g2", **{**common, "year": y - 2, "amount": 50})
+
+    def trend(self):
+        return self.client.get("/api/orgs/10000011").json()["donation_trend"]
+
+    def test_yearly_sums_by_kind(self):
+        rows = {r["year"]: r for r in self.trend()}
+        y = self.this_year
+        self.assertEqual(rows[y - 1], {"year": y - 1, "permit": 300, "crowdfunding": 70, "grants": 200})
+        self.assertEqual(rows[y - 2], {"year": y - 2, "permit": 0, "crowdfunding": 0, "grants": 50})
+        self.assertEqual(rows[y - 3]["permit"], 100)
+        self.assertEqual(rows[self.since], {"year": self.since, "permit": 0, "crowdfunding": 0, "grants": 0})
+
+    def test_empty_current_year_is_dropped(self):
+        years = [r["year"] for r in self.trend()]
+        self.assertEqual(years, list(range(self.since, self.this_year)))
+
+    def test_current_year_kept_when_it_has_money(self):
+        AnnualFundraising.objects.create(organization=self.org, year=self.this_year, raised=1)
+        self.assertEqual(self.trend()[-1]["year"], self.this_year)
+
+    def test_totals_match_public_raised(self):
+        d = self.client.get("/api/orgs/10000011").json()
+        t = d["donation_trend"]
+        self.assertEqual(sum(r["permit"] for r in t), d["public_raised"]["permit"])
+        self.assertEqual(sum(r["crowdfunding"] for r in t), d["public_raised"]["crowdfunding"])
+        self.assertEqual(sum(r["grants"] for r in t), sum(g["amount"] for g in d["grants"]))

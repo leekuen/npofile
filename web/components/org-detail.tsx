@@ -5,11 +5,18 @@ import type { ReactNode } from "react";
 import { formatMoney, formatNumber, formatRocDate } from "@/lib/format";
 import { ApiUnavailableError, getOrg } from "@/lib/server-api";
 import { GRANT_AGENCIES } from "@/lib/sources";
-import type { Grant, OrgDetail, Project, ScoreBreakdown } from "@/lib/types";
+import type {
+  CourtRegistration,
+  Grant,
+  OrgDetail,
+  Project,
+  RegistryEntry,
+  ScoreBreakdown,
+} from "@/lib/types";
 
 import { OrgCategoryTags } from "./categories";
 import { Comments } from "./comments";
-import { FinancialChart } from "./financial-chart";
+import { FinancialChart, TrendChart } from "./financial-chart";
 import { HashHighlight } from "./hash-highlight";
 import {
   Card,
@@ -89,6 +96,20 @@ export async function OrgDetailView({
         <div className="mt-3">
           <OrgCategoryTags categories={org.categories} />
         </div>
+        {org.court_dissolution && (
+          <div role="alert" className="mt-4 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-red-900">
+            <p className="font-semibold">
+              <span aria-hidden>⚠ </span>
+              已向法院辦理解散（{formatRocDate(org.court_dissolution.posted_on)}，{org.court_dissolution.court}
+              {org.court_dissolution.case_type === "liquidation_end" ? "，清算已終結" : ""}）
+            </p>
+            {org.court_dissolution.source_url && (
+              <p className="mt-1 text-sm">
+                <TextLink href={org.court_dissolution.source_url}>看法院公告</TextLink>
+              </p>
+            )}
+          </div>
+        )}
       </header>
 
       {/* 桌機：左欄摘要＋分頁，右欄揭露指數＋基本資料；手機依序疊成摘要、右欄、分頁 */}
@@ -101,6 +122,7 @@ export async function OrgDetailView({
           <ScorePanel score={org.score} />
           <FinanceSummaryCard org={org} />
           <ContactCard org={org} />
+          <CourtRegistrationsCard regs={org.court_registrations} />
         </aside>
 
         <div className="min-w-0 lg:col-start-1">
@@ -380,6 +402,16 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function ContactFields({ org }: { org: OrgDetail }) {
   const sameAddress =
     org.contact_address && org.contact_address === org.registered_address;
+  // 名冊與捐贈碼的出處接在財政部等來源後面（同名的只列一次）
+  const sources = [
+    ...org.source_links,
+    ...[...org.registries, ...org.donation_codes].map((x) => ({
+      name: x.source_name,
+      url: x.source_url,
+    })),
+  ].filter(
+    (src, i, all) => src.name && all.findIndex((s) => s.name === src.name) === i,
+  );
   return (
     <dl className="mt-3 space-y-3 text-sm">
       <Field label="電話">
@@ -403,6 +435,16 @@ function ContactFields({ org }: { org: OrgDetail }) {
           NA
         )}
       </Field>
+      {org.donation_codes.length > 0 && (
+        <Field label="發票捐贈碼">
+          <span className="font-mono text-base font-bold tracking-wider">
+            {org.donation_codes.map((c) => c.code).join("、")}
+          </span>
+          <span className="mt-0.5 block text-xs text-ink-600">
+            結帳時說出或掃描這個碼，就能把發票捐給這個組織
+          </span>
+        </Field>
+      )}
       <Field label={sameAddress ? "地址" : "聯絡地址"}>
         {org.contact_address || org.registered_address || NA}
       </Field>
@@ -411,10 +453,13 @@ function ContactFields({ org }: { org: OrgDetail }) {
       )}
       <Field label="負責人">{org.representative || NA}</Field>
       <Field label="勸募用途">{org.purposes || NA}</Field>
+      {org.registries.map((r) => (
+        <RegistryFields key={r.source_name} entry={r} />
+      ))}
       <Field label="資料來源">
-        {org.source_links.length ? (
+        {sources.length ? (
           <ul className="space-y-1">
-            {org.source_links.map((src) => (
+            {sources.map((src) => (
               <li key={src.name}>
                 <TextLink href={src.url}>{src.name}</TextLink>
               </li>
@@ -425,6 +470,27 @@ function ContactFields({ org }: { org: OrgDetail }) {
         )}
       </Field>
     </dl>
+  );
+}
+
+/** 主管機關名冊那幾行（LK-32）：每一行都是有資料才出現 */
+function RegistryFields({ entry }: { entry: RegistryEntry }) {
+  const year = entry.data_date
+    ? Number(entry.data_date.slice(0, 4)) - 1911
+    : null;
+  return (
+    <>
+      {entry.authority && <Field label="主管機關">{entry.authority}</Field>}
+      {entry.registered_assets !== null && (
+        <Field label="登記財產總額">
+          {formatMoney(entry.registered_assets)}
+          <span className="ml-1 text-xs text-ink-500">
+            （{entry.authority}名冊{year ? `，${year} 年` : ""}）
+          </span>
+        </Field>
+      )}
+      {entry.status && <Field label="名冊狀態">{entry.status}</Field>}
+    </>
   );
 }
 
@@ -460,6 +526,93 @@ function ContactCard({ org }: { org: OrgDetail }) {
   );
 }
 
+const COURT_RECENT = 5;
+
+function CourtRegistrationItem({ r }: { r: CourtRegistration }) {
+  const dissolved = r.case_type === "dissolution" || r.case_type === "liquidation_end";
+  return (
+    <li className="border-t border-ink-100 pt-2 first:border-t-0 first:pt-0">
+      <p className="flex flex-wrap items-baseline justify-between gap-x-2">
+        <span className={`font-medium ${dissolved ? "text-red-800" : "text-ink-900"}`}>{r.case_label}</span>
+        <span className="text-xs tabular-nums text-ink-600">{formatRocDate(r.posted_on)}</span>
+      </p>
+      <p className="text-xs text-ink-600">{r.court}</p>
+      {r.change_items.length > 0 && <p className="text-xs text-ink-700">變更：{r.change_items.join("、")}</p>}
+      {r.property_total !== null && (
+        <p className="text-xs text-ink-700">
+          財產總額 <span className="font-num tabular-nums">{formatMoney(r.property_total)}</span>
+        </p>
+      )}
+      {r.source_url && (
+        <p className="text-xs">
+          <TextLink href={r.source_url}>法院公告</TextLink>
+        </p>
+      )}
+    </li>
+  );
+}
+
+function CourtRegistrationsBody({ regs }: { regs: CourtRegistration[] }) {
+  const recent = regs.slice(0, COURT_RECENT);
+  const rest = regs.slice(COURT_RECENT);
+  return (
+    <>
+      {regs.length === 0 ? (
+        <p className="mt-2 text-sm text-ink-600">司法院法人登記公告（108 年 12 月起）查無這個組織的登記異動。</p>
+      ) : (
+        <>
+          <ul className="mt-3 space-y-2 text-sm">
+            {recent.map((r) => (
+              <CourtRegistrationItem key={r.id} r={r} />
+            ))}
+          </ul>
+          {rest.length > 0 && (
+            <details className="group/more mt-2">
+              <summary className="cursor-pointer list-none text-sm text-brand-800 underline underline-offset-2">
+                <span className="group-open/more:hidden">看全部 {regs.length} 筆</span>
+                <span className="hidden group-open/more:inline">收起</span>
+              </summary>
+              <ul className="mt-2 space-y-2 border-t border-ink-100 pt-2 text-sm">
+                {rest.map((r) => (
+                  <CourtRegistrationItem key={r.id} r={r} />
+                ))}
+              </ul>
+            </details>
+          )}
+          <p className="mt-3 border-t border-ink-100 pt-3">
+            <SourceNote name="司法院 法人登記公告" url="https://www.judicial.gov.tw/tw/lp-144-1.html" />
+          </p>
+        </>
+      )}
+    </>
+  );
+}
+
+/** 基本資料下方：司法院法人登記公告（LK-31），最近 5 筆，其餘可展開；手機跟基本資料一樣收起來 */
+function CourtRegistrationsCard({ regs }: { regs: CourtRegistration[] }) {
+  return (
+    <>
+      <section aria-labelledby="court-title" className="hidden rounded-2xl border border-ink-200 bg-white p-5 lg:block">
+        <h2 id="court-title" className="font-display text-lg font-bold text-ink-900">
+          法院登記異動
+        </h2>
+        <CourtRegistrationsBody regs={regs} />
+      </section>
+      <details className="group rounded-2xl border border-ink-200 bg-white px-4 py-3 lg:hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between font-display font-bold text-ink-900">
+          法院登記異動
+          <span aria-hidden className="text-ink-500 transition-transform group-open:rotate-90">
+            ›
+          </span>
+        </summary>
+        <div className="mt-3">
+          <CourtRegistrationsBody regs={regs} />
+        </div>
+      </details>
+    </>
+  );
+}
+
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
     <h2 className="mb-3 font-display text-xl font-bold text-ink-900">
@@ -473,12 +626,44 @@ function fundedYears(org: OrgDetail) {
   return org.annual_records.filter((a) => a.raised > 0 || a.target > 0);
 }
 
+// 顏色跟著種類走（勸募藍、集資橘、補助綠），某種沒有資料時其他線不換色
+const DONATION_SERIES = [
+  { key: "permit", label: "公益勸募", styleIndex: 0 },
+  { key: "crowdfunding", label: "群眾集資", styleIndex: 1 },
+  { key: "grants", label: "政府補助", styleIndex: 2 },
+] as const;
+
+/** 近 5 年受捐款趨勢（LK-33）：至少 2 個年度有金額才畫；只畫有錢的線 */
+function DonationTrend({ org }: { org: OrgDetail }) {
+  const rows = org.donation_trend ?? [];
+  const funded = rows.filter((r) => r.permit > 0 || r.crowdfunding > 0 || r.grants > 0);
+  if (funded.length < 2) return null;
+  const series = DONATION_SERIES.filter((s) => rows.some((r) => r[s.key] > 0)).map((s) => ({ ...s }));
+  return (
+    <section>
+      <SectionTitle>近 5 年受捐款趨勢</SectionTitle>
+      <Card>
+        <TrendChart
+          rows={rows}
+          series={series}
+          label={`近 ${rows.length} 年${series.map((s) => s.label).join("、")}金額折線圖，數字見下方表格與政府補助分頁`}
+          partialYear={org.since_roc_year + 4}
+        />
+        <p className="mt-3 text-xs text-ink-600">
+          三種錢來源不同、可能重疊，所以分開畫、不相加；沒有收錄到的年度畫成 0。
+        </p>
+      </Card>
+    </section>
+  );
+}
+
 function DonationsTab({ org }: { org: OrgDetail }) {
   const years = fundedYears(org);
   const maxRaised = Math.max(0, ...years.map((a) => a.raised));
   const pr = org.public_raised;
   return (
     <div className="space-y-6">
+      <DonationTrend org={org} />
       {pr.crowdfunding > 0 && (
         <section>
           <SectionTitle>近 5 年公開募款</SectionTitle>
