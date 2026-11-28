@@ -823,7 +823,7 @@ function DonationsTab({ org }: { org: OrgDetail }) {
                       )}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
-                      {formatMoney(d.amount)}
+                      {d.amount_note || formatMoney(d.amount)}
                     </td>
                     <td className="px-3 py-2 text-ink-700">
                       {d.purpose || "—"}
@@ -893,7 +893,8 @@ function DonorRankings({ org }: { org: OrgDetail }) {
                     )}
                   </span>
                   <span className="tabular-nums font-medium">
-                    {formatMoney(d.total)}
+                    {/* 只有範圍金額（LK-49）的捐款人加總是 0：原文在捐款明細 */}
+                    {d.total > 0 ? formatMoney(d.total) : "金額見明細"}
                   </span>
                 </li>
               ))}

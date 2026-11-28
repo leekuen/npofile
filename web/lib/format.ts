@@ -31,7 +31,10 @@ export function formatDonationWhen(d: { donated_on: string | null; year?: number
 
 /** 清冊來源的短名稱：衛福部的來源名稱很長，列表上只寫「衛福部勸募清冊」 */
 export function shortSourceName(name: string): string {
-  return name.includes("公益勸募") ? "衛福部勸募清冊" : name;
+  if (name.includes("公益勸募")) return "衛福部勸募清冊";
+  if (name.includes("重大訊息")) return "公開資訊觀測站重大訊息"; // LK-49
+  if (name.includes("捐贈情形表")) return "保險業捐贈情形表"; // LK-49
+  return name;
 }
 
 /** ISO 日期 → 民國年月（例：114/03） */
