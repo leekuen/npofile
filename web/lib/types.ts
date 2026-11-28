@@ -382,6 +382,8 @@ export interface DonorDetail extends DonorSummaryRow {
     penalty_count: number;
   }[];
   overview: DonorOverview;
+  /** 上市櫃公司自己申報的 ESG（LK-39）；非上市櫃或對不到是 null */
+  esg: CompanyEsg | null;
   fields_breakdown: { code: string; label: string; total: number }[];
   donations: {
     id: number;
@@ -394,6 +396,36 @@ export interface DonorDetail extends DonorSummaryRow {
     source_name: string;
     source_url: string;
   }[];
+}
+
+export interface CompanyEsg {
+  market: "listed" | "otc";
+  market_label: string;
+  code: string;
+  name: string;
+  short_name: string;
+  website: string;
+  /** 民國年度 */
+  report_year: number;
+  published_on: string | null;
+  scope1: number | null;
+  scope1_verified: string;
+  scope2: number | null;
+  scope2_verified: string;
+  scope3: number | null;
+  scope3_verified: string;
+  /** 百分比數字，例 6.59 */
+  renewable_ratio: number | null;
+  female_manager_ratio: number | null;
+  /** 仟元／人 */
+  salary_median: number | null;
+  climate_governance: string;
+  climate_strategy: string;
+  climate_actions: string;
+  transition_plan: string;
+  climate_targets: string;
+  source_name: string;
+  source_url: string;
 }
 
 export type CategorySource = "official" | "inferred" | "admin";

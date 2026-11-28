@@ -530,3 +530,57 @@ class DonationCode(SourceMixin):
 
     def __str__(self):
         return f"{self.code} {self.registered_name}"
+
+
+class CompanyESG(models.Model):
+    """上市櫃公司向主管機關申報的 ESG 彙總資料（LK-39）：一家公司一個報告年度一筆，內容照公司申報原值、不改寫。
+
+    對捐款人：捐款人有統編只用統編對；沒有統編才用公司全名的比對寫法（identity_key）對。
+    管理員解除對應會勾 link_blocked，之後重抓（含新的報告年度）都不再自動接回。"""
+
+    class Market(models.TextChoices):
+        LISTED = "listed", "上市"
+        OTC = "otc", "上櫃"
+
+    market = models.CharField("市場", max_length=8, choices=Market.choices)
+    code = models.CharField("公司代號", max_length=10)
+    name = models.CharField("公司全名", max_length=200)
+    short_name = models.CharField("簡稱", max_length=100, blank=True)
+    ubn = models.CharField("統一編號", max_length=8, blank=True, db_index=True)
+    website = models.URLField("公司網站", max_length=300, blank=True)
+    report_year = models.PositiveSmallIntegerField("報告年度（民國）")
+    published_on = models.DateField("出表日期", null=True, blank=True)
+    donor = models.ForeignKey(
+        Donor, on_delete=models.SET_NULL, null=True, blank=True, related_name="esg_reports", verbose_name="對應的捐款人"
+    )
+    link_blocked = models.BooleanField(
+        "管理員解除對應", default=False, help_text="勾起來就不會自動對到捐款人（重抓、新年度都一樣）。"
+    )
+    scope1 = models.DecimalField("範疇一排放量（噸 CO2e）", max_digits=20, decimal_places=4, null=True, blank=True)
+    scope1_verified = models.CharField("範疇一取得驗證", max_length=20, blank=True)
+    scope2 = models.DecimalField("範疇二排放量（噸 CO2e）", max_digits=20, decimal_places=4, null=True, blank=True)
+    scope2_verified = models.CharField("範疇二取得驗證", max_length=20, blank=True)
+    scope3 = models.DecimalField("範疇三排放量（噸 CO2e）", max_digits=20, decimal_places=4, null=True, blank=True)
+    scope3_verified = models.CharField("範疇三取得驗證", max_length=20, blank=True)
+    renewable_ratio = models.DecimalField("再生能源使用率（%）", max_digits=9, decimal_places=4, null=True, blank=True)
+    female_manager_ratio = models.DecimalField("女性主管占比（%）", max_digits=9, decimal_places=4, null=True, blank=True)
+    salary_median = models.PositiveIntegerField("非主管全時員工薪資中位數（仟元/人）", null=True, blank=True)
+    climate_governance = models.TextField("董事會與管理階層的氣候監督", blank=True)
+    climate_strategy = models.TextField("氣候風險與機會對業務、策略的影響", blank=True)
+    climate_actions = models.TextField("極端氣候事件與轉型行動", blank=True)
+    transition_plan = models.TextField("氣候轉型計畫", blank=True)
+    climate_targets = models.TextField("氣候目標與進度", blank=True)
+    source_name = models.CharField("來源名稱", max_length=100, blank=True)
+    source_url = models.URLField("來源網址", max_length=500, blank=True)
+    fetched_at = models.DateTimeField("抓取時間", auto_now=True)
+
+    class Meta:
+        verbose_name = "上市櫃公司 ESG"
+        verbose_name_plural = "上市櫃公司 ESG"
+        ordering = ["market", "code", "-report_year"]
+        constraints = [
+            models.UniqueConstraint(fields=["market", "code", "report_year"], name="uniq_company_esg_year"),
+        ]
+
+    def __str__(self):
+        return f"{self.short_name or self.name}（{self.get_market_display()} {self.code}）{self.report_year} 年度"

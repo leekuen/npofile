@@ -12,5 +12,7 @@ JOB=/home/npofile/app/deploy/run-job.sh
 30 2 * * * $JOB crawl bash -c "cd $APP && .venv/bin/python manage.py crawl all"
 # 每天 05:30 清掉近 5 年以外的資料、重算揭露指數（「近五年」隨日期移動）
 30 5 * * * $JOB scores bash -c "cd $APP && .venv/bin/python manage.py prune_old_records && .venv/bin/python manage.py recompute_scores && .venv/bin/python manage.py match_court_registrations"
+# 每週日 06:30 更新上市櫃公司 ESG 彙總資料並對到企業捐款人（LK-39；證交所約每年 6 月更新年度資料）
+30 6 * * 0 $JOB esg bash -c "cd $APP && .venv/bin/python manage.py sync_esg"
 # 每分鐘看有沒有後台按的「排入完整爬取」（LK-26）；沒有就馬上結束，一次只跑一個
 * * * * * cd $APP && .venv/bin/python manage.py run_crawl_requests >> /home/npofile/logs/crawl-requests.log 2>&1
