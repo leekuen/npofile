@@ -130,6 +130,7 @@ services:
     environment:
       AUTO_UPDATE_BRANCH: ${AUTO_UPDATE_BRANCH:-prod}
       AUTO_UPDATE_INTERVAL: ${AUTO_UPDATE_INTERVAL:-300}
+      AUTO_UPDATE_MAX_WAIT: ${AUTO_UPDATE_MAX_WAIT:-43200}
       COMPOSE_PROJECT_NAME: npofile
       TZ: Asia/Taipei
     volumes:
