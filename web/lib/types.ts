@@ -64,6 +64,13 @@ export interface Project {
   region: string;
   result_filed_on: string | null;
   closed_filed_on: string | null;
+  /** 活動頁的備查狀態（LK-43）：期限是法定期限；done＝已備查（null＝沒讀過活動頁）；late＝活動頁標「逾期備查」 */
+  result_due_on: string | null;
+  result_done: boolean | null;
+  result_late: boolean;
+  closed_due_on: string | null;
+  closed_done: boolean | null;
+  closed_late: boolean;
   description: string;
   source_name: string;
   source_url: string;

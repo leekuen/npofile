@@ -8,6 +8,7 @@ urlpatterns = [
     path("home/picks", views.home_picks, name="home-picks"),
     path("filters", views.filters, name="filters"),
     path("orgs", views.OrganizationList.as_view(), name="org-list"),
+    path("orgs/<str:ubn>/badge.svg", views.organization_badge, name="org-badge"),
     path("orgs/<str:ubn>", views.organization_detail, name="org-detail"),
     path("donors", views.DonorList.as_view(), name="donor-list"),
     path("taxonomy", category_api.taxonomy_tree, name="taxonomy"),

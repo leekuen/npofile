@@ -83,6 +83,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "id", "external_id", "name", "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
             "result_filed_on", "closed_filed_on", "description", "source_name", "source_url",
             "channel", "monthly_raised", "backers",
+            "result_due_on", "result_done", "result_late", "closed_due_on", "closed_done", "closed_late",
         )
 
 

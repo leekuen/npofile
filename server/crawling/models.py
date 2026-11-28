@@ -119,6 +119,11 @@ class ActivityProgress(models.Model):
     has_donor_list = models.BooleanField("清冊已寫進資料庫", default=False)
     unmatched_reason = models.CharField("對不到的原因", max_length=100, blank=True)
     checked_at = models.DateTimeField("最近檢查", null=True, blank=True)
+    # 活動頁的備查狀態（LK-43）：用來決定要不要回頭再看；None＝還沒讀過
+    result_due_on = models.DateField("成果備查期限", null=True, blank=True)
+    result_done = models.BooleanField("成果已備查", null=True, blank=True)
+    closed_due_on = models.DateField("結案備查期限", null=True, blank=True)
+    closed_done = models.BooleanField("結案已備查", null=True, blank=True)
 
     class Meta:
         verbose_name = "勸募活動抓取進度"
