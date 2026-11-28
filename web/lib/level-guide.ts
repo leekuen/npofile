@@ -48,7 +48,7 @@ export const CHECK_GUIDE: Record<string, CheckGuide> = {
     links: [MOHW],
   },
   results_filed: {
-    how: "勸募活動結束後，要在衛福部公益勸募管理系統上傳收支與成果報告（成果備查）。今年的活動還在期限內不算；往年募到款的活動要全部備查。",
+    how: "勸募活動期滿後 30 日內，要在衛福部公益勸募管理系統上傳收支報告與捐贈人資料（成果備查，公益勸募條例第 18 條）；錢用完後 30 日內再交結案備查（第 20 條）。期限已過、募到款的活動都要交，逾期補交也算。",
     links: [MOHW],
   },
   financial_recent: {
