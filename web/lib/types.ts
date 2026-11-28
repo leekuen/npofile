@@ -90,8 +90,10 @@ export interface Penalty {
   reason: string;
   source_name: string;
   source_url: string;
-  /** labor＝地方勞動局依勞基法公布的處分；fundraising＝公益勸募裁處 */
-  category: "labor" | "fundraising";
+  /** 類別（LK-36 起存在資料表）：labor 勞動法令、fundraising 公益勸募、environment 環境保護、procurement 政府採購停權 */
+  category: "labor" | "fundraising" | "environment" | "procurement";
+  /** 違反法條（例：廢棄物清理法第27條第11款）；沒有就是空字串 */
+  law: string;
 }
 
 export type DonorKind = "company" | "group" | "individual";

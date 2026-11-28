@@ -1255,7 +1255,12 @@ function GrantsTab({ grants }: { grants: Grant[] }) {
   );
 }
 
-const PENALTY_CATEGORY = { labor: "勞動法令", fundraising: "公益勸募" } as const;
+const PENALTY_CATEGORY = {
+  labor: "勞動法令",
+  fundraising: "公益勸募",
+  environment: "環境保護",
+  procurement: "政府採購停權",
+} as const;
 
 function PenaltiesTab({ org }: { org: OrgDetail }) {
   if (org.penalties.length === 0) {
