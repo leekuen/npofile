@@ -111,7 +111,7 @@ SOURCES = {
                "董事、監察人姓名不存；不改財政部名冊的營運狀態。第一次會回補全部，之後每天只抓新的；「每次最多抓幾筆」算的是公告筆數",
                options=("orgs_city", "seen_regs", "floor_reached", "listed")),
         Source("orgsite", "組織官網（年報與財務報告）", "", False, orgsite.fetch,
-               "組織自己官網公開的近 5 年財務報告、年報、工作／成果報告；設了 ANTHROPIC_API_KEY 才會讀出報告裡的數字"
+               "組織自己官網公開的近 5 年財務報告、年報、工作／成果報告；設了 Claude Code 權杖（CLAUDE_CODE_OAUTH_TOKEN，走訂閱）或 ANTHROPIC_API_KEY 才會讀出報告裡的數字，讀出的數字一律先待審核"
                "（會產生 API 費用）。「每次最多抓幾筆」算的是組織數",
                data_name=orgsite.SOURCE_NAME, options=("since_roc", "targets", "extractor", "seen_docs")),
         Source("swft", swft.SOURCE_NAME, swft.SITE_URL, True, swft.fetch,

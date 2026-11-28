@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 from collections.abc import Iterator
 
 from django.conf import settings
@@ -35,9 +36,14 @@ def targets() -> Iterator[tuple[str, str]]:
 
 
 def extractor():
-    """有設 ANTHROPIC_API_KEY 才讀報告數字（會產生 API 費用）；沒設就只收報告清單。"""
+    """用什麼讀報告數字：
+    1. 有 ANTHROPIC_API_KEY → 走 API（按用量付費）。
+    2. 有 CLAUDE_CODE_OAUTH_TOKEN 而且裝了 Claude Code → 走訂閱帳號（`claude -p`，不另外付費，每次最多讀
+       FINANCIAL_EXTRACT_MAX_PER_RUN 份）。
+    3. 都沒有 → 只收報告清單，數字由管理員在後台補。
+    """
     if not settings.ANTHROPIC_API_KEY:
-        return None
+        return claude_code_extractor()
     try:
         from npofile_crawler.financials import ClaudeExtractor
 
@@ -46,6 +52,19 @@ def extractor():
         log.warning("orgsite: 設了 ANTHROPIC_API_KEY 但沒裝 anthropic 套件，這次只收報告清單")
         return None
     return ClaudeExtractor(anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY), model=settings.FINANCIAL_EXTRACT_MODEL)
+
+
+def claude_code_extractor():
+    if not settings.CLAUDE_CODE_OAUTH_TOKEN:
+        return None
+    command = shutil.which(settings.FINANCIAL_EXTRACT_CLI)
+    if command is None:
+        log.warning("orgsite: 設了 CLAUDE_CODE_OAUTH_TOKEN 但找不到 %s 指令，這次只收報告清單", settings.FINANCIAL_EXTRACT_CLI)
+        return None
+    from npofile_crawler.financials import ClaudeCodeExtractor
+
+    return ClaudeCodeExtractor(command, model=settings.FINANCIAL_EXTRACT_MODEL,
+                               max_calls=settings.FINANCIAL_EXTRACT_MAX_PER_RUN)
 
 
 def seen_docs(source: CrawlerSource) -> set[str]:

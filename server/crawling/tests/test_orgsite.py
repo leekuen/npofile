@@ -90,9 +90,19 @@ class TargetsTests(TestCase):
         self.assertEqual(got, ["22222222", "11111111"])
         self.assertEqual(OrgSiteCheck.objects.count(), 2)
 
-    @override_settings(ANTHROPIC_API_KEY="")
+    @override_settings(ANTHROPIC_API_KEY="", CLAUDE_CODE_OAUTH_TOKEN="")
     def test_no_key_no_extractor(self):
         self.assertIsNone(orgsite_targets.extractor())
+
+    @override_settings(ANTHROPIC_API_KEY="", CLAUDE_CODE_OAUTH_TOKEN="tok", FINANCIAL_EXTRACT_CLI="claude",
+                       FINANCIAL_EXTRACT_MAX_PER_RUN=7)
+    def test_oauth_token_uses_claude_code(self):
+        with mock.patch("shutil.which", return_value="/usr/local/bin/claude"):
+            ex = orgsite_targets.extractor()
+        self.assertEqual(type(ex).__name__, "ClaudeCodeExtractor")
+        self.assertEqual((ex.command, ex.max_calls), ("/usr/local/bin/claude", 7))
+        with mock.patch("shutil.which", return_value=None):
+            self.assertIsNone(orgsite_targets.extractor())  # 有權杖但沒裝 Claude Code：只收報告清單
 
     @override_settings(ANTHROPIC_API_KEY="test-key", FINANCIAL_EXTRACT_MODEL="claude-opus-5-5")
     def test_key_builds_extractor_without_calling_api(self):

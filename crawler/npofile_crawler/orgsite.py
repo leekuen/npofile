@@ -2,7 +2,7 @@
 
 從官網首頁出發，跟著「財務、年報、資訊公開、徵信」這類連結最多走兩層、每個網站最多讀 MAX_PAGES 頁，
 只在同一個網站裡往下走；遵守 robots.txt。找到的 PDF／Google 雲端檔案依標題與網址判斷年度與種類。
-給了 extractor（financials.ClaudeExtractor）才會下載報告、讀出年度財務數字。
+給了 extractor（financials.ClaudeExtractor 走 API、ClaudeCodeExtractor 走訂閱帳號）才會下載報告、讀出年度財務數字。
 
 Item 種類：
 - document：{year, doc_kind, title, url, found_on}

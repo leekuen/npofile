@@ -32,6 +32,14 @@ RUN set -eu; \
 
 RUN useradd --create-home --uid 1000 app
 
+# Claude Code（LK-17）：沒有 API 金鑰時，用訂閱帳號讀財報 PDF 的數字（`claude -p`）。
+# 要在 .env 設 CLAUDE_CODE_OAUTH_TOKEN（在任何一台登入過的電腦跑 `claude setup-token` 拿）才會用到。
+USER app
+RUN curl -fsSL https://claude.ai/install.sh | bash
+USER root
+ENV PATH="/home/app/.local/bin:${PATH}" \
+    DISABLE_AUTOUPDATER=1
+
 # 先裝套件（requirements 沒變就用快取）；-e ../crawler 是相對 server/ 的路徑
 COPY crawler /app/crawler
 COPY server/requirements.txt /app/server/requirements.txt
