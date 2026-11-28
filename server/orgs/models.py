@@ -157,6 +157,10 @@ class Donation(SourceMixin):
     annual_list = models.ForeignKey(
         "AnnualDonorList", on_delete=models.CASCADE, null=True, blank=True, related_name="donations", verbose_name="年度清冊"
     )
+    # 企業依法公開的捐贈（LK-49：重大訊息、保險業捐贈情形表）：同一筆＝同捐款者、同受捐組織、同日期、同金額，
+    # 兩個來源都列到時只留先收到的；金額寫成範圍（「20–30 萬元」）的 amount 存 0、原文放 amount_note，不算進加總
+    external_id = models.CharField("來源編號", max_length=60, blank=True, db_index=True)
+    amount_note = models.CharField("金額原文", max_length=100, blank=True, help_text="金額讀不出確定數字時的原文；有填就不算進加總。")
     duplicate = models.BooleanField(
         "重複（不計）", default=False, editable=False, db_index=True,
         help_text="同一年、同一對捐款者與受捐組織、同金額已經在別份清冊算過（衛福部清冊＞接受清冊＞支付清冊），這筆不算（LK-48）。",

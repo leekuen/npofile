@@ -30,7 +30,7 @@ class SourceSeedTests(TestCase):
              "mohw_grants": True, "esf_grants": True, "k12ea_grants": True, "wda_grants": True, "nidf_grants": True,
              "oac_grants": True, "tpe_labor": True, "mol_labor": True, "orgsite": False, "judicial": True, "moe_registry": True,
              "einvoice_codes": True, "swft": True, "twnpos": False, "moenv_penalties": True,
-             "pcc_debarment": True},
+             "pcc_debarment": True, "mops_donations": True, "insurer_donations": True},
         )
 
 
