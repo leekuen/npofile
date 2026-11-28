@@ -24,7 +24,7 @@ class Source:
     # plan＝記住抓到哪裡的 mohw.ActivityPlan（後端用資料庫版本）、revisit＝要回頭再看的專案編號、orgs＝（統編, 名稱）名冊、
     # orgs_city＝（統編, 名稱, 所在縣市）名冊、seen_regs＝已存過的法院登記公告編號、floor_reached＝法院登記公告回補完了沒、listed＝列表讀到幾筆（[0]，給 crawl 判斷網站改版）、
     # targets＝要爬的（統編, 官網）、extractor＝讀報告數字的 financials.ClaudeExtractor（沒設金鑰是 None）、seen_docs＝已讀過數字的檔案網址
-    # have＝已經收過的財報編號（不再下載）
+    # have＝已經收過的財報編號（不再下載）、labor_docs＝別的勞動來源已收過的處分字號（同一張處分不收兩次）
     options: tuple[str, ...] = ()
     # 統編不在組織資料庫的資料不存（例：挖貝上公司提的商品集資），不進審核清單
     known_orgs_only: bool = False
@@ -82,9 +82,17 @@ SOURCES = {
                    f"政府公開資料：{spec.county}依勞動基準法第 80-1 條公布的違反事業單位（每月更新的總表）；"
                    "只收名稱像非營利組織或對得上站上組織的處分，負責人姓名不存；"
                    "名稱像非營利組織但對不上的，進審核清單（統編空白）等管理員指定組織或退回",
-                   options=("orgs",))
+                   options=("orgs", "labor_docs"))
             for spec in labor.SPECS
         ),
+        # LK-37：勞動部全國系統（22 縣市＋勞動部所屬機關、10 部勞動法規）；地方每月上傳，整份重抓一個月一次就夠
+        Source(labor.MOL_KEY, labor.MOL_SOURCE_NAME, labor.MOL_SITE, True, labor.fetch_mol,
+               "政府公開資料：勞動部彙整全國各縣市與勞動部所屬機關公布的違反勞動法令事業單位（勞基法、性平法、職安法、"
+               "就服法、勞退條例、職災保險法等）；按名稱關鍵字（財團法人、社團法人、基金會、協會、學會等）下載全部年度，"
+               "只收名稱像非營利組織或對得上站上組織的處分；名稱裡的負責人姓名切掉不存；"
+               "名稱像非營利組織但對不上的，進審核清單（統編空白）等管理員指定組織或退回；"
+               "臺北市總表已收過的處分字號不重複收；每 30 天整份重抓一次",
+               options=("orgs", "labor_docs"), every_days=30),
         Source("judicial", judicial.SOURCE_NAME, judicial.LIST_PAGE, True, judicial.fetch,
                "政府公開資料：司法院每天公告的社團法人、財團法人設立、變更、解散、清算登記（108-12-09 起全部保留）；"
                "法人名稱跟組織名稱完全相同且唯一才連（同名的用法院所在縣市挑），對不到的記下不顯示、後台可手動指定；"
