@@ -102,7 +102,7 @@ export async function DonorSearch({ searchParams }: { searchParams: Promise<Sear
       {page.results.length === 0 ? (
         <EmptyState title="找不到符合條件的企業或團體">換個關鍵字，或移除上面的條件再試一次。</EmptyState>
       ) : (
-        <ol className="divide-y divide-ink-200 overflow-hidden rounded-2xl border border-ink-200 bg-white">
+        <ol className="divide-y divide-ink-200 overflow-hidden surface">
           {page.results.map((d, i) => (
             <li key={d.id}>
               <Link href={`/donors/${d.id}`} className="group flex items-center gap-3 px-4 py-3 hover:bg-ink-50">
@@ -153,7 +153,7 @@ export function DonorSearchSkeleton() {
       <Card>
         <Skeleton className="h-10 w-full" />
       </Card>
-      <div className="space-y-px overflow-hidden rounded-2xl border border-ink-200 bg-white">
+      <div className="space-y-px overflow-hidden surface">
         {Array.from({ length: 6 }, (_, i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3">
             <Skeleton className="h-4 w-6" />

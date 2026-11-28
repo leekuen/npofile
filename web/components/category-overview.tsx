@@ -6,7 +6,7 @@ import { formatMoney, formatNumber, formatRocDate } from "@/lib/format";
 import { ApiUnavailableError, getCategory } from "@/lib/server-api";
 import type { CategoryOverview } from "@/lib/types";
 
-import { Card, EmptyState, ErrorBox, LevelBadge, Skeleton, TextLink } from "./ui";
+import { Card, EmptyState, ErrorBox, PageHeader, LevelBadge, SectionHeading, Skeleton, Stat, TextLink } from "./ui";
 
 function listHref(c: CategoryOverview) {
   if (c.dimension === "target") return `/?target=${c.code}`;
@@ -28,29 +28,27 @@ export async function CategoryOverviewView({ params }: { params: Promise<{ code:
 
   return (
     <div className="space-y-8">
-      <nav className="flex flex-wrap gap-x-2 text-sm text-ink-600" aria-label="位置">
-        <TextLink href="/">首頁</TextLink>
-        <span aria-hidden>›</span>
-        {c.dimension === "target" ? (
-          <span>服務對象</span>
-        ) : c.parent ? (
-          <TextLink href={`/categories/${c.parent.code}`}>{c.parent.label}</TextLink>
-        ) : (
-          <span>領域</span>
-        )}
-      </nav>
-
-      <header className="space-y-4">
-        <h1 className="font-display text-3xl font-extrabold text-ink-900">
-          {c.dimension === "target" ? `服務${c.label}的組織` : c.label}
-        </h1>
-        <dl className="grid grid-cols-3 gap-2 sm:max-w-2xl sm:gap-3">
+      <PageHeader
+        crumbs={[
+          { href: "/", label: "組織" },
+          c.dimension === "target"
+            ? { label: "服務對象" }
+            : c.parent
+              ? { href: `/categories/${c.parent.code}`, label: c.parent.label }
+              : { label: "領域" },
+        ]}
+        title={c.dimension === "target" ? `服務${c.label}的組織` : c.label}
+      >
+        <dl className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-3">
           <Stat label="組織" value={formatNumber(c.org_count)} />
           <Stat label={`近 5 年公開募款（民國 ${c.since_roc_year} 年起）`} value={formatMoney(c.raised_5y)} />
-          <Stat label="近五年受裁罰" value={formatNumber(c.penalized_5y)} alert={c.penalized_5y > 0} />
+          <Stat label="近 5 年受裁罰" value={formatNumber(c.penalized_5y)} tone={c.penalized_5y > 0 ? "alert" : "default"} />
         </dl>
-        <p className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-          <Link href={listHref(c)} className="rounded-xl bg-brand-700 px-4 py-2 font-semibold text-white hover:bg-brand-800">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 pt-2 text-sm">
+          <Link
+            href={listHref(c)}
+            className="rounded-xl bg-brand-700 px-4 py-2.5 font-semibold text-white shadow-sm transition-colors hover:bg-brand-800"
+          >
             看全部 {formatNumber(c.org_count)} 個組織
           </Link>
           {c.subs.length > 0 && (
@@ -63,9 +61,9 @@ export async function CategoryOverviewView({ params }: { params: Promise<{ code:
               ))}
             </span>
           )}
-        </p>
+        </div>
         <p className="text-xs text-ink-600">分類依官方勸募用途與組織名稱推測，可能有誤。</p>
-      </header>
+      </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title="揭露層級最高">
@@ -132,19 +130,10 @@ export async function CategoryOverviewView({ params }: { params: Promise<{ code:
   );
 }
 
-function Stat({ label, value, alert = false }: { label: string; value: string; alert?: boolean }) {
-  return (
-    <Card className="p-3">
-      <dt className="text-xs text-ink-600">{label}</dt>
-      <dd className={`mt-1 text-base font-bold tabular-nums sm:text-xl ${alert ? "text-red-800" : "text-ink-900"}`}>{value}</dd>
-    </Card>
-  );
-}
-
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section>
-      <h2 className="mb-3 font-display text-xl font-bold text-ink-900">{title}</h2>
+      <SectionHeading className="mb-3">{title}</SectionHeading>
       {children}
     </section>
   );
@@ -155,7 +144,7 @@ function OrgList({ rows }: { rows: { ubn: string; name: string; city: string; ri
     <Card className="p-0 sm:p-0">
       <ol className="divide-y divide-ink-100">
         {rows.map((o, i) => (
-          <li key={o.ubn} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+          <li key={o.ubn} className="flex items-center gap-3 px-4 py-3 text-sm">
             <span className="w-5 text-right font-semibold tabular-nums text-ink-500">{i + 1}</span>
             <span className="min-w-0 flex-1 break-words">
               <TextLink href={`/orgs/${o.ubn}`}>{o.name}</TextLink>

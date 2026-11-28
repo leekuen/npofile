@@ -21,6 +21,7 @@ import {
   Card,
   EmptyState,
   ErrorBox,
+  PageHeader,
   LevelBadge,
   Skeleton,
   SourceNote,
@@ -77,22 +78,25 @@ export async function OrgDetailView({
   };
 
   return (
-    <div className="space-y-6">
-      <nav className="text-sm">
-        <TextLink href="/">‹ 組織列表</TextLink>
-      </nav>
-
-      <header>
-        <h1 className="font-display text-2xl font-extrabold text-balance break-words text-ink-900 sm:text-3xl">
-          {org.name}
-        </h1>
-        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-600">
-          <span className="tabular-nums">統一編號 {org.ubn}</span>
-          {org.city && <span>{org.city}</span>}
-          {org.org_type && <span>{org.org_type}</span>}
+    <div className="space-y-8">
+      <PageHeader crumbs={[{ href: "/", label: "組織" }]} title={org.name}>
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-600">
           <StatusBadge status={org.status} label={org.status_label} />
+          <span className="font-num tabular-nums">統一編號 {org.ubn}</span>
+          {org.city && (
+            <span className="whitespace-nowrap">
+              <span aria-hidden className="mr-2 text-ink-300">·</span>
+              {org.city}
+            </span>
+          )}
+          {org.org_type && (
+            <span className="whitespace-nowrap">
+              <span aria-hidden className="mr-2 text-ink-300">·</span>
+              {org.org_type}
+            </span>
+          )}
         </p>
-        <div className="mt-3">
+        <div className="pt-1">
           <OrgCategoryTags categories={org.categories} />
         </div>
         {org.court_dissolution && (
@@ -109,15 +113,15 @@ export async function OrgDetailView({
             )}
           </div>
         )}
-      </header>
+      </PageHeader>
 
       {/* 桌機：左欄摘要＋分頁，右欄揭露層級＋基本資料；手機依序疊成摘要、右欄、分頁 */}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:grid-rows-[auto_1fr] lg:items-start">
         <div className="lg:col-start-1">
           <OrgSummary org={org} />
         </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-6 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+        <aside className="space-y-4 lg:sticky lg:top-20 lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <LevelPanel org={org} />
           <FinanceSummaryCard org={org} />
           <ContactCard org={org} />
@@ -188,17 +192,15 @@ function OrgSummary({ org }: { org: OrgDetail }) {
     {
       tab: "penalties",
       label: "受裁罰",
-      value: penalized ? `近五年 ${org.penalty_count_5y} 次` : "近五年無紀錄",
-      tone: penalized
-        ? "border-red-300 bg-red-50 text-red-900"
-        : "border-ink-200 bg-white text-ink-900",
+      value: penalized ? `近 5 年 ${org.penalty_count_5y} 次` : "近 5 年無紀錄",
+      tone: penalized ? "bg-red-50 text-red-900 ring-1 ring-red-300" : "surface text-ink-900",
       icon: penalized ? "⚠" : "✓",
     },
     {
       tab: "donations",
       label: "近 5 年公開募款",
       value: raised > 0 ? formatMoney(raised) : "沒有紀錄",
-      tone: "border-ink-200 bg-white text-ink-900",
+      tone: "surface text-ink-900",
       icon: null,
     },
     {
@@ -207,7 +209,7 @@ function OrgSummary({ org }: { org: OrgDetail }) {
       value: org.projects.length
         ? `${formatNumber(org.projects.length)} 個`
         : "沒有紀錄",
-      tone: "border-ink-200 bg-white text-ink-900",
+      tone: "surface text-ink-900",
       icon: null,
     },
     {
@@ -216,7 +218,7 @@ function OrgSummary({ org }: { org: OrgDetail }) {
       value: org.grants.length
         ? formatMoney(org.grants.reduce((sum, g) => sum + g.amount, 0))
         : "沒有紀錄",
-      tone: "border-ink-200 bg-white text-ink-900",
+      tone: "surface text-ink-900",
       icon: null,
     },
   ];
@@ -231,10 +233,10 @@ function OrgSummary({ org }: { org: OrgDetail }) {
                 : `/orgs/${org.ubn}?tab=${it.tab}`
             }
             scroll={false}
-            className={`flex h-full flex-col rounded-2xl border px-2.5 py-2 hover:border-brand-600 sm:px-3 sm:py-2.5 ${it.tone}`}
+            className={`flex h-full flex-col rounded-2xl px-3 py-2.5 transition-shadow hover:shadow-[var(--shadow-card-hover)] sm:px-4 sm:py-3 ${it.tone}`}
           >
             <span className="text-xs text-ink-600">{it.label}</span>
-            <span className="mt-0.5 flex items-center gap-x-1.5 font-num text-[0.8125rem] font-semibold whitespace-nowrap tabular-nums sm:text-base">
+            <span className="mt-1 flex items-center gap-x-1.5 font-num text-sm font-semibold whitespace-nowrap tabular-nums sm:text-base">
               {it.icon && (
                 <span aria-hidden className="hidden sm:inline">
                   {it.icon}
@@ -342,7 +344,7 @@ function FinanceSummaryCard({ org }: { org: OrgDetail }) {
     { label: "年底總資產", value: latest.total_assets },
   ];
   return (
-    <section aria-labelledby="finance-summary-title" className="rounded-2xl border border-ink-200 bg-white p-4 lg:p-5">
+    <section aria-labelledby="finance-summary-title" className="surface p-4 lg:p-5">
       <h2 id="finance-summary-title" className="font-display text-lg font-bold text-ink-900">
         財務摘要
       </h2>
@@ -477,7 +479,7 @@ function ContactCard({ org }: { org: OrgDetail }) {
     <>
       <section
         aria-labelledby="contact-title"
-        className="hidden rounded-2xl border border-ink-200 bg-white p-5 lg:block"
+        className="hidden surface p-5 lg:block"
       >
         <h2
           id="contact-title"
@@ -487,7 +489,7 @@ function ContactCard({ org }: { org: OrgDetail }) {
         </h2>
         <ContactFields org={org} />
       </section>
-      <details className="group rounded-2xl border border-ink-200 bg-white px-4 py-3 lg:hidden">
+      <details className="group surface px-4 py-3 lg:hidden">
         <summary className="flex cursor-pointer list-none items-center justify-between font-display font-bold text-ink-900">
           基本資料與聯絡方式
           <span
@@ -569,13 +571,13 @@ function CourtRegistrationsBody({ regs }: { regs: CourtRegistration[] }) {
 function CourtRegistrationsCard({ regs }: { regs: CourtRegistration[] }) {
   return (
     <>
-      <section aria-labelledby="court-title" className="hidden rounded-2xl border border-ink-200 bg-white p-5 lg:block">
+      <section aria-labelledby="court-title" className="hidden surface p-5 lg:block">
         <h2 id="court-title" className="font-display text-lg font-bold text-ink-900">
           法院登記異動
         </h2>
         <CourtRegistrationsBody regs={regs} />
       </section>
-      <details className="group rounded-2xl border border-ink-200 bg-white px-4 py-3 lg:hidden">
+      <details className="group surface px-4 py-3 lg:hidden">
         <summary className="flex cursor-pointer list-none items-center justify-between font-display font-bold text-ink-900">
           法院登記異動
           <span aria-hidden className="text-ink-500 transition-transform group-open:rotate-90">

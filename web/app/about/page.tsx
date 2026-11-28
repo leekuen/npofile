@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { type ReactNode, Suspense } from "react";
 
-import { Card, Skeleton, TextLink } from "@/components/ui";
+import { PageHeader, SectionHeading, Skeleton, TextLink } from "@/components/ui";
 import { formatMoney } from "@/lib/format";
 import { ApiUnavailableError, getStats } from "@/lib/server-api";
 
@@ -68,9 +68,7 @@ const SOURCES = [
 function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
     <section aria-labelledby={id} className="space-y-3">
-      <h2 id={id} className="font-display text-xl font-bold text-ink-900">
-        {title}
-      </h2>
+      <SectionHeading id={id}>{title}</SectionHeading>
       <div className="space-y-3 text-sm leading-relaxed text-ink-800 sm:text-base">{children}</div>
     </section>
   );
@@ -79,10 +77,7 @@ function Section({ id, title, children }: { id: string; title: string; children:
 export default function AboutPage() {
   return (
     <article className="mx-auto max-w-3xl space-y-10">
-      <header className="space-y-2">
-        <h1 className="font-display text-3xl font-extrabold text-ink-900">資料說明</h1>
-        <p className="text-ink-700">這裡的資料都來自公開來源，每天凌晨更新一次。以下說明收了什麼、數字怎麼算。</p>
-      </header>
+      <PageHeader title="資料說明" description="這裡的資料都來自公開來源，每天凌晨更新一次。以下說明收了什麼、數字怎麼算。" />
       <Suspense fallback={<Skeleton className="h-96 w-full" />}>
         <AboutBody />
       </Suspense>
@@ -106,15 +101,13 @@ async function AboutBody() {
   return (
     <div className="space-y-10">
       <Section id="sources" title="資料從哪來">
-        <ul className="space-y-3">
+        <ul className="surface divide-y divide-ink-100">
           {SOURCES.map((s) => (
-            <li key={s.name}>
-              <Card>
-                <p className="font-semibold text-ink-900">
-                  <TextLink href={s.url}>{s.name}</TextLink>
-                </p>
-                <p className="mt-1 text-sm text-ink-700">{s.what}</p>
-              </Card>
+            <li key={s.name} className="px-4 py-3.5 sm:px-5">
+              <p className="font-semibold text-ink-900">
+                <TextLink href={s.url}>{s.name}</TextLink>
+              </p>
+              <p className="mt-1 text-sm text-ink-700">{s.what}</p>
             </li>
           ))}
         </ul>
@@ -132,7 +125,7 @@ async function AboutBody() {
           揭露層級看組織在政府與公開來源上留下了多少看得到的資料，分四層，要依序達到：前一層達到了，下一層才算。
           每一條都是站上查得到來源的資料，不收組織自己填的內容。層級不是好壞評等，也不代表本站背書；受裁罰不影響層級，另外標示。
         </p>
-        <div className="overflow-x-auto">
+        <div className="surface overflow-x-auto px-4 sm:px-5">
           <table className="w-full min-w-[28rem] border-collapse text-sm">
             <thead>
               <tr className="border-b border-ink-200 text-left text-ink-600">

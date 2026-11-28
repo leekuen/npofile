@@ -8,7 +8,7 @@ import { DiscoverTabs } from "./discover-tabs";
 import { Skeleton } from "./ui";
 
 const link = "text-brand-800 underline underline-offset-2 hover:text-brand-950";
-const box = "rounded-2xl bg-white p-4 ring-1 ring-ink-200 sm:p-5";
+const box = "surface p-4 sm:p-6";
 /** 卡片一排：手機橫滑（露出下一張的邊，看得出可以滑），寬螢幕三欄 */
 const cardRow = "-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0";
 const cardItem = "w-[78%] shrink-0 snap-start sm:w-auto";
@@ -178,7 +178,7 @@ export async function FieldPicksSection({ query }: { query: OrgQuery }) {
   return (
     <section aria-labelledby="picks-title" className={box}>
       <h2 id="picks-title" className="font-display text-lg font-bold text-balance text-ink-900 sm:text-xl">
-        {picks.label}：近五年沒有受裁罰、有公益勸募紀錄的組織
+        {picks.label}：近 5 年沒有受裁罰、有公益勸募紀錄的組織
       </h2>
       <p className="mt-1 text-sm text-ink-500">名稱看得出相關的排前面。揭露層級只看資料公開了多少，不代表本站背書。</p>
       {picks.orgs.length ? (
