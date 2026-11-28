@@ -148,3 +148,5 @@ FINANCIAL_EXTRACT_MODEL = os.environ.get("FINANCIAL_EXTRACT_MODEL", "claude-opus
 CLAUDE_CODE_OAUTH_TOKEN = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "")
 FINANCIAL_EXTRACT_CLI = os.environ.get("FINANCIAL_EXTRACT_CLI", "claude")
 FINANCIAL_EXTRACT_MAX_PER_RUN = int(os.environ.get("FINANCIAL_EXTRACT_MAX_PER_RUN", "10"))
+# 官網接受捐贈名單（LK-47）：每次爬取最多讀幾份（有文字層的在本機解析，一份上千頁約半分鐘）
+ORGSITE_DONOR_LIST_MAX_PER_RUN = int(os.environ.get("ORGSITE_DONOR_LIST_MAX_PER_RUN", "30"))

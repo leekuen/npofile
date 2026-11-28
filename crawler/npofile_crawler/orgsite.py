@@ -7,6 +7,7 @@
 Item 種類：
 - document：{year, doc_kind, title, url, found_on}
 - financial：{year, audited, <financials.AMOUNT_FIELDS>…, document_url, document_title, method}
+- site_donor_list：{year, title, url, found_on, method, rows, summary}（接受捐贈名單，LK-47；rows／summary 見 donorlists.read）
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from urllib.robotparser import RobotFileParser
 
 from bs4 import BeautifulSoup
 
+from . import donorlists
 from .http import USER_AGENT, PoliteClient
 from .items import Item
 
@@ -39,7 +41,7 @@ SKIP_HOSTS = (
 
 # 往下走的連結：導覽到「資訊公開」那一類頁面
 NAV_RE = re.compile(
-    r"財務|財報|年報|年度報告|徵信|資訊公開|公開資訊|資訊揭露|透明|決算|工作報告|成果報告|成果|關於|"
+    r"財務|財報|年報|年度報告|徵信|芳名|名單|清冊|資訊公開|公開資訊|資訊揭露|透明|決算|工作報告|成果報告|成果|關於|"
     r"annual|financ|report|disclosure|transparen|about",
     re.I,
 )
@@ -52,7 +54,10 @@ KIND_PATTERNS = (
     ("annual", re.compile(r"年報|年度報告|annual", re.I)),
     ("work", re.compile(r"工作報告|成果報告|成果|服務報告|活動報告|impact", re.I)),
 )
-KIND_LABELS = {"financial": "財務報告", "annual": "年報", "work": "工作／成果報告"}
+KIND_LABELS = {"financial": "財務報告", "annual": "年報", "work": "工作／成果報告", "donor_list": "接受捐贈名單"}
+# 不是 .pdf 結尾、但看得出是下載的連結（「downloadfile/103/1」「UploadURL.aspx?uid=…」「viewPdfFile?code=…」）：
+# 標題是捐贈名單時也試著下載，內容不是 PDF 就略過（LK-47）
+DOWNLOAD_HINT_RE = re.compile(r"download|upload|file|attach|viewpdf|\.pdf", re.I)
 ROC_YEAR_RE = re.compile(r"(?<!\d)(?:民國\s*)?(1[01]\d)\s*(?:年|學年)")
 # 「113勸募收支彙總表」這種開頭就是民國年、後面直接接中文的標題
 LEADING_ROC_RE = re.compile(r"^(1[01]\d)(?=[\u4e00-\u9fff])")
@@ -63,7 +68,7 @@ DRIVE_FILE_RE = re.compile(r"drive\.google\.com/(?:file/d/|open\?id=|uc\?)", re.
 @dataclass(frozen=True)
 class DocLink:
     year: int  # 民國
-    doc_kind: str  # financial | annual | work
+    doc_kind: str  # financial | annual | work | donor_list
     title: str
     url: str
     found_on: str
@@ -123,6 +128,13 @@ def is_document_url(url: str) -> bool:
     return path.endswith(".pdf") or bool(DRIVE_FILE_RE.search(url))
 
 
+def is_download_like(url: str) -> bool:
+    parsed = urlparse(url)
+    if parsed.path.lower().endswith((".htm", ".html", ".php")) and not parsed.query:
+        return False
+    return is_document_url(url) or bool(DOWNLOAD_HINT_RE.search(f"{parsed.path}?{parsed.query}"))
+
+
 def _clean(text: str) -> str:
     text = re.sub("[\u200b-\u200f\ufeff]", "", text or "")  # 編輯器留下的零寬字元
     return re.sub(r"\s+", " ", text).strip()
@@ -169,10 +181,18 @@ def parse_links(html: str, page_url: str) -> tuple[list[DocLink], list[str]]:
         url = urljoin(page_url, href).split("#", 1)[0]
         own = _clean(" ".join([a.get_text(" "), a.get("title", ""), a.get("aria-label", "")]))
         url_text = unquote(urlparse(url).path)
+        own_all = f"{own} {url_text}"
+        if url not in docs and donorlists.is_list_title(own_all) and is_download_like(url):
+            year = find_year(own_all)
+            if year is None:
+                year, _kind, _ctx = _context(a, None, "donor_list")
+            if year is not None:
+                title = own if own and not GENERIC_TITLES.match(own) else url_text.rsplit("/", 1)[-1] or f"{year} 年度{KIND_LABELS['donor_list']}"
+                docs[url] = DocLink(year, "donor_list", title[:200], url, page_url)
+            continue
         if is_document_url(url):
             if url in docs:
                 continue
-            own_all = f"{own} {url_text}"
             if EXCLUDE_RE.search(own_all):
                 continue
             year, kind = find_year(own_all), classify(own_all)
@@ -280,13 +300,17 @@ def pick_for_extraction(docs: Iterable[DocLink]) -> list[DocLink]:
 
 
 Extractor = Callable[[bytes, int, str], "dict | None"]
+DEFAULT_LISTS_PER_RUN = 30
 
 
 def fetch(client: PoliteClient, limit: int | None = None, since_roc: int | None = None,
           targets: Iterable[tuple[str, str]] = (), extractor: Extractor | None = None,
-          seen_docs: frozenset[str] | set[str] = frozenset()) -> Iterator[Item]:
-    """targets：（統編, 官網）依序爬；limit 算的是組織數。seen_docs：已經讀過數字的檔案網址，不再讀（省費用）。"""
+          seen_docs: frozenset[str] | set[str] = frozenset(), list_reader: Extractor | None = None,
+          seen_lists: frozenset[str] | set[str] = frozenset(), lists_per_run: int = DEFAULT_LISTS_PER_RUN) -> Iterator[Item]:
+    """targets：（統編, 官網）依序爬；limit 算的是組織數。seen_docs：已經讀過數字的檔案網址，不再讀（省費用）。
+    list_reader：讀接受捐贈名單（donorlists.read，LK-47）；seen_lists：已經讀過的名單網址；lists_per_run：這次最多讀幾份名單。"""
     done = 0
+    lists_read = 0
     for ubn, website in targets:
         if limit is not None and done >= limit:
             return
@@ -298,11 +322,28 @@ def fetch(client: PoliteClient, limit: int | None = None, since_roc: int | None 
         except Exception as exc:  # 某個網站整個掛掉不影響其他組織
             log.warning("orgsite: %s %s failed: %s", ubn, website, exc)
             continue
-        for d in docs:
+        reports = [d for d in docs if d.doc_kind != "donor_list"]
+        for d in reports:
             yield d.item(ubn)
+        if list_reader is not None:
+            for d in docs:
+                if d.doc_kind != "donor_list" or d.url in seen_lists or lists_read >= lists_per_run or len(d.url) > 500:
+                    continue  # 網址超過 500 字存不進來源網址欄
+                pdf = download_pdf(client, d.url)
+                if pdf is None:
+                    continue
+                data = list_reader(pdf, d.year, d.title)
+                if not data:
+                    continue  # 掃描檔又沒有 Claude、讀不出表頭：不算進份數，下次輪到這個組織再試
+                lists_read += 1
+                yield Item(
+                    "site_donor_list", ubn,
+                    {"year": d.year, "title": d.title, "url": d.url, "found_on": d.found_on, **data},
+                    source_url=d.url, external_id=url_id(d.url),
+                )
         if extractor is None:
             continue
-        for d in pick_for_extraction(docs):
+        for d in pick_for_extraction(reports):
             if d.url in seen_docs:
                 continue
             pdf = download_pdf(client, d.url)

@@ -5,11 +5,13 @@ from __future__ import annotations
 import logging
 import shutil
 from collections.abc import Iterator
+from functools import partial
 
 from django.conf import settings
 from django.db.models import F, OuterRef, Subquery
 from django.utils import timezone
-from npofile_crawler import orgsite
+from npofile_crawler import donorlists, orgsite
+from npofile_crawler.financials import FINANCIAL_TASK, Task
 
 from orgs.models import Organization
 
@@ -35,15 +37,15 @@ def targets() -> Iterator[tuple[str, str]]:
         yield ubn, website
 
 
-def extractor():
-    """用什麼讀報告數字：
+def extractor(task: Task = FINANCIAL_TASK):
+    """用什麼讀報告數字（task＝捐贈名單時是讀掃描的名單，LK-47）：
     1. 有 ANTHROPIC_API_KEY → 走 API（按用量付費）。
     2. 有 CLAUDE_CODE_OAUTH_TOKEN 而且裝了 Claude Code → 走訂閱帳號（`claude -p`，不另外付費，每次最多讀
        FINANCIAL_EXTRACT_MAX_PER_RUN 份）。
     3. 都沒有 → 只收報告清單，數字由管理員在後台補。
     """
     if not settings.ANTHROPIC_API_KEY:
-        return claude_code_extractor()
+        return claude_code_extractor(task)
     try:
         from npofile_crawler.financials import ClaudeExtractor
 
@@ -51,10 +53,11 @@ def extractor():
     except ImportError:
         log.warning("orgsite: 設了 ANTHROPIC_API_KEY 但沒裝 anthropic 套件，這次只收報告清單")
         return None
-    return ClaudeExtractor(anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY), model=settings.FINANCIAL_EXTRACT_MODEL)
+    return ClaudeExtractor(anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY), model=settings.FINANCIAL_EXTRACT_MODEL,
+                           task=task)
 
 
-def claude_code_extractor():
+def claude_code_extractor(task: Task = FINANCIAL_TASK):
     if not settings.CLAUDE_CODE_OAUTH_TOKEN:
         return None
     command = shutil.which(settings.FINANCIAL_EXTRACT_CLI)
@@ -64,7 +67,7 @@ def claude_code_extractor():
     from npofile_crawler.financials import ClaudeCodeExtractor
 
     return ClaudeCodeExtractor(command, model=settings.FINANCIAL_EXTRACT_MODEL,
-                               max_calls=settings.FINANCIAL_EXTRACT_MAX_PER_RUN)
+                               max_calls=settings.FINANCIAL_EXTRACT_MAX_PER_RUN, task=task)
 
 
 def seen_docs(source: CrawlerSource) -> set[str]:
@@ -73,5 +76,17 @@ def seen_docs(source: CrawlerSource) -> set[str]:
     return {p.get("document_url") for p in payloads if p.get("document_url")}
 
 
+def seen_lists(source: CrawlerSource) -> set[str]:
+    """已經讀過的接受捐贈名單網址（不論核准或退回），不再重讀（LK-47）。"""
+    return set(CrawlRecord.objects.filter(source=source, kind=CrawlRecord.Kind.SITE_DONOR_LIST).values_list("source_url", flat=True))
+
+
+def list_reader():
+    """讀接受捐贈名單：有文字層的在本機解析（不需要任何設定）；掃描檔有設 Claude 才讀（LK-47）。"""
+    return partial(donorlists.read, ai=extractor(donorlists.DONOR_LIST_TASK), threshold=settings.DONOR_INDIVIDUAL_THRESHOLD)
+
+
 def options(source: CrawlerSource) -> dict:
-    return {"targets": targets(), "extractor": extractor(), "seen_docs": seen_docs(source)}
+    return {"targets": targets(), "extractor": extractor(), "seen_docs": seen_docs(source),
+            "list_reader": list_reader(), "seen_lists": seen_lists(source),
+            "lists_per_run": settings.ORGSITE_DONOR_LIST_MAX_PER_RUN}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections import Counter
 from collections.abc import Iterable
 from datetime import date, timedelta
 
@@ -12,7 +13,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from npofile_crawler import donors as donor_names
-from npofile_crawler import judicial, labor
+from npofile_crawler import judicial, labor, orgsite
 from npofile_crawler.http import PoliteClient
 from npofile_crawler.items import Item
 from npofile_crawler.sources import SOURCES
@@ -46,7 +47,7 @@ log = logging.getLogger(__name__)
 BATCH = 500
 STORE_EVERY = 60  # 秒
 KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4, "grant": 5, "document": 6, "financial": 7,
-              "court_reg": 8, "registry": 9, "einvoice": 10}
+              "court_reg": 8, "registry": 9, "einvoice": 10, "site_donor_list": 11}
 PROJECT_FIELDS = (
     "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
     "result_filed_on", "closed_filed_on", "description", "channel", "monthly_raised", "backers",
@@ -457,6 +458,8 @@ def _apply_child(rec: CrawlRecord, org: Organization, source_name: str) -> None:
         )
     elif rec.kind == "donor_list":
         _apply_donor_list(rec, org, source_name)
+    elif rec.kind == "site_donor_list":
+        _apply_site_donor_list(rec, org, source_name)
     elif rec.kind == "document":
         OrgDocument.objects.update_or_create(
             organization=org, url=d["url"][:1000],
@@ -536,16 +539,11 @@ def _apply_financial(rec: CrawlRecord, org: Organization, source_name: str) -> N
     FinancialYear.objects.update_or_create(organization=org, year=d["year"], defaults=values)
 
 
-def _apply_donor_list(rec: CrawlRecord, org: Organization, source_name: str) -> None:
-    """一份清冊整份取代：先刪這個專案這個來源的舊逐筆，再寫新的；摘要同步更新。"""
-    d = rec.payload
-    project, _ = Project.objects.get_or_create(
-        organization=org, source_name=source_name, external_id=rec.external_id,
-        defaults={"name": d.get("project_name", "")[:300] or "（未命名活動）", "source_url": rec.source_url},
-    )
+def _donors_for(rows: list[dict]) -> dict[str, Donor]:
+    """清冊列上的名稱 → 捐款人（比對用名稱 → Donor）；沒有的新建。"""
     # 用「比對用名稱」對到既有捐款人：台／臺、空白、(股) 不同的寫法都算同一位（LK-16）
     first: dict[str, dict] = {}
-    for r in d.get("rows", []):
+    for r in rows:
         if r.get("name"):
             first.setdefault(donor_names.identity_key(r["name"])[:200], r)
     donors: dict[str, Donor] = {}
@@ -560,6 +558,66 @@ def _apply_donor_list(rec: CrawlRecord, org: Organization, source_name: str) -> 
         Donor.objects.bulk_create(missing, ignore_conflicts=True)
         for i in range(0, len(keys), 900):
             donors.update(Donor.objects.in_bulk(keys[i : i + 900], field_name="name_key"))
+    return donors
+
+
+def _dup_key(name: str, amount, donated_on) -> tuple:
+    """同一個組織裡「同一筆捐款」的認法（LK-47）：比對用名稱＋金額＋日期都一樣。"""
+    return (donor_names.identity_key(name or "")[:200], int(amount or 0), str(donated_on or ""))
+
+
+def _drop_site_duplicates(org: Organization, rows: list[dict]) -> None:
+    """衛福部清冊優先：官網名單上跟這份清冊重複的捐款刪掉（同一筆只刪一次；LK-47 條件 C2）。"""
+    want = Counter(_dup_key(r["name"], r.get("amount"), _date(r.get("donated_on"))) for r in rows if r.get("name"))
+    site = Donation.objects.filter(organization=org, project__isnull=True, source_name=orgsite.SOURCE_NAME)
+    drop = []
+    for pk, name, amount, on in site.values_list("pk", "donor_name", "amount", "donated_on"):
+        key = _dup_key(name, amount, on)
+        if want[key] > 0:
+            want[key] -= 1
+            drop.append(pk)
+    if drop:
+        Donation.objects.filter(pk__in=drop).delete()
+
+
+def _apply_site_donor_list(rec: CrawlRecord, org: Organization, source_name: str) -> None:
+    """官網的接受捐贈名單（LK-47）：同一份檔整份取代，捐款不掛勸募專案。
+    跟這個組織既有的捐款（衛福部清冊、其他官網名單、手動輸入）重複的列不寫，同一筆只算一次（條件 C2、C3）。"""
+    d = rec.payload
+    url = (d.get("url") or rec.source_url)[:500]
+    rows = [r for r in d.get("rows", []) if r.get("name") and r.get("amount")]
+    Donation.objects.filter(organization=org, project__isnull=True, source_name=source_name, source_url=url).delete()
+    have = Counter(_dup_key(n, a, on) for n, a, on in org.donations.values_list("donor_name", "amount", "donated_on"))
+    keep = []
+    for r in rows:
+        key = _dup_key(r["name"], r["amount"], _date(r.get("donated_on")))
+        if have[key] > 0:
+            have[key] -= 1
+            continue
+        keep.append(r)
+    donors = _donors_for(keep)
+    Donation.objects.bulk_create(
+        [
+            Donation(
+                organization=org, donor=donors.get(donor_names.identity_key(r["name"])[:200]),
+                donor_name=donor_names.normalize(r["name"])[:200], amount=r["amount"],
+                donated_on=_date(r.get("donated_on")), source_name=source_name, source_url=url,
+            )
+            for r in keep
+        ],
+        batch_size=500,
+    )
+
+
+def _apply_donor_list(rec: CrawlRecord, org: Organization, source_name: str) -> None:
+    """一份清冊整份取代：先刪這個專案這個來源的舊逐筆，再寫新的；摘要同步更新。"""
+    d = rec.payload
+    project, _ = Project.objects.get_or_create(
+        organization=org, source_name=source_name, external_id=rec.external_id,
+        defaults={"name": d.get("project_name", "")[:300] or "（未命名活動）", "source_url": rec.source_url},
+    )
+    donors = _donors_for(d.get("rows", []))
+    _drop_site_duplicates(org, d.get("rows", []))
 
     Donation.objects.filter(project=project, source_name=source_name).delete()
     Donation.objects.bulk_create(

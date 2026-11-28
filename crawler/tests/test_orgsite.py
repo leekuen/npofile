@@ -85,7 +85,7 @@ class ParseLinksTests(unittest.TestCase):
         self.assertIn((113, "work", "113勸募收支彙總表.pdf"), got)
         names = {d.url.rsplit("/", 1)[-1] for d in docs}
         self.assertNotIn("115plan.pdf", names)
-        self.assertNotIn("113捐款徵信名單.pdf", names)
+        self.assertIn((113, "donor_list", "113捐款徵信名單.pdf"), got)  # 捐款名單另外收成名單候選（LK-47），不當報告
         drive = next(d for d in docs if "drive" in d.url)
         self.assertEqual(drive.title, "111 年度財務報告")
         self.assertEqual(nav, [])

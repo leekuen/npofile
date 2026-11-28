@@ -24,6 +24,7 @@ class Source:
     # plan＝記住抓到哪裡的 mohw.ActivityPlan（後端用資料庫版本）、revisit＝要回頭再看的專案編號、orgs＝（統編, 名稱）名冊、
     # orgs_city＝（統編, 名稱, 所在縣市）名冊、seen_regs＝已存過的法院登記公告編號、floor_reached＝法院登記公告回補完了沒、listed＝列表讀到幾筆（[0]，給 crawl 判斷網站改版）、
     # targets＝要爬的（統編, 官網）、extractor＝讀報告數字的 financials.ClaudeExtractor（沒設金鑰是 None）、seen_docs＝已讀過數字的檔案網址
+    # list_reader＝讀接受捐贈名單的 donorlists.read、seen_lists＝已讀過的名單網址、lists_per_run＝每次最多讀幾份名單（LK-47）
     # have＝已經收過的財報編號（不再下載）、labor_docs＝別的勞動來源已收過的處分字號（同一張處分不收兩次）
     # moenv_api_key＝環境部開放資料 API 金鑰、since_date＝上次成功抓取往前推的日期（只抓新的）
     options: tuple[str, ...] = ()
@@ -111,9 +112,10 @@ SOURCES = {
                "董事、監察人姓名不存；不改財政部名冊的營運狀態。第一次會回補全部，之後每天只抓新的；「每次最多抓幾筆」算的是公告筆數",
                options=("orgs_city", "seen_regs", "floor_reached", "listed")),
         Source("orgsite", "組織官網（年報與財務報告）", "", False, orgsite.fetch,
-               "組織自己官網公開的近 5 年財務報告、年報、工作／成果報告；設了 Claude Code 權杖（CLAUDE_CODE_OAUTH_TOKEN，走訂閱）或 ANTHROPIC_API_KEY 才會讀出報告裡的數字，讀出的數字一律先待審核"
+               "組織自己官網公開的近 5 年財務報告、年報、工作／成果報告，以及財團法人法第 25 條的接受捐贈名單"
+               "（有文字層的名單在本機讀出企業與團體捐款人；掃描檔要有 Claude 才讀）；設了 Claude Code 權杖（CLAUDE_CODE_OAUTH_TOKEN，走訂閱）或 ANTHROPIC_API_KEY 才會讀出報告裡的數字，讀出的數字一律先待審核"
                "（會產生 API 費用）。「每次最多抓幾筆」算的是組織數",
-               data_name=orgsite.SOURCE_NAME, options=("since_roc", "targets", "extractor", "seen_docs")),
+               data_name=orgsite.SOURCE_NAME, options=("since_roc", "targets", "extractor", "seen_docs", "list_reader", "seen_lists", "lists_per_run")),
         Source("swft", swft.SOURCE_NAME, swft.SITE_URL, True, swft.fetch,
                "政府公開資料：全國性社會福利財團法人送衛福部備查的年度決算，從「年度決算總表」讀收入、支出、餘絀與資產負債（寫進年度財務）；"
                "近 5 年、到去年為止，已收過的年度不再下載；名稱跟組織完全相同才收；「每次最多抓幾筆」算的是決算份數",
