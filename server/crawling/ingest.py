@@ -50,8 +50,9 @@ KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4
 PROJECT_FIELDS = (
     "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
     "result_filed_on", "closed_filed_on", "description", "channel", "monthly_raised", "backers",
+    "result_due_on", "result_done", "result_late", "closed_due_on", "closed_done", "closed_late",
 )
-DATE_FIELDS = {"start_date", "end_date", "result_filed_on", "closed_filed_on"}
+DATE_FIELDS = {"start_date", "end_date", "result_filed_on", "closed_filed_on", "result_due_on", "closed_due_on"}
 # 名冊類（LK-32）：對不到組織也照樣存（前台不顯示、後台可查），不算失敗
 ORGLESS_KINDS = {"registry", "einvoice"}
 

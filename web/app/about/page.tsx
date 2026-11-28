@@ -158,7 +158,7 @@ async function AboutBody() {
               <tr>
                 <td className="py-2 pr-4 whitespace-nowrap tabular-nums">銀</td>
                 <td className="py-2 pr-4 whitespace-nowrap font-medium">活動可查</td>
-                <td className="py-2">近 5 年有看得到的活動：政府許可的勸募活動、政府補助，或主管機關名冊上的主要業務。有辦勸募的，去年以前募到款的活動都要已向主管機關成果備查（今年的還在期限內，先不算）</td>
+                <td className="py-2">近 5 年有看得到的活動：政府許可的勸募活動、政府補助，或主管機關名冊上的主要業務。有辦勸募的，募到款、而且成果備查期限已過的活動都要已向主管機關成果備查（依公益勸募條例第 18 條，期限是勸募活動期滿後 30 日；還沒到期的先不算，逾期才補交的也算交了）</td>
               </tr>
               <tr>
                 <td className="py-2 pr-4 whitespace-nowrap tabular-nums">金</td>

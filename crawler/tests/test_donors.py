@@ -355,3 +355,43 @@ class FetchActivitiesSinceTests(unittest.TestCase):
         items = list(mohw.fetch_activities_for(client, ["10057"], since_roc=115))
         self.assertEqual([i for i in items if i.kind == "donor_list"], [])
         self.assertEqual(downloads, [])
+
+
+class ActivityFilingTests(unittest.TestCase):
+    """活動頁的成果備查、結案備查：期限、是否已備查、是否逾期（LK-43）。"""
+
+    def parse(self, name):
+        item, _ = mohw.parse_activity(read(name), mohw.ACTIVITY_URL.format(aid="1"), "12345678")
+        return item.data
+
+    def test_filed_on_time(self):
+        d = self.parse("activity_with_donors.html")
+        self.assertEqual(d["result_due_on"], date(2026, 3, 2))  # 期滿 115/01/31 後 30 日
+        self.assertTrue(d["result_done"])
+        self.assertFalse(d["result_late"])
+
+    def test_not_due_yet(self):
+        d = self.parse("activity_not_due.html")
+        self.assertEqual(d["result_due_on"], date(2027, 1, 30))
+        self.assertFalse(d["result_done"])
+        self.assertFalse(d["result_late"])
+        self.assertEqual(d["closed_due_on"], date(2027, 4, 30))
+        self.assertFalse(d["closed_done"])
+
+    def test_overdue_not_filed(self):
+        d = self.parse("activity_overdue.html")
+        self.assertFalse(d["result_done"])
+        self.assertTrue(d["result_late"])
+        self.assertFalse(d["closed_done"])
+        self.assertTrue(d["closed_late"])
+
+    def test_filed_late_counts_as_done(self):
+        d = self.parse("activity_closed_late.html")
+        self.assertTrue(d["closed_done"])
+        self.assertTrue(d["closed_late"])
+        self.assertTrue(d["result_done"])
+
+    def test_page_without_filing_sections(self):
+        from bs4 import BeautifulSoup
+
+        self.assertEqual(mohw.parse_filings(BeautifulSoup("<h3>專戶備查</h3>", "html.parser")), {})

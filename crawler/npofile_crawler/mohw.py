@@ -257,9 +257,40 @@ def parse_activity(html: str, url: str, ubn: str) -> tuple[Item | None, str | No
         "category": info.get("勸募用途", ""),
         "description": info.get("活動目的", "")[:2000],
     }
+    data.update(parse_filings(soup))
     link = soup.find("a", href=DONORS_RE)
     donors_url = urljoin(BASE, link["href"]) if link else None
     return Item(kind="project", ubn=ubn, data=data, source_url=url, external_id=m.group(1)), donors_url
+
+
+DUE_RE = re.compile(r"完成期限[：:]\s*(\d{2,3}/\d{1,2}/\d{1,2})")
+FILINGS = {"成果備查": "result", "結案備查": "closed"}
+
+
+def parse_filings(soup: BeautifulSoup) -> dict:
+    """活動頁的成果備查、結案備查（口徑見 tickets/LK-43）。
+
+    每一段是 <h3>標題</h3> 之後到下一條 <hr> 為止：「完成期限」是法定期限（成果＝勸募期滿後 30 日，公益勸募條例第 18 條；
+    結案＝財物使用計畫執行完竣後 30 日，第 20 條），不是完成日；有公開徵信網址、下載檔或「已完成備查」＝已備查；
+    紅色「逾期備查」＝過了期限（不論後來有沒有補交）。頁面沒有這一段就不回傳那幾個欄位。
+    """
+    out: dict = {}
+    for h3 in soup.find_all("h3"):
+        prefix = FILINGS.get(_text(h3))
+        if not prefix:
+            continue
+        parts = []
+        for sib in h3.find_parent("div").find_next_siblings():
+            if sib.name == "hr":
+                break
+            parts.append(sib)
+        text = " ".join(_text(x) for x in parts)
+        due = DUE_RE.search(text)
+        done = any(x.select_one(".link-box, a.item-d, .finish-badge") for x in parts) or "已完成備查" in text
+        out[f"{prefix}_due_on"] = roc_date(due.group(1)) if due else None
+        out[f"{prefix}_done"] = bool(done)
+        out[f"{prefix}_late"] = "逾期備查" in text
+    return out
 
 
 def list_activity_ids(client: PoliteClient, org_name: str, page_size: int = 10) -> list[str]:
@@ -358,7 +389,8 @@ class ActivityPlan:
     def need_donors(self, card: ActivityCard) -> bool:
         return True
 
-    def done(self, card: ActivityCard, ubn: str, *, end_date, has_donor_link: bool, donors_fetched: bool) -> None:
+    def done(self, card: ActivityCard, ubn: str, *, end_date, has_donor_link: bool, donors_fetched: bool,
+             filings: dict | None = None) -> None:
         pass
 
     def unmatched(self, card: ActivityCard, reason: str) -> None:
@@ -417,7 +449,8 @@ def fetch_activities(client: PoliteClient, limit: int | None = None,
                     yield item
                     fetched = True
             plan.done(card, ubn, end_date=project.data.get("end_date"), has_donor_link=bool(donors_url),
-                      donors_fetched=fetched)
+                      donors_fetched=fetched,
+                      filings={k: v for k, v in project.data.items() if k.startswith(("result_", "closed_"))})
 
 
 def _find_group(client: PoliteClient, name: str, since_roc: int | None) -> tuple[str | None, str, list[Item]]:
