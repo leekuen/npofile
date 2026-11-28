@@ -45,15 +45,32 @@
   --color-sun-100: #ffefc4;
   --color-sun-400: #f2b632;
   --color-sun-500: #e5a51c;
+
+  /* LK-34：卡片只用一層很淡的影子拉出層次，不做浮起來的效果 */
+  --shadow-card: 0 1px 2px rgb(28 33 64 / 0.04), 0 6px 20px -12px rgb(28 33 64 / 0.12);
+  --shadow-card-hover: 0 1px 2px rgb(28 33 64 / 0.05), 0 12px 28px -14px rgb(52 67 166 / 0.28);
+}
+
+/* 全站唯一的白色區塊長相（Card、列表外框、探索區都用它） */
+@utility surface {
+  background-color: #fff;
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-card), inset 0 0 0 1px var(--color-ink-200);
 }
 
 html {
   color-scheme: light;
+  scroll-padding-top: 5rem;
 }
 
 body {
   background: var(--color-ink-50);
   color: var(--color-ink-900);
+}
+
+::selection {
+  background: var(--color-brand-100);
+  color: var(--color-ink-950);
 }
 
 :focus-visible {

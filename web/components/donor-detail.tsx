@@ -5,7 +5,7 @@ import { formatMoney, formatNumber, formatRocDate } from "@/lib/format";
 import { ApiUnavailableError, getDonor } from "@/lib/server-api";
 import type { DonorDetail } from "@/lib/types";
 
-import { Card, ErrorBox, Skeleton, TextLink } from "./ui";
+import { Card, ErrorBox, PageHeader, Skeleton, TextLink } from "./ui";
 
 export async function DonorDetailView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,27 +23,25 @@ export async function DonorDetailView({ params }: { params: Promise<{ id: string
   const shown = donor.donations.length;
 
   return (
-    <div className="space-y-6">
-      <nav className="text-sm">
-        <TextLink href="/donors">‹ 捐款企業列表</TextLink>
-      </nav>
-
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="font-display text-2xl font-extrabold break-words text-ink-900 sm:text-3xl">{donor.name}</h1>
-          <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink-600">
-            <span className="rounded bg-ink-100 px-1.5 text-ink-700">{donor.kind_label}</span>
-            {donor.ubn && <span className="tabular-nums">統一編號 {donor.ubn}</span>}
-          </p>
-        </div>
-        <Card className="w-full shrink-0 sm:w-72">
-          <p className="text-sm text-ink-600">近 5 年清冊上的捐款總額</p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-ink-900">{formatMoney(donor.total)}</p>
-          <p className="mt-1 text-sm text-ink-600">
-            捐給 {formatNumber(donor.org_count)} 個組織，共 {formatNumber(donor.donation_count)} 筆
-          </p>
-        </Card>
-      </header>
+    <div className="space-y-8">
+      <PageHeader
+        crumbs={[{ href: "/donors", label: "捐款企業" }]}
+        title={donor.name}
+        aside={
+          <Card className="w-full shrink-0 bg-gradient-to-br from-white to-brand-50/60 sm:w-72">
+            <p className="text-sm text-ink-600">近 5 年清冊上的捐款總額</p>
+            <p className="mt-1 font-num text-2xl font-bold tabular-nums text-ink-900">{formatMoney(donor.total)}</p>
+            <p className="mt-1 text-sm text-ink-600">
+              捐給 {formatNumber(donor.org_count)} 個組織，共 {formatNumber(donor.donation_count)} 筆
+            </p>
+          </Card>
+        }
+      >
+        <p className="flex flex-wrap items-center gap-2 text-sm text-ink-600">
+          <span className="rounded bg-ink-100 px-1.5 text-ink-700">{donor.kind_label}</span>
+          {donor.ubn && <span className="font-num tabular-nums">統一編號 {donor.ubn}</span>}
+        </p>
+      </PageHeader>
 
       {donor.ubn && (
         <section>

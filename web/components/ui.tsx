@@ -44,11 +44,11 @@ export function PenaltyBadge({ count, short = false }: { count: number; short?: 
       <span aria-hidden className="h-2 w-2 rounded-full bg-red-600" />
       {short ? (
         <>
-          <span className="sr-only">近五年受裁罰 </span>
+          <span className="sr-only">近 5 年受裁罰 </span>
           {count} 次
         </>
       ) : (
-        <>近五年受裁罰 {count} 次</>
+        <>近 5 年受裁罰 {count} 次</>
       )}
     </span>
   );
@@ -94,12 +94,95 @@ export function ScoreBadge({ score, size = "sm" }: { score: number; size?: "sm" 
 }
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-2xl border border-ink-200 bg-white p-4 sm:p-5 ${className}`}>{children}</div>;
+  return <div className={`surface p-4 sm:p-5 ${className}`}>{children}</div>;
+}
+
+/** 頁面頂端：麵包屑（選用）＋大標＋一句說明（選用）＋右側區塊（選用）。全站頁首長同一個樣子。 */
+export function PageHeader({
+  crumbs,
+  title,
+  description,
+  aside,
+  children,
+}: {
+  crumbs?: { href?: string; label: string }[];
+  title: ReactNode;
+  description?: ReactNode;
+  aside?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <header className="space-y-3">
+      {crumbs && crumbs.length > 0 && (
+        <nav aria-label="位置" className="flex flex-wrap items-center gap-x-1.5 text-sm text-ink-600">
+          {crumbs.map((c, i) => (
+            <span key={`${c.label}-${i}`} className="inline-flex items-center gap-x-1.5">
+              {i > 0 && (
+                <span aria-hidden className="text-ink-400">
+                  /
+                </span>
+              )}
+              {c.href ? (
+                <Link href={c.href} className="rounded text-ink-600 underline-offset-2 hover:text-brand-800 hover:underline">
+                  {c.label}
+                </Link>
+              ) : (
+                <span>{c.label}</span>
+              )}
+            </span>
+          ))}
+        </nav>
+      )}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1 space-y-2">
+          <h1 className="font-display text-2xl font-extrabold text-balance break-words text-ink-900 sm:text-[2rem] sm:leading-tight">
+            {title}
+          </h1>
+          {description && <div className="max-w-2xl text-ink-700">{description}</div>}
+          {children}
+        </div>
+        {aside}
+      </div>
+    </header>
+  );
+}
+
+/** 數字格：上面小字標籤、下面大數字。tone="alert" 用在裁罰這種要被注意的數字。 */
+export function Stat({
+  label,
+  value,
+  tone = "default",
+  className = "",
+}: {
+  label: ReactNode;
+  value: ReactNode;
+  tone?: "default" | "alert";
+  className?: string;
+}) {
+  return (
+    <div className={`surface px-4 py-3 ${className}`}>
+      <dt className="text-xs text-ink-600">{label}</dt>
+      <dd
+        className={`mt-1 font-num text-lg font-semibold tabular-nums sm:text-xl ${tone === "alert" ? "text-red-700" : "text-ink-900"}`}
+      >
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+/** 區塊標題（h2）：全站同一個字級與間距 */
+export function SectionHeading({ id, children, className = "" }: { id?: string; children: ReactNode; className?: string }) {
+  return (
+    <h2 id={id} className={`font-display text-xl font-bold text-ink-900 ${className}`}>
+      {children}
+    </h2>
+  );
 }
 
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <div className="rounded-2xl border border-dashed border-ink-300 bg-white/60 px-4 py-8 text-center">
+    <div className="rounded-2xl border border-dashed border-ink-300 bg-white/60 px-4 py-10 text-center">
       <p className="font-medium text-ink-800">{title}</p>
       {children && <div className="mt-1 text-sm text-ink-600">{children}</div>}
     </div>
