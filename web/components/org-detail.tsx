@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { formatMoney, formatNumber, formatRocDate } from "@/lib/format";
+import { formatDonationWhen, formatMoney, formatNumber, formatRocDate, shortSourceName } from "@/lib/format";
 import { ApiUnavailableError, getOrg } from "@/lib/server-api";
 import { GRANT_AGENCIES } from "@/lib/sources";
 import type {
@@ -793,7 +793,7 @@ function DonationsTab({ org }: { org: OrgDetail }) {
                 {org.donations.map((d) => (
                   <tr key={d.id}>
                     <td className="px-3 py-2 tabular-nums whitespace-nowrap">
-                      {formatRocDate(d.donated_on)}
+                      {formatDonationWhen(d)}
                     </td>
                     <td className="px-3 py-2">
                       {d.donor_id ? (
@@ -813,10 +813,10 @@ function DonationsTab({ org }: { org: OrgDetail }) {
                     <td className="px-3 py-2">
                       {d.source_url ? (
                         <TextLink href={d.source_url}>
-                          {d.source_name || "原始資料"}
+                          {shortSourceName(d.source_name) || "原始資料"}
                         </TextLink>
                       ) : (
-                        d.source_name || "—"
+                        shortSourceName(d.source_name) || "—"
                       )}
                     </td>
                   </tr>
@@ -841,7 +841,7 @@ function DonorRankings({ org }: { org: OrgDetail }) {
       <section>
         <SectionTitle>捐款人</SectionTitle>
         <EmptyState title="目前沒有收錄到具名的捐款人">
-          這個組織的勸募活動還沒有公開捐贈人清冊，或還沒有抓取。
+          這個組織還沒有公開勸募活動的捐贈人清冊或年度捐贈名單清冊，或還沒有抓取。
         </EmptyState>
       </section>
     );
@@ -868,6 +868,11 @@ function DonorRankings({ org }: { org: OrgDetail }) {
                     <span className="ml-2 inline-block rounded bg-ink-100 px-1.5 text-xs text-ink-700">
                       {d.kind_label}
                     </span>
+                    {d.sources.length > 0 && (
+                      <span className="block text-xs text-ink-600">
+                        {d.sources.map(shortSourceName).join("、")}
+                      </span>
+                    )}
                   </span>
                   <span className="tabular-nums font-medium">
                     {formatMoney(d.total)}
@@ -959,9 +964,11 @@ const FIN_COLUMNS = [
 /** 財務與年報（LK-17）：組織官網公開的報告，數字經管理員審核後才上架 */
 function FinanceTab({ org }: { org: OrgDetail }) {
   const years = [...org.financials].sort((a, b) => b.year - a.year);
-  const docYears = [...new Set(org.documents.map((d) => d.year))].sort((a, b) => b - a);
+  const lists = org.annual_donor_lists ?? [];
+  const docYears = [...new Set([...org.documents, ...lists].map((d) => d.year))].sort((a, b) => b - a);
+  const hasDocs = org.documents.length > 0 || lists.length > 0;
 
-  if (years.length === 0 && org.documents.length === 0) {
+  if (years.length === 0 && !hasDocs) {
     return (
       <EmptyState title="還沒有收錄到這個組織官網公開的財務報告">
         {org.website ? "我們會定期到組織官網找年報與財務報告。" : "這個組織沒有登記官網，目前無法自動收錄。"}
@@ -1026,7 +1033,7 @@ function FinanceTab({ org }: { org: OrgDetail }) {
         )}
       </section>
 
-      {org.documents.length > 0 && (
+      {hasDocs && (
         <section>
           <SectionTitle>官網公開的報告</SectionTitle>
           <Card className="p-0 sm:p-0">
@@ -1041,6 +1048,19 @@ function FinanceTab({ org }: { org: OrgDetail }) {
                         <li key={d.id} className="flex flex-wrap items-baseline gap-x-2 break-words">
                           <span className="rounded bg-ink-100 px-1.5 text-xs text-ink-700">{d.kind_label}</span>
                           <TextLink href={d.url}>{d.title}</TextLink>
+                        </li>
+                      ))}
+                    {lists
+                      .filter((d) => d.year === y)
+                      .map((d) => (
+                        <li key={d.url} className="flex flex-wrap items-baseline gap-x-2 break-words">
+                          <span className="rounded bg-ink-100 px-1.5 text-xs text-ink-700">
+                            {d.direction_label}捐贈名單
+                          </span>
+                          <TextLink href={d.url}>{d.title}</TextLink>
+                          {d.scanned && (
+                            <span className="rounded bg-sun-100 px-1.5 text-xs text-ink-700">掃描檔，尚未讀取</span>
+                          )}
                         </li>
                       ))}
                   </ul>

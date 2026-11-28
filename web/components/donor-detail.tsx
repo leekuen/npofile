@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { formatCompact, formatMoney, formatNumber, formatRocDate } from "@/lib/format";
+import { formatCompact, formatDonationWhen, formatMoney, formatNumber, formatRocDate, shortSourceName } from "@/lib/format";
 import { ApiUnavailableError, getDonor } from "@/lib/server-api";
 import type { CompanyEsg, DonorDetail } from "@/lib/types";
 
@@ -127,7 +127,7 @@ export async function DonorDetailView({ params }: { params: Promise<{ id: string
             <tbody className="divide-y divide-ink-100">
               {donor.donations.map((d) => (
                 <tr key={d.id} className="align-top">
-                  <td className="px-3 py-2 tabular-nums whitespace-nowrap">{formatRocDate(d.donated_on)}</td>
+                  <td className="px-3 py-2 tabular-nums whitespace-nowrap">{formatDonationWhen(d)}</td>
                   <td className="px-3 py-2">
                     <TextLink href={`/orgs/${d.org_ubn}?tab=donations`}>{d.org_name}</TextLink>
                     {d.project_name && <span className="block text-xs text-ink-600">{d.project_name}</span>}
@@ -137,7 +137,7 @@ export async function DonorDetailView({ params }: { params: Promise<{ id: string
                     {d.purpose || "—"}
                     {d.source_url && (
                       <span className="block text-xs">
-                        <TextLink href={d.source_url}>{d.source_name || "原始資料"}</TextLink>
+                        <TextLink href={d.source_url}>{shortSourceName(d.source_name) || "原始資料"}</TextLink>
                       </span>
                     )}
                   </td>
@@ -215,7 +215,7 @@ function Overview({ donor }: { donor: DonorDetail }) {
         ))}
       </dl>
       <p className="mt-2 text-xs text-ink-600">
-        以上依衛福部公益勸募活動公開的捐贈人清冊計算，只涵蓋近 5 年、透過公益勸募活動的捐款，不是這家{donor.kind_label}全部的捐款。
+        以上依衛福部公益勸募活動的捐贈人清冊，與財團法人在官網公開的年度捐贈名單清冊計算，只涵蓋近 5 年；兩種清冊涵蓋的範圍不同，都不是這家{donor.kind_label}全部的捐款。
       </p>
     </section>
   );
