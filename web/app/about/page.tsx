@@ -174,6 +174,9 @@ async function AboutBody() {
           </table>
         </div>
         <p className="text-ink-600">還沒達到銅級的是「未分級」，多半是只有財政部名冊上的名稱與縣市。已註銷、撤銷或歇業的組織不分層級。群眾集資平台上的專案沒有政府的成果備查，不算勸募活動。</p>
+        <p>
+          組織想知道怎麼升級、或想把揭露徽章貼到官網，請看 <TextLink href="/for-orgs">給非營利組織</TextLink>。
+        </p>
       </Section>
 
       <Section id="categories" title="分類怎麼來">
