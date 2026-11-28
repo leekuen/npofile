@@ -4,17 +4,26 @@ import { useEffect, useRef, useState } from "react";
 
 import { formatCompact, formatMoney } from "@/lib/format";
 
-/** 近 5 年財務趨勢折線圖（LK-17）：總收入、總支出、年底淨資產，一條 y 軸（都是元）。
- *  顏色經 dataviz validate_palette 檢查過（色盲可分）；每條線尾端直接標名稱，圖上方也有圖例，不只靠顏色。 */
+/** 近 5 年趨勢折線圖（LK-17 財務、LK-33 受捐款共用）：一條 y 軸（都是元），最多三條線。
+ *  三個顏色依固定順序給，經 dataviz validate_palette 檢查過（色盲可分）；每條線另有不同虛線樣式、
+ *  尾端直接標名稱、圖上方也有圖例，不只靠顏色。 */
 
-export type ChartRow = { year: number; revenue: number | null; expenses: number | null; netAssets: number | null };
-
-const SERIES = [
-  { key: "revenue", label: "總收入", color: "#4150b6", dash: undefined },
-  { key: "expenses", label: "總支出", color: "#c2610f", dash: "6 4" },
-  { key: "netAssets", label: "年底淨資產", color: "#0f8a6c", dash: "2 4" },
+const STYLES = [
+  { color: "#4150b6", dash: undefined },
+  { color: "#c2610f", dash: "6 4" },
+  { color: "#0f8a6c", dash: "2 4" },
 ] as const;
-type SeriesKey = (typeof SERIES)[number]["key"];
+
+export type TrendSeries<K extends string> = { key: K; label: string };
+export type TrendRow<K extends string> = { year: number } & Record<K, number | null>;
+
+export type ChartRow = TrendRow<"revenue" | "expenses" | "netAssets">;
+
+const FINANCIAL_SERIES: TrendSeries<"revenue" | "expenses" | "netAssets">[] = [
+  { key: "revenue", label: "總收入" },
+  { key: "expenses", label: "總支出" },
+  { key: "netAssets", label: "年底淨資產" },
+];
 
 const SURFACE = "#ffffff";
 
@@ -27,6 +36,31 @@ function niceMax(v: number): number {
 }
 
 export function FinancialChart({ rows }: { rows: ChartRow[] }) {
+  return (
+    <TrendChart
+      rows={rows}
+      series={FINANCIAL_SERIES}
+      label={`近 ${rows.length} 年總收入、總支出、年底淨資產折線圖，數字見下方表格`}
+    />
+  );
+}
+
+/** series 的順序決定顏色（第 1 條藍、第 2 條橘、第 3 條綠），呼叫端要固定順序、不要依金額排。 */
+export function TrendChart<K extends string>({
+  rows,
+  series,
+  label,
+  partialYear,
+}: {
+  rows: TrendRow<K>[];
+  series: (TrendSeries<K> & { styleIndex?: number })[];
+  label: string;
+  /** 還沒過完的年度（今年）：軸上寫「至今」，免得最後一年看起來是掉下來 */
+  partialYear?: number;
+}) {
+  const SERIES = series.map((s, i) => ({ ...s, ...STYLES[s.styleIndex ?? i] }));
+  type SeriesKey = K;
+  const val = (r: TrendRow<K>, k: K): number | null => r[k] as number | null;
   const [hover, setHover] = useState<number | null>(null);
   // 依實際寬度畫，不用 viewBox 整張縮放：手機上字才不會縮到看不見
   const ref = useRef<HTMLElement>(null);
@@ -42,7 +76,7 @@ export function FinancialChart({ rows }: { rows: ChartRow[] }) {
   const H = narrow ? 220 : 260;
   const PAD = { top: 16, right: narrow ? 72 : 96, bottom: 32, left: narrow ? 52 : 64 };
   const data = [...rows].sort((a, b) => a.year - b.year);
-  const values = data.flatMap((r) => SERIES.map((s) => r[s.key])).filter((v): v is number => v !== null);
+  const values = data.flatMap((r) => SERIES.map((s) => val(r, s.key))).filter((v): v is number => v !== null);
   const minV = Math.min(0, ...values);
   const maxV = niceMax(Math.max(...values, 0));
   const plotW = W - PAD.left - PAD.right;
@@ -54,7 +88,7 @@ export function FinancialChart({ rows }: { rows: ChartRow[] }) {
   // 尾端標籤：兩條線尾端太近（< 14px）時只留圖例與滑鼠提示，不硬擠
   const ends = SERIES.map((s) => {
     for (let i = data.length - 1; i >= 0; i--) {
-      const v = data[i][s.key];
+      const v = val(data[i], s.key);
       if (v !== null) return { key: s.key, i, v, py: y(v) };
     }
     return null;
@@ -85,7 +119,7 @@ export function FinancialChart({ rows }: { rows: ChartRow[] }) {
         viewBox={`0 0 ${W} ${H}`}
         className="block"
         role="img"
-        aria-label={`近 ${data.length} 年總收入、總支出、年底淨資產折線圖，數字見下方表格`}
+        aria-label={label}
         onMouseLeave={() => setHover(null)}
       >
         {ticks.map((t) => (
@@ -98,7 +132,7 @@ export function FinancialChart({ rows }: { rows: ChartRow[] }) {
         ))}
         {data.map((r, i) => (
           <text key={r.year} x={x(i)} y={H - 10} textAnchor="middle" className="fill-ink-600 text-[11px] tabular-nums">
-            {r.year} 年
+            {r.year === partialYear ? `${r.year} 至今` : `${r.year} 年`}
           </text>
         ))}
         {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={PAD.top} y2={PAD.top + plotH} stroke="#9ca2bf" strokeWidth="1" />}
@@ -107,7 +141,7 @@ export function FinancialChart({ rows }: { rows: ChartRow[] }) {
           const segments: string[] = [];
           let cur: string[] = [];
           data.forEach((r, i) => {
-            const v = r[s.key];
+            const v = val(r, s.key);
             if (v === null) {
               if (cur.length) segments.push(cur.join(" "));
               cur = [];
@@ -121,8 +155,8 @@ export function FinancialChart({ rows }: { rows: ChartRow[] }) {
                 <path key={d} d={d} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.dash} />
               ))}
               {data.map((r, i) =>
-                r[s.key] === null ? null : (
-                  <circle key={r.year} cx={x(i)} cy={y(r[s.key] as number)} r={hover === i ? 5 : 4} fill={s.color} stroke={SURFACE} strokeWidth="2" />
+                val(r, s.key) === null ? null : (
+                  <circle key={r.year} cx={x(i)} cy={y(val(r, s.key) as number)} r={hover === i ? 5 : 4} fill={s.color} stroke={SURFACE} strokeWidth="2" />
                 ),
               )}
               {end && showEnd(s.key) && (
@@ -159,7 +193,9 @@ export function FinancialChart({ rows }: { rows: ChartRow[] }) {
           }}
           role="status"
         >
-          <p className="mb-1 font-semibold text-ink-900">民國 {hovered.year} 年</p>
+          <p className="mb-1 font-semibold text-ink-900">
+            民國 {hovered.year} 年{hovered.year === partialYear && "（統計到目前）"}
+          </p>
           <dl className="space-y-0.5">
             {SERIES.map((s) => (
               <div key={s.key} className="flex items-center justify-between gap-2">
@@ -167,7 +203,7 @@ export function FinancialChart({ rows }: { rows: ChartRow[] }) {
                   <span className="inline-block h-2 w-2 rounded-full" style={{ background: s.color }} aria-hidden />
                   {s.label}
                 </dt>
-                <dd className="font-num whitespace-nowrap tabular-nums text-ink-900">{formatMoney(hovered[s.key])}</dd>
+                <dd className="font-num whitespace-nowrap tabular-nums text-ink-900">{formatMoney(val(hovered, s.key))}</dd>
               </div>
             ))}
           </dl>
