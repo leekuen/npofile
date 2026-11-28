@@ -49,13 +49,13 @@ class GrantIngestTests(TestCase):
         self.assertEqual(Grant.objects.get(external_id=items[0].external_id).amount, 1_500_000)
 
     def test_api_lists_window_only_and_score_unchanged(self):
-        before = Organization.objects.get(pk=self.maria.pk).disclosure_score
+        before = Organization.objects.get(pk=self.maria.pk).disclosure_level
         run_source(self.source, items=sample_items(self.year, self.orgs) + sample_items(period.since_roc_year() - 1, self.orgs))
         data = self.client.get("/api/orgs/05557110").json()
         self.assertEqual({g["year"] for g in data["grants"]}, {self.year})
         self.assertEqual(len(data["grants"]), 3)
         self.assertEqual(data["grants"][0]["amount"], 2_400_000)  # 金額大的在前
-        self.assertEqual(Organization.objects.get(pk=self.maria.pk).disclosure_score, before)
+        self.assertEqual(Organization.objects.get(pk=self.maria.pk).disclosure_level, before)
 
     def test_prune_removes_old_grants(self):
         run_source(self.source, items=sample_items(self.year, self.orgs) + sample_items(period.since_roc_year() - 1, self.orgs))

@@ -59,10 +59,11 @@ class WindowApiTests(TestCase):
         self.assertEqual(len(r["penalties"]), 2)  # 裁罰不限年度
         self.assertEqual(r["penalty_count_5y"], 1)  # 醒目標示仍是近五年
 
-    def test_score_ignores_old_projects(self):
-        b = self.api.get("/api/orgs/12345678").json()["score"]
-        # 舊專案有成果備查、新專案沒有：只算新的 → 成果備查 0 分
-        self.assertEqual((b["project"], b["result"], b["result_funded_projects"]), (20, 0, 1))
+    def test_level_ignores_old_projects(self):
+        lv = self.api.get("/api/orgs/12345678").json()["levels"]
+        # 舊專案不在近 5 年，不算進「到期的活動」；近 5 年的新活動算看得到的活動
+        self.assertTrue(lv["layers"][1]["checks"][0]["met"])
+        self.assertLessEqual(lv["results_due"], 1)
 
     def test_donor_totals_only_recent(self):
         row = self.api.get("/api/donors").json()["results"][0]

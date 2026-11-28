@@ -24,7 +24,7 @@ def targets() -> Iterator[tuple[str, str]]:
         Organization.objects.exclude(website="")
         .annotate(last_checked=Subquery(last))
         # 沒爬過的（NULL）排最前面：PostgreSQL 預設把 NULL 排最後、SQLite 排最前，要明講
-        .order_by(F("last_checked").asc(nulls_first=True), "-disclosure_score", "ubn")
+        .order_by(F("last_checked").asc(nulls_first=True), "-disclosure_level", "ubn")
         .values_list("ubn", "website")
     )
     for ubn, website in qs.iterator():

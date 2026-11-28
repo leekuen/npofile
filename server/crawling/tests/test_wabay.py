@@ -51,7 +51,7 @@ class WabayIngestTests(TestCase):
         self.assertFalse(Project.objects.exists())  # 先審核
 
     def test_approved_project_shows_as_crowdfunding_and_score_unchanged(self):
-        before = Organization.objects.get(pk=self.org.pk).disclosure_score
+        before = Organization.objects.get(pk=self.org.pk).disclosure_level
         run_source(self.source, items=items(self.monthly))
         self.approve_all()
         p = Project.objects.get(organization=self.org)
@@ -59,14 +59,14 @@ class WabayIngestTests(TestCase):
         self.assertEqual((p.raised, p.monthly_raised, p.backers, p.target), (4831060, 280449, 2328, None))
         self.assertEqual(p.external_id, "twsma")
         self.assertEqual(p.source_name, wabay.SOURCE_NAME)
-        self.assertEqual(Organization.objects.get(pk=self.org.pk).disclosure_score, before)
+        self.assertEqual(Organization.objects.get(pk=self.org.pk).disclosure_level, before)
 
         data = self.client.get("/api/orgs/88114366").json()
         card = data["projects"][0]
         self.assertEqual(card["channel"], "crowdfunding")
         self.assertEqual(card["monthly_raised"], 280449)
         self.assertEqual(card["backers"], 2328)
-        self.assertEqual(data["score"]["project"], 0)
+        self.assertEqual(data["levels"]["results_due"], 0)  # 群眾集資不算勸募活動
 
     def test_update_after_approval_goes_live_without_review(self):
         run_source(self.source, items=items(self.monthly))

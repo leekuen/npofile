@@ -88,11 +88,11 @@ class LaborIngestTests(TestCase):
         self.assertContains(unmatched, "財團法人興毅社會福利慈善事業基金會")
 
     def test_api_category_and_score_unchanged(self):
-        before = Organization.objects.get(pk=self.maria.pk).disclosure_score
+        before = Organization.objects.get(pk=self.maria.pk).disclosure_level
         Penalty.objects.create(organization=self.maria, content="勸募裁處", source_name="衛生福利部公益勸募管理系統",
                                external_id="1")
         self.run_sample()
         data = self.client.get("/api/orgs/05557110").json()
         self.assertEqual(sorted(p["category"] for p in data["penalties"]), ["fundraising", "labor"])
-        self.assertEqual(Organization.objects.get(pk=self.maria.pk).disclosure_score, before)
+        self.assertEqual(Organization.objects.get(pk=self.maria.pk).disclosure_level, before)
         self.assertFalse(Penalty.objects.filter(Q(content__contains="王大明")).exists())
