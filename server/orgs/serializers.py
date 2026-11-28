@@ -1,7 +1,6 @@
 from rest_framework import serializers
 
 from . import category_api, donor_rules, period, scoring
-from npofile_crawler import labor
 
 from .models import (
     AnnualFundraising,
@@ -87,22 +86,14 @@ class ProjectSerializer(serializers.ModelSerializer):
         )
 
 
-# 勞動局公布的違反勞基法處分（LK-29）、勞動部全國違反勞動法令名單（LK-37）跟公益勸募裁處分開標示
-LABOR_SOURCE_NAMES = {spec.source_name for spec in labor.SPECS} | {labor.MOL_SOURCE_NAME}
-
-
 class PenaltySerializer(serializers.ModelSerializer):
-    category = serializers.SerializerMethodField()
-
+    # 類別存在資料表（LK-36）：fundraising 公益勸募／labor 勞動法令／environment 環境保護／procurement 政府採購停權
     class Meta:
         model = Penalty
         fields = (
             "id", "decided_on", "authority", "document_no", "content", "fine_text", "reason", "source_name", "source_url",
-            "category",
+            "category", "law",
         )
-
-    def get_category(self, obj) -> str:
-        return "labor" if obj.source_name in LABOR_SOURCE_NAMES else "fundraising"
 
 
 class GrantSerializer(serializers.ModelSerializer):

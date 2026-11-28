@@ -48,6 +48,10 @@ class Command(BaseCommand):
             if sources == ["all"] and not force and (days := recent_success_days(source)) is not None:
                 self.stdout.write(f"略過（{days} 天內檢查過，每 {SOURCES[source.key].every_days} 天檢查一次）：{source.name}")
                 continue
+            needs = SOURCES[source.key].requires_setting if source.key in SOURCES else ""
+            if sources == ["all"] and needs and not getattr(settings, needs, ""):
+                self.stdout.write(f"略過（沒有設定 {needs}）：{source.name}")
+                continue
             self.stdout.write(f"開始：{source.name}")
             items, client = None, None
             if group:

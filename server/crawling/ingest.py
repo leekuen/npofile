@@ -117,6 +117,10 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
                         values["have"] = set(CrawlRecord.objects.filter(source=source).values_list("external_id", flat=True))
                     if "orgs_city" in src.options:
                         values["orgs_city"] = Organization.objects.values_list("ubn", "name", "city").iterator(chunk_size=5000)
+                    if "moenv_api_key" in src.options:
+                        values["moenv_api_key"] = settings.MOENV_API_KEY
+                    if "since_date" in src.options:
+                        values["since_date"] = since_last_success(source)
                     if "listed" in src.options:
                         values["listed"] = [0]
                     if "seen_regs" in src.options:
@@ -142,6 +146,9 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
                         run.note = f"到達每次最多 {source.max_minutes} 分鐘的上限先停，下次接著抓"
                         break
                 run.status = CrawlRun.Status.SUCCESS
+                stopped_early = bool(run.note) or (limit is not None and run.fetched >= limit)
+                if "since_date" in values and values.get("listed") is not None and not stopped_early:
+                    run.note = READ_ALL_NOTE  # 這次有讀完（沒被筆數或分鐘上限切斷），下次才只抓新的
                 if values.get("listed") is not None:  # 只抓新的的來源：改看列表有沒有讀到東西
                     run.listed_cards = values["listed"][0]
             except Exception as exc:  # 抓到一半失敗：已抓到的照樣存，錯誤記進執行紀錄
@@ -165,6 +172,28 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
         source.last_run_at = run.finished_at
         source.save(update_fields=["last_run_at"])
     return run
+
+
+# 只抓新的來源（環境部裁處，LK-36）：從上次成功的那天再往前推這麼多天，接住晚匯入的舊裁處
+SINCE_LOOKBACK_DAYS = 120
+READ_ALL_NOTE = "已讀完（下次只抓新的）"
+
+
+def since_last_success(source: CrawlerSource):
+    """上次成功抓取的日期往前推 SINCE_LOOKBACK_DAYS 天；從沒成功過回 None（全部回補）。"""
+    last = (source.runs.filter(status=CrawlRun.Status.SUCCESS, note__contains=READ_ALL_NOTE)
+            .order_by("-started_at").first())
+    if last is None:
+        return None
+    return timezone.localtime(last.started_at).date() - timedelta(days=SINCE_LOOKBACK_DAYS)
+
+
+def penalty_category(source_name: str, data: dict) -> str:
+    """裁罰的類別（LK-36）：爬蟲在 data["category"] 寫明的為準；沒寫的，名稱含「勞動」算勞動法令（同 0015 回填），其餘公益勸募。"""
+    category = data.get("category") or ""
+    if category in Penalty.Category.values:
+        return category
+    return Penalty.Category.LABOR if "勞動" in source_name else Penalty.Category.FUNDRAISING
 
 
 # 不影響揭露層級與分類的資料：存了不用重算
@@ -388,6 +417,8 @@ def _apply_child(rec: CrawlRecord, org: Organization, source_name: str) -> None:
             "content": d.get("content", ""),
             "fine_text": (d.get("fine_text") or "")[:300],
             "reason": d.get("reason", ""),
+            "law": (d.get("law") or "")[:300],
+            "category": penalty_category(source_name, d),
         }
         values = {k: v for k, v in values.items() if v not in (None, "")}
         penalty, created = Penalty.objects.get_or_create(
