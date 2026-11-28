@@ -91,7 +91,9 @@ class ToItemTests(unittest.TestCase):
     def test_authority_names(self):
         self.assertEqual(environment.authority("臺北市"), "臺北市政府環境保護局")
         self.assertEqual(environment.authority("金門縣"), "金門縣環境保護局")
-        self.assertEqual(environment.authority("桃環處"), "桃環處")
+        self.assertEqual(environment.authority("桃環處"), "桃園市政府環境保護局")
+        self.assertEqual(environment.authority("督察總隊"), "環境部環境管理署環境督察總隊")
+        self.assertEqual(environment.authority("某某處"), "某某處")
         self.assertEqual(environment.authority(""), "環境部")
 
 
