@@ -66,6 +66,7 @@ class CrawlRecord(models.Model):
         COURT_REG = "court_reg", "法院登記公告"
         REGISTRY = "registry", "主管機關名冊"
         EINVOICE = "einvoice", "發票捐贈碼"
+        ANNUAL_LIST = "annual_list", "年度捐贈名單清冊"
 
     class Status(models.TextChoices):
         PENDING = "pending", "待審核"
@@ -75,7 +76,7 @@ class CrawlRecord(models.Model):
 
     source = models.ForeignKey(CrawlerSource, on_delete=models.CASCADE, related_name="records", verbose_name="來源")
     run = models.ForeignKey(CrawlRun, on_delete=models.SET_NULL, null=True, blank=True, related_name="records", verbose_name="執行")
-    kind = models.CharField("資料類型", max_length=10, choices=Kind.choices)
+    kind = models.CharField("資料類型", max_length=20, choices=Kind.choices)
     ubn = models.CharField("統一編號", max_length=8, db_index=True)
     external_id = models.CharField("來源編號", max_length=50, blank=True)
     payload = models.JSONField("內容")

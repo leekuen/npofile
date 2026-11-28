@@ -13,14 +13,16 @@ from django.db.models import Q
 from django.utils import timezone
 from npofile_crawler import donors as donor_names
 from npofile_crawler import judicial, labor
+from npofile_crawler.grants import OrgMatcher
 from npofile_crawler.http import PoliteClient
 from npofile_crawler.items import Item
 from npofile_crawler.sources import SOURCES
 
-from orgs import period, scoring
+from orgs import annual_lists, period, scoring
 from orgs.categorize import categorize
 from orgs.models import (
     CRAWLABLE_FIELDS,
+    AnnualDonorList,
     AnnualFundraising,
     Donation,
     DonationCode,
@@ -46,7 +48,7 @@ log = logging.getLogger(__name__)
 BATCH = 500
 STORE_EVERY = 60  # 秒
 KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4, "grant": 5, "document": 6, "financial": 7,
-              "court_reg": 8, "registry": 9, "einvoice": 10}
+              "court_reg": 8, "registry": 9, "einvoice": 10, "annual_list": 11}
 PROJECT_FIELDS = (
     "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
     "result_filed_on", "closed_filed_on", "description", "channel", "monthly_raised", "backers",
@@ -465,6 +467,8 @@ def _apply_child(rec: CrawlRecord, org: Organization, source_name: str) -> None:
         )
     elif rec.kind == "financial":
         _apply_financial(rec, org, source_name)
+    elif rec.kind == "annual_list":
+        _apply_annual_donor_list(rec, org, source_name)
 
 
 def _apply_registry(rec: CrawlRecord, org: Organization | None, source_name: str) -> None:
@@ -588,6 +592,101 @@ def _apply_donor_list(rec: CrawlRecord, org: Organization, source_name: str) -> 
             "source_url": rec.source_url,
         },
     )
+    annual_lists.mark_duplicates({org.id})  # 衛福部清冊進來後，同一筆在年度清冊上的就不再算（LK-48）
+
+
+def _donors_for(rows: list[dict]) -> dict[str, Donor]:
+    """名稱 → 捐款人（用比對用名稱對到既有的，沒有就建）。"""
+    first: dict[str, dict] = {}
+    for r in rows:
+        if r.get("name"):
+            first.setdefault(donor_names.identity_key(r["name"])[:200], r)
+    keys = sorted(first)
+    donors: dict[str, Donor] = {}
+    for i in range(0, len(keys), 900):
+        donors.update(Donor.objects.in_bulk(keys[i : i + 900], field_name="name_key"))
+    missing = [
+        Donor(name=donor_names.normalize(first[k]["name"])[:200], name_key=k, kind=first[k]["kind"])
+        for k in keys if k not in donors
+    ]
+    if missing:
+        Donor.objects.bulk_create(missing, ignore_conflicts=True)
+        for i in range(0, len(keys), 900):
+            donors.update(Donor.objects.in_bulk(keys[i : i + 900], field_name="name_key"))
+    return donors
+
+
+_org_matcher: tuple[int, OrgMatcher] | None = None
+
+
+def org_matcher() -> OrgMatcher:
+    """支付清冊的受捐者對組織：規則同政府補助（名稱正規化後完全相同且唯一；「X附設Y」歸 X）。組織數變了才重建。"""
+    global _org_matcher
+    n = Organization.objects.count()
+    if _org_matcher is None or _org_matcher[0] != n:
+        _org_matcher = (n, OrgMatcher(Organization.objects.values_list("ubn", "name").iterator(chunk_size=5000)))
+    return _org_matcher[1]
+
+
+def _apply_annual_donor_list(rec: CrawlRecord, org: Organization, source_name: str) -> None:
+    """財團法人年度捐贈名單清冊（LK-48）。一份清冊整份取代：先刪這份的舊捐款再寫新的，最後重算去重。
+    接受清冊：列上的＝捐給這個組織的。支付清冊：這個組織＝捐款者，列上的受捐者對得上站上組織才記成對方的捐款。"""
+    d = rec.payload
+    direction = d["direction"]
+    summary = d.get("summary", {})
+    rows = d.get("rows", [])
+    lst, _ = AnnualDonorList.objects.update_or_create(
+        organization=org, url=d["url"][:1000],
+        defaults={
+            "year": d["year"], "direction": direction, "title": (d.get("title") or "")[:200],
+            "found_on": (d.get("found_on") or "")[:1000], "file_format": (d.get("format") or "")[:10],
+            "scanned": bool(d.get("scanned")), "source_name": source_name,
+            **{k: summary.get(k, 0) for k in (
+                "total_rows", "total_amount", "small_individual_count", "small_individual_amount",
+                "anonymous_rows", "anonymous_amount", "government_rows", "government_amount", "threshold",
+            )},
+        },
+    )
+    old_orgs = set(lst.donations.values_list("organization_id", flat=True))
+    lst.donations.all().delete()
+    label = lst.source_label
+    donations: list[Donation] = []
+    unmatched: list[dict] = []
+    if direction == AnnualDonorList.Direction.RECEIVE:
+        donors = _donors_for(rows)
+        for r in rows:
+            donor = donors.get(donor_names.identity_key(r["name"])[:200])
+            donations.append(Donation(
+                organization=org, donor=donor, donor_name=donor_names.normalize(r["name"])[:200], amount=r["amount"],
+                year=lst.year, annual_list=lst, source_name=label, source_url=lst.url,
+            ))
+    else:
+        giver = _donors_for([{"name": org.name, "kind": donor_names.classify(org.name)}]).get(
+            donor_names.identity_key(org.name)[:200]
+        )
+        matcher = org_matcher()
+        recipients = Organization.objects.in_bulk(
+            {hit[0] for r in rows if (hit := matcher.match(r["name"]))} - {org.ubn}, field_name="ubn"
+        )
+        for r in rows:
+            hit = matcher.match(r["name"])
+            recipient = recipients.get(hit[0]) if hit else None
+            if recipient is None:
+                unmatched.append({"name": r["name"], "amount": r["amount"]})
+                continue
+            donations.append(Donation(
+                organization=recipient, donor=giver, donor_name=org.name[:200], amount=r["amount"],
+                year=lst.year, annual_list=lst, source_name=label, source_url=lst.url,
+            ))
+    Donation.objects.bulk_create(donations, batch_size=500)
+    lst.kept_rows = len(donations)
+    lst.unmatched = unmatched[:500]
+    lst.save(update_fields=["kept_rows", "unmatched", "updated_at"])
+    affected = old_orgs | {x.organization_id for x in donations}
+    annual_lists.mark_duplicates(affected)
+    others = Organization.objects.filter(id__in=affected - {org.id}).values_list("ubn", flat=True)
+    if others:
+        recompute_ubns(set(others))  # 支付清冊的受捐組織：「有資料」可能變了
 
 
 REG_FIELDS = ("reg_no", "category", "name", "case_type", "posted_on")

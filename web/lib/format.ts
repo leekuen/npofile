@@ -23,6 +23,17 @@ export function formatRocDate(iso: string | null | undefined): string {
   return `${y - 1911}/${String(m).padStart(2, "0")}/${String(d).padStart(2, "0")}`;
 }
 
+/** 捐款的日期：財團法人年度清冊只有年度（LK-48），顯示「113 年度」 */
+export function formatDonationWhen(d: { donated_on: string | null; year?: number | null }): string {
+  if (d.donated_on) return formatRocDate(d.donated_on);
+  return d.year ? `${d.year} 年度` : "—";
+}
+
+/** 清冊來源的短名稱：衛福部的來源名稱很長，列表上只寫「衛福部勸募清冊」 */
+export function shortSourceName(name: string): string {
+  return name.includes("公益勸募") ? "衛福部勸募清冊" : name;
+}
+
 /** ISO 日期 → 民國年月（例：114/03） */
 export function formatRocMonth(iso: string | null | undefined): string {
   if (!iso) return "—";

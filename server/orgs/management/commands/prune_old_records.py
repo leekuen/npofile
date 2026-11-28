@@ -3,7 +3,7 @@ from django.db import transaction
 
 from crawling.models import ActivityProgress, CrawlRecord
 from orgs import period
-from orgs.models import AnnualFundraising, Donation, FinancialYear, Grant, OrgDocument, Organization, Project
+from orgs.models import AnnualDonorList, AnnualFundraising, Donation, FinancialYear, Grant, OrgDocument, Organization, Project
 from orgs.signals import suspend_scoring
 from orgs.scoring import recompute
 
@@ -18,7 +18,7 @@ class Command(BaseCommand):
         since = period.since_roc_year()
         annual = AnnualFundraising.objects.exclude(period.annual_q())
         projects = Project.objects.exclude(period.project_q())
-        donations = Donation.objects.exclude(period.donation_q())
+        donations = Donation.objects.exclude(period.donation_window_q())
         grants = Grant.objects.exclude(period.grant_q())  # 政府補助（LK-19）
         # 舊清冊的原始內容也很佔空間；只刪清冊，團體頁其他紀錄留作歷史
         old_ids = list(projects.values_list("external_id", flat=True))
@@ -26,6 +26,7 @@ class Command(BaseCommand):
         progress = ActivityProgress.objects.filter(roc_year__lt=since)  # 舊活動的抓取進度（LK-13）
         financials = FinancialYear.objects.exclude(period.annual_q())  # 官網財報（LK-17）
         documents = OrgDocument.objects.exclude(period.annual_q())
+        donor_lists = AnnualDonorList.objects.exclude(period.annual_q())  # 財團法人年度捐贈名單清冊（LK-48）
         counts = {
             "年度募款": annual.count(),
             "專案": projects.count(),
@@ -35,6 +36,7 @@ class Command(BaseCommand):
             "活動抓取進度": progress.count(),
             "年度財務": financials.count(),
             "官網報告": documents.count(),
+            "年度捐贈名單清冊": donor_lists.count(),
         }
         summary = "、".join(f"{k} {v} 筆" for k, v in counts.items())
         if dry_run:
@@ -50,5 +52,6 @@ class Command(BaseCommand):
             progress.delete()
             financials.delete()
             documents.delete()
+            donor_lists.delete()
         recompute(Organization.objects.filter(pk__in=touched))
         self.stdout.write(f"已刪除民國 {since} 年以前：{summary}；裁罰紀錄不動")

@@ -43,11 +43,19 @@ def grant_q(prefix: str = "") -> Q:
 
 
 def donation_q(prefix: str = "") -> Q:
-    """有專案的看專案年度；手動輸入、沒掛專案的看捐款日期（沒日期算在內）。"""
+    """有專案的看專案年度；財團法人年度清冊的看清冊年度（LK-48）；手動輸入、沒掛專案的看捐款日期（沒日期算在內）。
+    別份清冊已經算過的重複筆（duplicate）一律不算——所有總額、排行、明細都走這裡，去重只寫這一處。"""
+    return Q(**{f"{prefix}duplicate": False}) & donation_window_q(prefix)
+
+
+def donation_window_q(prefix: str = "") -> Q:
+    """只看期間、不管重複：刪舊資料（prune_old_records）用，重複筆也要跟著刪。"""
     p = prefix
     return (
-        Q(**{f"{p}project__isnull": False}) & project_q(f"{p}project__")
-    ) | (
-        Q(**{f"{p}project__isnull": True})
-        & (Q(**{f"{p}donated_on__gte": window_start()}) | Q(**{f"{p}donated_on__isnull": True}))
+        (Q(**{f"{p}project__isnull": False}) & project_q(f"{p}project__"))
+        | (Q(**{f"{p}project__isnull": True, f"{p}year__isnull": False, f"{p}year__gte": since_roc_year()}))
+        | (
+            Q(**{f"{p}project__isnull": True, f"{p}year__isnull": True})
+            & (Q(**{f"{p}donated_on__gte": window_start()}) | Q(**{f"{p}donated_on__isnull": True}))
+        )
     )

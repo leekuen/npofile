@@ -110,6 +110,8 @@ export interface DonationRow {
   purpose: string;
   amount: number;
   donated_on: string | null;
+  /** 財團法人年度捐贈名單清冊（LK-48）只有年度（民國）、沒有日期；其他是 null */
+  year: number | null;
   source_name: string;
   source_url: string;
 }
@@ -290,6 +292,8 @@ export interface OrgDetail extends Omit<OrgSummary, "public_raised_5y"> {
   corporate_donors: CorporateDonorRank[];
   individual_donors: { name: string; total: number; count: number }[];
   donor_summary: DonorSummary | null;
+  /** 官網公開的年度捐贈名單清冊（LK-48），近 5 年 */
+  annual_donor_lists: AnnualDonorListLink[];
   since_roc_year: number;
   categories: OrgCategories;
   updated_at: string;
@@ -324,6 +328,19 @@ export interface CorporateDonorRank {
   ubn: string;
   total: number;
   count: number;
+  /** 金額來自哪幾份清冊（衛福部勸募清冊、財團法人年度清冊…，LK-48） */
+  sources: string[];
+}
+
+export interface AnnualDonorListLink {
+  year: number;
+  direction: "receive" | "pay";
+  direction_label: string;
+  title: string;
+  url: string;
+  /** 掃描檔：還沒讀出名單 */
+  scanned: boolean;
+  kept_rows: number;
 }
 
 export interface DonorSummary {
@@ -392,6 +409,7 @@ export interface DonorDetail extends DonorSummaryRow {
   donations: {
     id: number;
     donated_on: string | null;
+    year: number | null;
     amount: number;
     purpose: string;
     org_ubn: string;
