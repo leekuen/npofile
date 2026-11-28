@@ -132,7 +132,7 @@ export async function DonorDetailView({ params }: { params: Promise<{ id: string
                     <TextLink href={`/orgs/${d.org_ubn}?tab=donations`}>{d.org_name}</TextLink>
                     {d.project_name && <span className="block text-xs text-ink-600">{d.project_name}</span>}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{formatMoney(d.amount)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">{d.amount_note || formatMoney(d.amount)}</td>
                   <td className="px-3 py-2 text-ink-700">
                     {d.purpose || "—"}
                     {d.source_url && (
@@ -215,7 +215,7 @@ function Overview({ donor }: { donor: DonorDetail }) {
         ))}
       </dl>
       <p className="mt-2 text-xs text-ink-600">
-        以上依衛福部公益勸募活動的捐贈人清冊，與財團法人在官網公開的年度捐贈名單清冊計算，只涵蓋近 5 年；兩種清冊涵蓋的範圍不同，都不是這家{donor.kind_label}全部的捐款。
+        以上依衛福部公益勸募活動的捐贈人清冊、財團法人在官網公開的年度捐贈名單清冊、上市櫃公司的捐贈重大訊息與保險公司的捐贈情形表計算，只涵蓋近 5 年；各來源涵蓋的範圍不同，都不是這家{donor.kind_label}全部的捐款。金額寫成範圍的照原文顯示、不算進加總。
       </p>
     </section>
   );

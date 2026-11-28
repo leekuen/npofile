@@ -805,7 +805,7 @@ function DonationsTab({ org }: { org: OrgDetail }) {
                       )}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
-                      {formatMoney(d.amount)}
+                      {d.amount_note || formatMoney(d.amount)}
                     </td>
                     <td className="px-3 py-2 text-ink-700">
                       {d.purpose || "—"}
