@@ -23,6 +23,8 @@ from . import donors
 from .items import money
 
 RECEIVE, PAY = "receive", "pay"
+GOVERNMENT = "government"
+HEADING_LINES = 6  # 表頭上面最多看幾列找標題
 DIRECTION_LABELS = {RECEIVE: "接受", PAY: "支付"}
 
 _LIST_WORD = r"(?:清冊|名單|名冊)"
@@ -69,6 +71,20 @@ class Parsed:
     format: str  # pdf | xlsx | ods | html
     rows: list[RawRow]
     scanned: bool = False
+    # 檔案裡表格上面的標題看得出的方向（接受／支付）：連結文字常跟檔案內容不一致
+    # （萬海官網連結寫「補助及捐贈清冊」，檔案其實是支付清冊，LK-47 的發現），以檔案裡的為準
+    heading_direction: str | None = None
+
+
+def heading_direction(lines: Iterable[str]) -> str | None:
+    """標題那幾行看得出接受或支付就回傳。表格上面的法條說明常把兩份清冊都寫出來
+    （「應主動公開接受補助、捐贈名單名冊及支付獎助、捐贈名單清冊」），含「依據」「財團法人法」的行不看。"""
+    for text in lines:
+        if not text or re.search(r"依據|依照|財團法人法|第\s*25\s*條", text):
+            continue
+        if d := direction(text):
+            return d
+    return None
 
 
 def _clean(text: str) -> str:
@@ -79,10 +95,12 @@ def _name_ok(name: str) -> bool:
     return bool(name) and len(name) <= MAX_NAME and not NOT_A_NAME_RE.search(name) and not name.isdigit()
 
 
-def rows_from_table(table: Iterable[list[str]]) -> list[RawRow]:
-    """表格（每列一串格子）→ 名稱與金額。表頭要同時有名稱欄與金額欄；同一份檔可以有好幾段表頭（分頁、分表）。"""
+def rows_from_table(table: Iterable[list[str]]) -> tuple[list[RawRow], str | None]:
+    """表格（每列一串格子）→（名稱與金額, 表頭上面的標題看得出的方向）。表頭要同時有名稱欄與金額欄；
+    同一份檔可以有好幾段表頭（分頁、分表）。"""
     out: list[RawRow] = []
     name_i = amount_i = None
+    heading: list[str] = []
     for cells in table:
         cells = [_clean(c) for c in cells]
         ni = next((i for i, c in enumerate(cells) if c and NAME_HEADER_RE.search(c) and len(c) <= 20), None)
@@ -91,40 +109,77 @@ def rows_from_table(table: Iterable[list[str]]) -> list[RawRow]:
             name_i, amount_i = ni, ai
             continue
         if name_i is None or amount_i is None:
+            if len(heading) < HEADING_LINES:
+                heading.append(" ".join(c for c in cells if c))
             continue
         name = cells[name_i] if name_i < len(cells) else ""
         amount = money(cells[amount_i]) if amount_i < len(cells) else None
         if amount and _name_ok(name):
             out.append(RawRow(name, amount))
-    return out
+    return out, heading_direction(heading)
 
 
 # ---- 文字 PDF ----
 
+MAX_PDF_PAGES = 3000
+
+
 def _pdf_lines(data: bytes) -> Iterator[list[tuple[float, float, str]]]:
-    """每一頁每一列（同一條水平線上的字）：[(x 左, x 右, 字)…]，由上往下。"""
-    from pdfminer.high_level import extract_pages
-    from pdfminer.layout import LTTextLine
+    """每一頁每一列（同一條水平線上的字）：[(x 左, x 右, 字)…]，由上往下。
+    用 pypdfium2 取每段字的座標（做法同 LK-47：1,638 頁的名單約 35 秒；pdfminer 要 5 分半）。"""
+    import pypdfium2 as pdfium
 
-    for page in extract_pages(BytesIO(data)):
-        chunks: list[tuple[float, float, float, str]] = []
+    doc = pdfium.PdfDocument(BytesIO(data))
+    try:
+        for i in range(min(len(doc), MAX_PDF_PAGES)):
+            page = doc[i]
+            tp = page.get_textpage()
+            # 逐字取座標再自己拼：用「框內文字」(get_text_bounded) 會把左右對齊撐開的字重複抓進來
+            # （公視：「文化部捐 部捐贈 捐贈」「5 8 6,2 73」）
+            chars: list[tuple[float, float, float, str]] = []
+            text = tp.get_text_range()
+            for k in range(min(tp.count_chars(), len(text))):
+                ch = text[k]
+                if not ch.strip():
+                    continue
+                left, bottom, right, top = tp.get_charbox(k)
+                chars.append(((bottom + top) / 2, left, right, ch))
+            tp.close()
+            page.close()
+            lines: list[tuple[float, list[tuple[float, float, str]]]] = []
+            punct = []
+            for y, left, right, ch in sorted(chars, key=lambda c: -c[0]):
+                if ch in PUNCT:
+                    punct.append((y, left, right, ch))
+                elif lines and abs(lines[-1][0] - y) <= 3:
+                    lines[-1][1].append((left, right, ch))
+                else:
+                    lines.append((y, [(left, right, ch)]))
+            # 逗點、句點的框比字低，用中心點分列會自成一列、把金額切斷（「1,700,000」變「700」）：接回最近的那一列
+            for y, left, right, ch in punct:
+                near = min(lines, key=lambda ln: abs(ln[0] - y), default=None)
+                if near is not None and abs(near[0] - y) <= 8:
+                    near[1].append((left, right, ch))
+            for _, line in lines:
+                yield _segments(sorted(line))
+    finally:
+        doc.close()
 
-        def walk(obj):
-            if isinstance(obj, LTTextLine):
-                text = _clean(obj.get_text())
-                if text:
-                    chunks.append(((obj.y0 + obj.y1) / 2, obj.x0, obj.x1, text))
-            elif hasattr(obj, "__iter__"):
-                for child in obj:
-                    walk(child)
 
-        walk(page)
-        rows: dict[float, list[tuple[float, float, str]]] = {}
-        for y, x0, x1, text in chunks:
-            key = next((k for k in rows if abs(k - y) <= 3), y)
-            rows.setdefault(key, []).append((x0, x1, text))
-        for y in sorted(rows, reverse=True):
-            yield sorted(rows[y])
+SEGMENT_GAP = 7.0  # 同一列兩個字的間距超過這麼多就是不同格
+PUNCT = ",.，、．"
+
+
+def _segments(chars: list[tuple[float, float, str]]) -> list[tuple[float, float, str]]:
+    """一列的字（由左到右）→ 依間距拼成一格一格：[(x 左, x 右, 字)…]。"""
+    out: list[tuple[float, float, str]] = []
+    for left, right, ch in chars:
+        if out and left - out[-1][1] <= SEGMENT_GAP:
+            x0, _, t = out[-1]
+            out[-1] = (x0, max(right, out[-1][1]), t + ch)
+        else:
+            out.append((left, right, ch))
+    return out
 
 
 def parse_pdf(data: bytes) -> Parsed:
@@ -134,7 +189,13 @@ def parse_pdf(data: bytes) -> Parsed:
         return Parsed("pdf", [], scanned=True)
     if sum(len(t) for line in lines for _, _, t in line) < SCANNED_MIN_TEXT:
         return Parsed("pdf", [], scanned=True)
-    return Parsed("pdf", rows_from_pdf_lines(lines))
+    heading: list[str] = []
+    for line in lines:  # 第一個表頭以上的幾列是標題
+        texts = [t for _, _, t in line]
+        if any(AMOUNT_HEADER_RE.search(t) and len(t) <= 20 for t in texts):
+            break
+        heading.append(" ".join(texts))
+    return Parsed("pdf", rows_from_pdf_lines(lines), heading_direction=heading_direction(heading[:HEADING_LINES]))
 
 
 def rows_from_pdf_lines(lines: Iterable[list[tuple[float, float, str]]]) -> list[RawRow]:
@@ -178,9 +239,12 @@ def parse_xlsx(data: bytes) -> Parsed:
 
     wb = load_workbook(BytesIO(data), read_only=True, data_only=True)
     rows: list[RawRow] = []
+    found: str | None = None
     for ws in wb.worksheets:
-        rows.extend(rows_from_table(["" if v is None else str(v) for v in r] for r in ws.iter_rows(values_only=True)))
-    return Parsed("xlsx", rows)
+        got, heading = rows_from_table(["" if v is None else str(v) for v in r] for r in ws.iter_rows(values_only=True))
+        rows.extend(got)
+        found = found or heading
+    return Parsed("xlsx", rows, heading_direction=found)
 
 
 _NS_TABLE = "urn:oasis:names:tc:opendocument:xmlns:table:1.0"
@@ -195,15 +259,21 @@ def parse_ods(data: bytes) -> Parsed:
                     yield donors._cells(elem)
                     elem.clear()
 
-    return Parsed("ods", rows_from_table(table()))
+    rows, heading = rows_from_table(table())
+    return Parsed("ods", rows, heading_direction=heading)
 
 
 def parse_html(html: str) -> Parsed:
     soup = BeautifulSoup(html, "html.parser")
     rows: list[RawRow] = []
+    found: str | None = None
     for t in soup.find_all("table"):
-        rows.extend(rows_from_table([c.get_text(" ") for c in tr.find_all(["td", "th"])] for tr in t.find_all("tr")))
-    return Parsed("html", rows)
+        got, heading = rows_from_table([c.get_text(" ") for c in tr.find_all(["td", "th"])] for tr in t.find_all("tr"))
+        rows.extend(got)
+        found = found or heading
+    if found is None:  # 網頁的標題常在表格外面（h1～h3、caption）
+        found = heading_direction(h.get_text(" ") for h in soup.find_all(["h1", "h2", "h3", "caption"])[:HEADING_LINES])
+    return Parsed("html", rows, heading_direction=found)
 
 
 def file_format(url: str, content: bytes, content_type: str = "") -> str | None:
@@ -237,29 +307,43 @@ def parse(url: str, content: bytes, content_type: str = "") -> Parsed | None:
 
 # 清冊上常把「捐贈／補助」接在機關名後面（公視：「文化部捐贈」「教育部補助」）
 TRAILING_KIND_RE = re.compile(r"\s*(?:捐贈|補助|捐助|補\(?捐\)?助|獎助)$")
-# 政府機關與基金：donors.py 沒認出來的縮寫（「原民會」「衛福部」）與「…發展基金」
-GOV_SUFFIX_RE = re.compile(r"(?:部|署|局|會|府|院|處|公所|基金)$")
+# 政府機關與政府基金：不算捐款人（使用者 2026-11-28 決定；站上「政府補助」分頁另外收），只記筆數與金額
+GOV_RE = re.compile(
+    r"(?:政府|縣府|市府|公所|部|署|局|處|(?:行政|立法|監察|考試|司法)院|法院|委員會|"
+    r"原民會|客委會|國發會|農委會|退輔會|僑委會|陸委會|金管會|公平會|通傳會|海委會|基金)$"
+)
+# 民間的「…基金會」「…協會」「…醫院」「…公司」，和公司名裡的「…門市部」不是政府機關
+NOT_GOV_RE = re.compile(r"基金會|協會|學會|公會|教會|醫院|學院|書院|寺|宮|廟|股份|有限|公司|企業社|商行|門市部|營業部")
+# 名字被遮（「華○工業有限公司」「陳Ｏ朝」）：認不出是哪一家、哪一位，一律當匿名（LK-47 的發現）
+MASK_RE = re.compile(r"[○〇◯Ｏ＊*×✕●◎□]|(?<=[一-鿿])[Oo](?=[一-鿿]|$)")
 
 
 def clean_name(name: str) -> str:
     return TRAILING_KIND_RE.sub("", donors.normalize(name)) or donors.normalize(name)
 
 
+def is_government(name: str) -> bool:
+    return bool(GOV_RE.search(name)) and not NOT_GOV_RE.search(name)
+
+
 def kind_of(name: str) -> str:
-    kind = donors.classify(name)
-    if kind == donors.INDIVIDUAL and GOV_SUFFIX_RE.search(name):
-        return donors.GROUP
-    return kind
+    """企業／團體／個人／匿名，再加 GOVERNMENT（政府機關與政府基金）。"""
+    if MASK_RE.search(name):
+        return donors.ANONYMOUS
+    if is_government(name):
+        return GOVERNMENT
+    return donors.classify(name)
 
 
 def summarize(direction_: str, rows: list[RawRow], threshold: int = donors.DEFAULT_INDIVIDUAL_THRESHOLD) -> dict:
-    """一份清冊＝一個組織一個年度。
+    """一份清冊＝一個組織一個年度。政府機關不算捐款人、被遮名的當匿名，兩者都只記筆數與金額。
     接受清冊：企業、團體全留；個人同一份累計達門檻才留姓名，其餘只留人數與金額（同衛福部清冊的規則）。
     支付清冊：受捐者只留團體與企業（之後對組織用）；個人受助者（喪葬補助、獎學金）一律不留姓名。"""
     kept: list[dict] = []
     individuals: dict[str, list[dict]] = defaultdict(list)
     summary = {"total_rows": 0, "total_amount": 0, "small_individual_count": 0, "small_individual_amount": 0,
-               "anonymous_rows": 0, "anonymous_amount": 0, "threshold": threshold}
+               "anonymous_rows": 0, "anonymous_amount": 0, "government_rows": 0, "government_amount": 0,
+               "threshold": threshold}
     for r in rows:
         summary["total_rows"] += 1
         summary["total_amount"] += r.amount
@@ -269,6 +353,9 @@ def summarize(direction_: str, rows: list[RawRow], threshold: int = donors.DEFAU
         if kind == donors.ANONYMOUS:
             summary["anonymous_rows"] += 1
             summary["anonymous_amount"] += r.amount
+        elif kind == GOVERNMENT:
+            summary["government_rows"] += 1
+            summary["government_amount"] += r.amount
         elif kind == donors.INDIVIDUAL:
             individuals[donors.identity_key(name)].append(row)
         else:

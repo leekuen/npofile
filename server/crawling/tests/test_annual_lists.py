@@ -54,10 +54,12 @@ class AnnualListTests(TestCase):
             ("善心人士", 1000),
         ]))
         names = sorted(self.counted(organization=self.taker).values_list("donor_name", flat=True))
-        self.assertEqual(names, sorted(["範例科技股份有限公司", "衛福部", "陳大華", "陳大華"]))
+        self.assertEqual(names, sorted(["範例科技股份有限公司", "陳大華", "陳大華"]))
         self.assertFalse(Donor.objects.filter(name="王小明").exists())  # 未達 10 萬的個人不存姓名
+        self.assertFalse(Donor.objects.filter(name="衛福部").exists())  # 政府機關不算捐款人
         listing = AnnualDonorList.objects.get()
         self.assertEqual((listing.small_individual_count, listing.anonymous_rows, listing.total_rows), (1, 1, 6))
+        self.assertEqual((listing.government_rows, listing.government_amount), (1, 30000))
         d = Donation.objects.filter(donor_name="範例科技股份有限公司").get()
         self.assertEqual((d.year, d.donated_on, d.source_name), (self.y, None, "財團法人年度清冊（接受）"))
 
@@ -73,7 +75,7 @@ class AnnualListTests(TestCase):
         listing = AnnualDonorList.objects.get()
         self.assertEqual(listing.unmatched, [{"name": "不在站上的協會", "amount": 10000}])
         self.assertFalse(Donation.objects.filter(donor_name__contains="喪葬").exists())  # 個人受助者不留
-        self.assertEqual(listing.small_individual_count, 1)
+        self.assertEqual(listing.anonymous_rows, 1)  # 「林〇儀」被遮名：當匿名
 
     def test_same_gift_in_pay_and_receive_lists_counts_once(self):
         self.ingest(

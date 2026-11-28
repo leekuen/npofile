@@ -295,7 +295,8 @@ def download_list(client: PoliteClient, d: DocLink) -> Item | None:
     parsed = annual_donors.parse(d.url, body, resp.headers.get("content-type", ""))
     if parsed is None:
         return None
-    direction = d.doc_kind[len(LIST_PREFIX):]
+    # 以檔案裡的標題為準（連結文字可能寫錯方向，見 annual_donors.Parsed.heading_direction）
+    direction = parsed.heading_direction or d.doc_kind[len(LIST_PREFIX):]
     result = annual_donors.summarize(direction, parsed.rows)
     return Item(
         "annual_list", "",
