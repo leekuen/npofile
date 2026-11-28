@@ -143,3 +143,8 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 # 環境部開放資料 API 金鑰（LK-36，crawl moenv_penalties）；不設就不抓環境部裁處
 MOENV_API_KEY = os.environ.get("MOENV_API_KEY", "")
 FINANCIAL_EXTRACT_MODEL = os.environ.get("FINANCIAL_EXTRACT_MODEL", "claude-opus-5-5")
+# 不用 API 金鑰、改用訂閱帳號讀：在裝了 Claude Code 的機器上跑 `claude setup-token`，把拿到的權杖設在這裡。
+# 每次爬取最多讀幾份（訂閱額度有上限，讀太多會卡住自己用 Claude）
+CLAUDE_CODE_OAUTH_TOKEN = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "")
+FINANCIAL_EXTRACT_CLI = os.environ.get("FINANCIAL_EXTRACT_CLI", "claude")
+FINANCIAL_EXTRACT_MAX_PER_RUN = int(os.environ.get("FINANCIAL_EXTRACT_MAX_PER_RUN", "10"))

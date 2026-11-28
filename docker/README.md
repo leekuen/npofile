@@ -122,6 +122,11 @@ docker compose up -d --build
 
 環境部裁處（`moenv_penalties`）：`.env` 設 `MOENV_API_KEY`（到 data.moenv.gov.tw 免費申請），改完 `docker compose up -d` 讓容器吃到。
 
+組織官網財報讀數字（`orgsite`，LK-17）：映像檔裡已經裝了 Claude Code。在任何一台登入過 Claude Code 的電腦跑 `claude setup-token`，
+把權杖貼到 `.env` 的 `CLAUDE_CODE_OAUTH_TOKEN`，改完 `docker compose up -d`。之後每次爬取最多讀 `FINANCIAL_EXTRACT_MAX_PER_RUN` 份（預設 10），
+用的是訂閱額度、不另外付費；讀出的數字一律進待審核。確認讀得到：
+`docker compose exec -u app scheduler claude -p "回答 OK" --tools ""`（印出 OK 就通了）。
+
 ## 看紀錄
 
 ```bash

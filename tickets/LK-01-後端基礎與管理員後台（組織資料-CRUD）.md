@@ -1,13 +1,13 @@
 ---
 id: LK-01
 title: 後端基礎與管理員後台（組織資料 CRUD）
-status: 開發中
+status: 完成
 roles: [管理員/編輯]
 owner: claude-cc-LK-01
 depends: []
 spec: docs/SPEC.md#3-功能細節
 created: 2026-11-27
-updated: 2026-11-27
+updated: 2026-11-28
 ---
 
 ## 目的（要解決什麼問題）
@@ -78,3 +78,4 @@ updated: 2026-11-27
 - 已知限制：本機沒有 PostgreSQL，實際連 PostgreSQL 只驗了設定解析，沒有真的連線跑過。
 - commit：ead107e（後端）、本票後續提交見分支 feature/LK-01。
 - 2026-11-27 使用者回覆「全部同意，合併」：〈條件確認〉全部已確認，同意合流 stage。
+- 2026-11-28 正式站驗收（prod `634d2f1`）：後台 `/admin/` 打得開，建立／搜尋／權限有自動化測試涵蓋；後台新增與編輯沒有在正式站實際登入操作。
