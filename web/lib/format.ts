@@ -23,6 +23,13 @@ export function formatRocDate(iso: string | null | undefined): string {
   return `${y - 1911}/${String(m).padStart(2, "0")}/${String(d).padStart(2, "0")}`;
 }
 
+/** ISO 日期 → 民國年月（例：114/03） */
+export function formatRocMonth(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const [y, m] = iso.slice(0, 7).split("-").map(Number);
+  return `${y - 1911}/${String(m).padStart(2, "0")}`;
+}
+
 export function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }).slice(0, -3);
 }
