@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('orgs', '0019_annual_donor_lists'),
+        ('orgs', '0020_gift'),
     ]
 
     operations = [
