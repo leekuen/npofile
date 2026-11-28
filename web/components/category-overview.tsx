@@ -6,7 +6,7 @@ import { formatMoney, formatNumber, formatRocDate } from "@/lib/format";
 import { ApiUnavailableError, getCategory } from "@/lib/server-api";
 import type { CategoryOverview } from "@/lib/types";
 
-import { Card, EmptyState, ErrorBox, PageHeader, ScoreBadge, SectionHeading, Skeleton, Stat, TextLink } from "./ui";
+import { Card, EmptyState, ErrorBox, PageHeader, LevelBadge, SectionHeading, Skeleton, Stat, TextLink } from "./ui";
 
 function listHref(c: CategoryOverview) {
   if (c.dimension === "target") return `/?target=${c.code}`;
@@ -66,11 +66,11 @@ export async function CategoryOverviewView({ params }: { params: Promise<{ code:
       </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Section title="揭露指數最高">
-          {c.top_score.length === 0 ? (
+        <Section title="揭露層級最高">
+          {c.top_level.length === 0 ? (
             <EmptyState title="這個分類還沒有組織" />
           ) : (
-            <OrgList rows={c.top_score.map((o) => ({ ...o, right: <ScoreBadge score={o.disclosure_score} /> }))} />
+            <OrgList rows={c.top_level.map((o) => ({ ...o, right: <LevelBadge level={o.disclosure_level} /> }))} />
           )}
         </Section>
         <Section title={`近 5 年公開募款最多`}>

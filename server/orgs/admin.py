@@ -135,15 +135,15 @@ class OrgCategoryInline(admin.TabularInline):
 
 @admin.register(Organization)
 class OrganizationAdmin(admin.ModelAdmin):
-    list_display = ("name", "ubn", "city", "status", "disclosure_score", "updated_at")
-    list_filter = ("status", "city", "org_type")
+    list_display = ("name", "ubn", "city", "status", "disclosure_level", "updated_at")
+    list_filter = ("status", "disclosure_level", "city", "org_type")
     search_fields = ("ubn", "name")
-    readonly_fields = ("disclosure_score", "created_at", "updated_at")
+    readonly_fields = ("disclosure_level", "created_at", "updated_at")
     inlines = [OrgCategoryInline, AnnualInline, FinancialYearInline, OrgDocumentInline, DonationInline, ProjectInline,
                PenaltyInline]
     actions = ["unlock_fields"]
     fieldsets = (
-        (None, {"fields": ("ubn", "name", "status", "disclosure_score")}),
+        (None, {"fields": ("ubn", "name", "status", "disclosure_level")}),
         ("基本資料", {"fields": ("org_type", "representative", "registered_address", "contact_address", "phone", "website", "city", "purposes")}),
         ("來源與爬蟲", {"fields": ("source_links", "locked_fields", "created_at", "updated_at"), "classes": ("collapse",)}),
     )

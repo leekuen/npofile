@@ -1,4 +1,4 @@
-"""揭露指數（口徑見 tickets/LK-03〈數字口徑〉）與近五年裁罰的期間定義。
+"""揭露層級（口徑見 tickets/LK-35）、近 5 年公開募款與近五年裁罰的期間定義。
 
 只有這裡算分；後台、API、統計都讀這支。
 """
@@ -7,17 +7,19 @@ from __future__ import annotations
 
 from datetime import date
 
-from django.db.models import Count, Q, QuerySet
+from django.db.models import Count, Prefetch, Q, QuerySet
 from django.utils import timezone
 
 from . import period
-from .models import Organization, Project
+from .models import AnnualFundraising, FinancialYear, OrgDocument, Organization, Project
 
-BASIC_FIELDS = ("ubn", "org_type", "address", "phone", "website", "purposes")
-BASIC_POINTS = 5
-FUNDRAISING_POINTS = 25
-PROJECT_POINTS = 20
-RESULT_POINTS = 25
+# 揭露層級（口徑見 tickets/LK-35）：四層依序達成，每一層的條件全部達到才算
+LEVEL_NAMES = {0: "資料不足", 1: "身分可查", 2: "活動可查", 3: "財務可查", 4: "長期可查"}
+# 給人看的等級名稱（使用者 2026-11-28 定案：銅銀金鑽石，最高一級參考台灣綠建築標章的「鑽石級」）
+LEVEL_MEDALS = {0: "未分級", 1: "銅", 2: "銀", 3: "金", 4: "鑽石"}
+MAX_LEVEL = 4
+FINANCIAL_RECENT_YEARS = 2  # 第 3 層：年度 ≥ 今年 − 2
+CONSECUTIVE_YEARS = 3  # 第 4 層：連續 3 個年度
 
 
 def today() -> date:
@@ -40,48 +42,91 @@ def with_penalty_count(qs: QuerySet[Organization]) -> QuerySet[Organization]:
     return qs.annotate(penalty_count_5y=Count("penalties", filter=penalty_5y_filter("penalties__"), distinct=True))
 
 
-def breakdown(org: Organization, annual=None, donations_exist=None, projects=None, ref: date | None = None) -> dict:
-    """回傳四項分數與總分。annual/projects 可傳入已預先載入的清單，避免重複查詢。"""
-    annual = list(org.annual_records.all()) if annual is None else annual
-    projects = list(org.projects.all()) if projects is None else projects
+def _check(key: str, label: str, met: bool, hint: str = "") -> dict:
+    return {"key": key, "label": label, "met": bool(met), "hint": hint}
+
+
+def _has_numbers(f) -> bool:
+    return f.total_revenue is not None and f.total_expenses is not None
+
+
+def levels(org: Organization, *, projects=None, financials=None, documents=None, registries=None,
+           has_grants=None, ref: date | None = None) -> dict:
+    """揭露層級：回傳層級（0～4）、名稱與四層各條件有沒有達到。
+
+    只用站上收錄的公開資料；可傳入已預先載入的清單，避免重複查詢。裁罰不影響層級（另外標示）。
+    """
+    ref = ref or today()
+    roc = ref.year - 1911
     since = period.since_roc_year(ref)
-    # 揭露指數的專案兩項是照政府勸募許可定義的：群眾集資專案沒有成果備查，不算（LK-15）
-    projects = [p for p in projects if period.in_window(p.period_year, ref) and p.channel == Project.Channel.PERMIT]
-    if donations_exist is None:
-        donations_exist = org.donations.exists()
+    projects = list(org.projects.all()) if projects is None else projects
+    financials = list(org.financials.all()) if financials is None else financials
+    documents = list(org.documents.all()) if documents is None else documents
+    registries = list(org.registry_entries.all()) if registries is None else registries
+    if has_grants is None:
+        has_grants = org.grants.filter(year__gte=since).exists()
 
-    present = {
-        "ubn": bool(org.ubn),
-        "org_type": bool(org.org_type.strip()),
-        "address": bool(org.registered_address.strip() or org.contact_address.strip()),
-        "phone": bool(org.phone.strip()),
-        "website": bool(org.website.strip()),
-        "purposes": bool(org.purposes.strip()),
-    }
-    basic = sum(BASIC_POINTS for f in BASIC_FIELDS if present[f])
+    # 第 1 層：身分可查
+    purpose = bool(org.purposes.strip()) or any(r.purpose.strip() for r in registries)
+    layer1 = [
+        _check("active", "營運中", org.status == Organization.Status.ACTIVE),
+        _check("ubn", "統一編號", bool(org.ubn)),
+        _check("org_type", "團體類型", bool(org.org_type.strip())),
+        _check("address", "地址", bool(org.registered_address.strip() or org.contact_address.strip())),
+        _check("purpose", "宗旨或勸募用途", purpose),
+        _check("contact", "電話或官網", bool(org.phone.strip() or org.website.strip())),
+    ]
 
-    has_fundraising = donations_exist or any(a.year >= since and (a.raised or 0) > 0 for a in annual)
-    fundraising = FUNDRAISING_POINTS if has_fundraising else 0
+    # 第 2 層：活動可查；有辦勸募的，到期的活動要全部成果備查
+    permits = [p for p in projects if p.channel == Project.Channel.PERMIT and period.in_window(p.period_year, ref)]
+    has_business = any(r.main_business.strip() for r in registries)
+    due = [p for p in permits if (p.raised or 0) > 0 and p.period_year is not None and p.period_year < roc]
+    filed = [p for p in due if p.result_filed_on]
+    layer2 = [
+        _check("activity", f"{since} 年以後有看得到的活動（勸募活動、政府補助或主管機關名冊的主要業務）",
+               bool(permits) or has_grants or has_business),
+        _check("results_filed", "到期的勸募活動都已成果備查", len(filed) == len(due),
+               f"已備查 {len(filed)}／{len(due)}" if due else "沒有到期的勸募活動"),
+    ]
 
-    project = PROJECT_POINTS if projects else 0
+    # 第 3 層：財務可查
+    fin_years = sorted({f.year for f in financials if _has_numbers(f)}, reverse=True)
+    recent_from = roc - FINANCIAL_RECENT_YEARS
+    layer3 = [
+        _check("financial_recent", f"{recent_from} 年以後的財務報告（至少有總收入、總支出）",
+               bool(fin_years) and fin_years[0] >= recent_from),
+    ]
 
-    funded = [p for p in projects if (p.raised or 0) > 0]
-    filed = [p for p in funded if p.result_filed_on]
-    result = round(RESULT_POINTS * len(filed) / len(funded)) if funded else 0
+    # 第 4 層：長期可查
+    years = set(fin_years)
+    consecutive = any(
+        all(y - i in years for i in range(CONSECUTIVE_YEARS)) for y in fin_years if y >= recent_from
+    )
+    latest = max((f for f in financials if _has_numbers(f)), key=lambda f: f.year, default=None)
+    reports = any(d.kind in (OrgDocument.Kind.ANNUAL, OrgDocument.Kind.WORK) and d.year >= recent_from
+                  for d in documents)
+    layer4 = [
+        _check("financial_consecutive", f"連續 {CONSECUTIVE_YEARS} 個年度的財務報告", consecutive),
+        _check("audited", "最近一年財報經會計師查核", bool(latest and latest.audited)),
+        _check("report", f"{recent_from} 年以後的年報或工作／成果報告", reports),
+    ]
 
+    layers = []
+    level = 0
+    for n, checks in enumerate((layer1, layer2, layer3, layer4), start=1):
+        met = all(c["met"] for c in checks)
+        layers.append({"level": n, "medal": LEVEL_MEDALS[n], "name": LEVEL_NAMES[n], "met": met, "checks": checks})
+        if met and level == n - 1:
+            level = n
     return {
-        "basic": basic,
-        "basic_max": BASIC_POINTS * len(BASIC_FIELDS),
-        "basic_present": present,
-        "fundraising": fundraising,
-        "fundraising_max": FUNDRAISING_POINTS,
-        "project": project,
-        "project_max": PROJECT_POINTS,
-        "result": result,
-        "result_max": RESULT_POINTS,
-        "result_funded_projects": len(funded),
-        "result_filed_projects": len(filed),
-        "total": basic + fundraising + project + result,
+        "level": level,
+        "medal": LEVEL_MEDALS[level],
+        "name": LEVEL_NAMES[level],
+        "max_level": MAX_LEVEL,
+        "active": org.status == Organization.Status.ACTIVE,
+        "layers": layers,
+        "results_due": len(due),
+        "results_filed": len(filed),
     }
 
 
@@ -143,20 +188,28 @@ def donation_trend(annual, projects, grants, ref: date | None = None) -> list[di
 
 
 def recompute(orgs: QuerySet[Organization] | None = None, chunk: int = 2000) -> int:
-    """重算揭露指數與近 5 年公開募款並寫回；回傳有變動的組織數。"""
+    """重算揭露層級與近 5 年公開募款並寫回；回傳有變動的組織數。"""
+    since = period.since_roc_year()
     qs = (orgs if orgs is not None else Organization.objects.all()).order_by("pk")
-    qs = qs.prefetch_related("annual_records", "projects").annotate(
-        _donations=Count("donations", filter=period.donation_q("donations__"))
-    )
+    qs = qs.prefetch_related(
+        Prefetch("annual_records", queryset=AnnualFundraising.objects.filter(year__gte=since)),
+        Prefetch("projects", queryset=Project.objects.filter(period.project_q())),
+        Prefetch("financials", queryset=FinancialYear.objects.filter(year__gte=since)),
+        Prefetch("documents", queryset=OrgDocument.objects.filter(year__gte=since)),
+        "registry_entries",
+    ).annotate(_grants=Count("grants", filter=Q(grants__year__gte=since)))
     changed = 0
     batch: list[Organization] = []
     for org in qs.iterator(chunk_size=chunk):
         annual = list(org.annual_records.all())
         projects = list(org.projects.all())
-        total = breakdown(org, annual=annual, projects=projects, donations_exist=org._donations > 0)["total"]
+        level = levels(
+            org, projects=projects, financials=list(org.financials.all()), documents=list(org.documents.all()),
+            registries=list(org.registry_entries.all()), has_grants=org._grants > 0,
+        )["level"]
         raised = public_raised(annual, projects)["total"]
-        if total != org.disclosure_score or raised != org.public_raised_5y:
-            org.disclosure_score = total
+        if level != org.disclosure_level or raised != org.public_raised_5y:
+            org.disclosure_level = level
             org.public_raised_5y = raised
             batch.append(org)
         if len(batch) >= chunk:
@@ -168,6 +221,6 @@ def recompute(orgs: QuerySet[Organization] | None = None, chunk: int = 2000) -> 
 def _flush(batch: list[Organization]) -> int:
     n = len(batch)
     if n:
-        Organization.objects.bulk_update(batch, ["disclosure_score", "public_raised_5y"])
+        Organization.objects.bulk_update(batch, ["disclosure_level", "public_raised_5y"])
         batch.clear()
     return n

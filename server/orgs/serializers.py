@@ -31,7 +31,7 @@ class OrganizationListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = (
-            "ubn", "name", "org_type", "city", "status", "status_label", "disclosure_score", "penalty_count_5y",
+            "ubn", "name", "org_type", "city", "status", "status_label", "disclosure_level", "penalty_count_5y",
             "public_raised_5y", "tags", "latest_revenue",
         )
 
@@ -189,7 +189,7 @@ class DonationCodeSerializer(serializers.ModelSerializer):
 class OrganizationDetailSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source="get_status_display")
     penalty_count_5y = serializers.IntegerField()
-    score = serializers.SerializerMethodField()
+    levels = serializers.SerializerMethodField()
     public_raised = serializers.SerializerMethodField()
     annual_records = AnnualSerializer(many=True)
     financials = FinancialYearSerializer(many=True)
@@ -213,8 +213,8 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
         model = Organization
         fields = (
             "ubn", "name", "org_type", "representative", "registered_address", "contact_address", "phone",
-            "website", "city", "purposes", "status", "status_label", "source_links", "disclosure_score",
-            "penalty_count_5y", "score", "public_raised", "annual_records", "financials", "documents", "projects",
+            "website", "city", "purposes", "status", "status_label", "source_links", "disclosure_level",
+            "penalty_count_5y", "levels", "public_raised", "annual_records", "financials", "documents", "projects",
             "penalties", "grants", "court_registrations", "court_dissolution", "registries", "donation_codes", "donation_trend", "donations",
             "corporate_donors", "individual_donors", "donor_summary", "since_roc_year", "categories",
             "updated_at",
@@ -230,8 +230,9 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     def get_court_dissolution(self, obj):
         return court_dissolution(list(obj.court_registrations.all()))
 
-    def get_score(self, obj):
-        return scoring.breakdown(obj)
+    def get_levels(self, obj):
+        # 組織頁的補助已預先載入近 5 年那幾筆，直接用，不再查一次
+        return scoring.levels(obj, has_grants=bool(obj.grants.all()))
 
     def get_public_raised(self, obj):
         return scoring.public_raised(list(obj.annual_records.all()), list(obj.projects.all()))
