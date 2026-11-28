@@ -18,12 +18,13 @@ from .serializers import (
     OrganizationListSerializer,
 )
 
-# 預設「近 5 年公開募款」（勸募申報＋群眾集資，口徑見 tickets/LK-20）；沒有的組織排在後面，依揭露層級、名稱
+# 預設「近 5 年公開募款」（勸募申報＋群眾集資，口徑見 tickets/LK-20）；沒有的組織排在後面，依揭露層級、名稱。
+# 每一種排序都先排有資料的（LK-46）：只有財政部名冊基本資料的照樣搜得到，只是排在最後
 ORDERINGS = {
-    "raised": ("-public_raised_5y", "-disclosure_level", "name"),
-    "level": ("-disclosure_level", "-public_raised_5y", "name"),
-    "score": ("-disclosure_level", "-public_raised_5y", "name"),  # 舊網址（揭露指數時代）照樣能用
-    "name": ("name",),
+    "raised": ("-has_data", "-public_raised_5y", "-disclosure_level", "name"),
+    "level": ("-has_data", "-disclosure_level", "-public_raised_5y", "name"),
+    "score": ("-has_data", "-disclosure_level", "-public_raised_5y", "name"),  # 舊網址（揭露指數時代）照樣能用
+    "name": ("-has_data", "name"),
 }
 DEFAULT_ORDERING = "raised"
 
@@ -44,6 +45,9 @@ class OrganizationList(ListAPIView):
             qs = qs.filter(city=city)
         if status := params.get("status", "").strip():
             qs = qs.filter(status=status)
+        # 揭露層級（鑽石級專頁用，LK-46）
+        if (level := params.get("level", "").strip()).isdigit():
+            qs = qs.filter(disclosure_level=int(level))
         qs = category_api.filter_orgs(qs, params)
         # 卡片上的「總收入（民國 N 年度）」：近 5 年內、有總收入的最近一年（LK-17）
         latest = FinancialYear.objects.filter(
@@ -97,6 +101,8 @@ def stats(request):
     return Response(
         {
             "organizations": orgs.count(),
+            "with_data": orgs.filter(has_data=True).count(),
+            "diamond": orgs.filter(disclosure_level=scoring.MAX_LEVEL).count(),
             "with_fundraising": orgs.filter(
                 period.annual_q("annual_records__") | (Q(projects__isnull=False) & period.project_q("projects__"))
             ).distinct().count(),
