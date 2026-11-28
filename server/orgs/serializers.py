@@ -87,8 +87,8 @@ class ProjectSerializer(serializers.ModelSerializer):
         )
 
 
-# 勞動局公布的違反勞基法處分（LK-29）跟公益勸募裁處分開標示
-LABOR_SOURCE_NAMES = {spec.source_name for spec in labor.SPECS}
+# 勞動局公布的違反勞基法處分（LK-29）、勞動部全國違反勞動法令名單（LK-37）跟公益勸募裁處分開標示
+LABOR_SOURCE_NAMES = {spec.source_name for spec in labor.SPECS} | {labor.MOL_SOURCE_NAME}
 
 
 class PenaltySerializer(serializers.ModelSerializer):

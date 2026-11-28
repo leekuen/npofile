@@ -12,7 +12,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from npofile_crawler import donors as donor_names
-from npofile_crawler import judicial
+from npofile_crawler import judicial, labor
 from npofile_crawler.http import PoliteClient
 from npofile_crawler.items import Item
 from npofile_crawler.sources import SOURCES
@@ -121,6 +121,8 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
                         values["listed"] = [0]
                     if "seen_regs" in src.options:
                         values.update(court_registration_options())
+                    if "labor_docs" in src.options:
+                        values["labor_docs"] = labor_docs(source.key)
                     if source.key == "orgsite":
                         values.update(orgsite_targets.options(source))
                     items = src.fetch(client, limit, **{k: values[k] for k in src.options})
@@ -174,6 +176,16 @@ def court_registration_options() -> dict:
     seen = {f"{c}|{n}" for c, n in CourtRegistration.objects.values_list("court", "case_no").iterator(chunk_size=5000)}
     oldest = CourtRegistration.objects.order_by("posted_on").values_list("posted_on", flat=True).first()
     return {"seen_regs": seen, "floor_reached": judicial.backfill_done(oldest)}
+
+
+def labor_docs(key: str) -> set[str]:
+    """別的勞動來源已收過的處分字號（LK-37）：臺北市總表與勞動部全國系統會列到同一張處分，先收到的算數，
+    另一邊不再收（含退回的：管理員已經判過這張不是收錄的組織）。"""
+    others = [k for k in (*(s.key for s in labor.SPECS), labor.MOL_KEY) if k != key]
+    # 讀整份 payload 再取欄位：SQLite 用 payload__document_no 取值會把全是數字的字號（例「1150253854」）讀成整數
+    payloads = (CrawlRecord.objects.filter(source__key__in=others, kind=CrawlRecord.Kind.PENALTY)
+                .values_list("payload", flat=True).iterator(chunk_size=5000))
+    return {str(d) for p in payloads if (d := (p or {}).get("document_no"))}
 
 
 # 已收過的群眾集資專案：長期集資或結束未滿這麼多天的，列表上沒有也要回頭再看（記下結束時的金額）
