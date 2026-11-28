@@ -8,10 +8,11 @@
 
 from __future__ import annotations
 
-from django.db.models import Count, Q, QuerySet, Sum
+from django.db.models import Count, Max, Min, Q, QuerySet, Sum
+from django.db.models.functions import ExtractYear
 
 from . import period
-from .models import Donation, Donor, DonorListSummary, Organization
+from .models import Donation, Donor, DonorListSummary, Organization, Penalty
 
 RANKING_SIZE = 20
 
@@ -84,26 +85,99 @@ def org_summary(org: Organization) -> dict | None:
     }
 
 
+def dated_q(prefix: str = "") -> Q:
+    """畫進年度趨勢、算「持續幾年」「最近一次」的捐款（LK-38）：有日期、落在近 5 年的西元年、不晚於今天。
+    日期在今天之後的多半是清冊打錯（本機看過 2028、2055 年），照算總額與排名，但不畫進年度、不當成最近一次。"""
+    today = period.today()
+    return Q(**{f"{prefix}donated_on__gte": period.window_start(), f"{prefix}donated_on__lte": today})
+
+
 def public_donors() -> QuerySet[Donor]:
+    in_window = period.donation_q("donations__")
+    dated = in_window & dated_q("donations__")
     return (
         Donor.objects.filter(kind__in=Donor.PUBLIC_KINDS, hidden=False)
         .annotate(
-            total=Sum("donations__amount", filter=period.donation_q("donations__")),
-            donation_count=Count("donations", filter=period.donation_q("donations__"), distinct=True),
-            org_count=Count("donations__organization", filter=period.donation_q("donations__"), distinct=True),
+            total=Sum("donations__amount", filter=in_window),
+            donation_count=Count("donations", filter=in_window, distinct=True),
+            org_count=Count("donations__organization", filter=in_window, distinct=True),
+            active_year_count=Count(ExtractYear("donations__donated_on"), filter=dated, distinct=True),
+            last_donated_on=Max("donations__donated_on", filter=dated),
         )
         .filter(donation_count__gt=0)
     )
 
 
+def _dated(donor: Donor) -> QuerySet[Donation]:
+    return donor.donations.filter(period.donation_q()).filter(dated_q())
+
+
+def donor_rank(donor: Donor) -> dict:
+    """同類（企業比企業、團體比團體）依近 5 年總額排名；同額同名次（比自己多的人數 + 1）。"""
+    peers = public_donors().filter(kind=donor.kind)
+    total = getattr(donor, "total", None)
+    if total is None:
+        total = donor.donations.filter(period.donation_q()).aggregate(t=Sum("amount"))["t"] or 0
+    return {"rank": peers.filter(total__gt=total).count() + 1, "rank_of": peers.count()}
+
+
+def donor_yearly(donor: Donor) -> list[dict]:
+    """近 5 年每年（民國）捐款總額、捐給幾個組織、幾筆；沒有捐款的年度補 0。"""
+    rows = {
+        r["y"] - 1911: r
+        for r in _dated(donor)
+        .annotate(y=ExtractYear("donated_on"))
+        .values("y")
+        .annotate(total=Sum("amount"), org_count=Count("organization", distinct=True), count=Count("id"))
+    }
+    this_year = period.today().year - 1911
+    out = []
+    for y in range(period.since_roc_year(), this_year + 1):
+        r = rows.get(y)
+        out.append(
+            {"year": y, "total": r["total"] if r else 0, "org_count": r["org_count"] if r else 0, "count": r["count"] if r else 0}
+        )
+    return out
+
+
+def donor_overview(donor: Donor) -> dict:
+    agg = _dated(donor).aggregate(first=Min("donated_on"), last=Max("donated_on"))
+    biggest = donor.donations.filter(period.donation_q()).aggregate(m=Max("amount"))["m"]
+    years = sorted(
+        {y - 1911 for y in _dated(donor).annotate(y=ExtractYear("donated_on")).values_list("y", flat=True)}
+    )
+    return {
+        **donor_rank(donor),
+        "active_years": years,
+        "first_donated_on": agg["first"],
+        "last_donated_on": agg["last"],
+        "max_donation": biggest or 0,
+        "yearly": donor_yearly(donor),
+    }
+
+
 def donor_by_org(donor: Donor) -> list[dict]:
-    rows = (
+    rows = list(
         donor.donations.filter(period.donation_q())
-        .values("organization__ubn", "organization__name")
+        .values("organization_id", "organization__ubn", "organization__name")
         .annotate(total=Sum("amount"), count=Count("id"))
-        .order_by("-total")
+        .order_by("-total", "organization__name")
+    )
+    org_ids = [r["organization_id"] for r in rows]
+    years: dict[int, set[int]] = {}
+    for org_id, d in _dated(donor).values_list("organization_id", "donated_on"):
+        years.setdefault(org_id, set()).add(d.year - 1911)
+    # 裁罰不受 5 年限制（LK-07）：該組織全部的裁罰紀錄
+    penalties = dict(
+        Penalty.objects.filter(organization_id__in=org_ids)
+        .values("organization_id")
+        .annotate(n=Count("id"))
+        .values_list("organization_id", "n")
     )
     return [
-        {"ubn": r["organization__ubn"], "name": r["organization__name"], "total": r["total"], "count": r["count"]}
+        {
+            "ubn": r["organization__ubn"], "name": r["organization__name"], "total": r["total"], "count": r["count"],
+            "years": sorted(years.get(r["organization_id"], ())), "penalty_count": penalties.get(r["organization_id"], 0),
+        }
         for r in rows
     ]

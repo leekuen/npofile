@@ -1,10 +1,12 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { formatMoney, formatNumber, formatRocDate } from "@/lib/format";
+import { formatCompact, formatMoney, formatNumber, formatRocDate } from "@/lib/format";
 import { ApiUnavailableError, getDonor } from "@/lib/server-api";
 import type { DonorDetail } from "@/lib/types";
 
+import { DonorTrendChart } from "./financial-chart";
 import { Card, ErrorBox, PageHeader, Skeleton, TextLink } from "./ui";
 
 export async function DonorDetailView({ params }: { params: Promise<{ id: string }> }) {
@@ -21,6 +23,7 @@ export async function DonorDetailView({ params }: { params: Promise<{ id: string
   if (!donor) notFound();
 
   const shown = donor.donations.length;
+  const ov = donor.overview;
 
   return (
     <div className="space-y-8">
@@ -43,6 +46,20 @@ export async function DonorDetailView({ params }: { params: Promise<{ id: string
         </p>
       </PageHeader>
 
+      <Overview donor={donor} />
+
+      {ov.active_years.length >= 2 && (
+        <section>
+          <h2 className="mb-3 font-display text-xl font-bold text-ink-900">近 5 年捐款趨勢</h2>
+          <Card>
+            <DonorTrendChart yearly={ov.yearly} partialYear={ov.yearly[ov.yearly.length - 1].year} />
+            <p className="mt-3 text-xs text-ink-600">依捐款日期的年度加總；清冊上沒有日期的捐款不畫進圖，但算在總額裡。</p>
+          </Card>
+        </section>
+      )}
+
+      {donor.fields_breakdown.length > 0 && <FieldBreakdown rows={donor.fields_breakdown} />}
+
       {donor.ubn && (
         <section>
           <h2 className="mb-3 font-display text-xl font-bold text-ink-900">公司登記</h2>
@@ -58,8 +75,6 @@ export async function DonorDetailView({ params }: { params: Promise<{ id: string
         </section>
       )}
 
-      {donor.fields_breakdown.length > 0 && <FieldBreakdown rows={donor.fields_breakdown} />}
-
       <section>
         <h2 className="mb-3 font-display text-xl font-bold text-ink-900">捐給哪些組織</h2>
         <Card className="p-0 sm:p-0">
@@ -70,6 +85,21 @@ export async function DonorDetailView({ params }: { params: Promise<{ id: string
                 <span className="min-w-0 flex-1 break-words">
                   <TextLink href={`/orgs/${o.ubn}?tab=donations`}>{o.name}</TextLink>
                   <span className="ml-2 text-xs text-ink-500 tabular-nums">{formatNumber(o.count)} 筆</span>
+                  <span className="mt-1 flex flex-wrap items-center gap-1 text-xs">
+                    {o.years.map((y) => (
+                      <span key={y} className="rounded bg-brand-50 px-1.5 tabular-nums text-brand-800">
+                        {y} 年
+                      </span>
+                    ))}
+                    {o.penalty_count > 0 && (
+                      <Link
+                        href={`/orgs/${o.ubn}?tab=penalties`}
+                        className="rounded bg-red-100 px-1.5 text-red-800 underline underline-offset-2 hover:bg-red-200"
+                      >
+                        裁罰 {formatNumber(o.penalty_count)} 筆
+                      </Link>
+                    )}
+                  </span>
                 </span>
                 <span className="font-medium tabular-nums">{formatMoney(o.total)}</span>
               </li>
@@ -124,7 +154,7 @@ function FieldBreakdown({ rows }: { rows: DonorDetail["fields_breakdown"] }) {
   const max = Math.max(...rows.map((r) => r.total), 1);
   return (
     <section>
-      <h2 className="mb-1 font-display text-xl font-bold text-ink-900">捐給哪些領域</h2>
+      <h2 className="mb-1 font-display text-xl font-bold text-ink-900">從捐款看關注議題</h2>
       <p className="mb-3 text-xs text-ink-600">受捐組織同時屬於多個領域時，金額會分別算進每個領域。</p>
       <Card>
         <ul className="space-y-2.5">
@@ -141,6 +171,50 @@ function FieldBreakdown({ rows }: { rows: DonorDetail["fields_breakdown"] }) {
           ))}
         </ul>
       </Card>
+    </section>
+  );
+}
+
+/** 捐款概況四格（LK-38）：只放客觀數字，不打分數。 */
+function Overview({ donor }: { donor: DonorDetail }) {
+  const ov = donor.overview;
+  const pct = Math.max(1, Math.ceil((ov.rank / Math.max(ov.rank_of, 1)) * 100));
+  const stats: { label: string; value: string; note?: string }[] = [
+    {
+      label: `${donor.kind_label}排名`,
+      value: `第 ${formatNumber(ov.rank)} 名`,
+      // 「前 N%」不拆行（窄螢幕會斷成「前」與「1%」兩行）
+      note: `共 ${formatNumber(ov.rank_of)} 個${donor.kind_label}・前 ${pct}%`,
+    },
+    {
+      label: "持續支持",
+      value: ov.active_years.length ? `${ov.active_years.length} 個年度` : "—",
+      note: ov.active_years.length ? ov.active_years.join("、") : "清冊沒有捐款日期",
+    },
+    {
+      label: "最近一次捐款",
+      value: formatRocDate(ov.last_donated_on),
+      note: ov.first_donated_on ? `第一次 ${formatRocDate(ov.first_donated_on)}` : undefined,
+    },
+    { label: "單筆最大", value: ov.max_donation >= 1e4 ? `${formatCompact(ov.max_donation)}元` : formatMoney(ov.max_donation) },
+  ];
+  return (
+    <section aria-labelledby="donor-overview">
+      <h2 id="donor-overview" className="mb-3 font-display text-xl font-bold text-ink-900">
+        捐款概況
+      </h2>
+      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {stats.map((s) => (
+          <Card key={s.label} className="min-w-0">
+            <dt className="text-sm text-ink-600">{s.label}</dt>
+            <dd className="mt-1 font-num text-xl font-bold tabular-nums text-ink-900">{s.value}</dd>
+            {s.note && <dd className="mt-0.5 break-words text-xs text-ink-600 tabular-nums">{s.note}</dd>}
+          </Card>
+        ))}
+      </dl>
+      <p className="mt-2 text-xs text-ink-600">
+        以上依衛福部公益勸募活動公開的捐贈人清冊計算，只涵蓋近 5 年、透過公益勸募活動的捐款，不是這家{donor.kind_label}全部的捐款。
+      </p>
     </section>
   );
 }
