@@ -75,6 +75,12 @@ class ExtractTests(unittest.TestCase):
         self.assertNotIn("董事會", text)  # 下一個標題就停
         self.assertNotIn("電話", text)
 
+    def test_stops_at_button_or_pseudo_heading(self):
+        page = """<html><body><h2>我們的使命</h2>
+<p>我們的使命是促進可持續的交通改革，以人為中心，提升市民的生活質量。</p>
+<div><span>立即參加</span></div><p>我們的核心價值</p><p>安全、友善、公平的道路環境，讓每個人都能放心走路。</p></body></html>"""
+        self.assertEqual(mission.extract(page), "我們的使命是促進可持續的交通改革，以人為中心，提升市民的生活質量。")
+
     def test_heading_inside_paragraph(self):
         self.assertEqual(mission.extract(INLINE_PAGE), "推動偏鄉兒童閱讀，讓每個孩子都有書可讀、有人陪讀。")
 
@@ -83,6 +89,10 @@ class ExtractTests(unittest.TestCase):
 
     def test_meta_description_as_last_resort(self):
         self.assertEqual(mission.extract(HOME), "自閉症基金會：陪伴自閉症者與家庭走過每個人生階段。")
+
+    def test_double_escaped_entity_decoded(self):
+        page = "<html><body><p>本會宗旨：人心淨化、社會祥和、天下無災無難&amp;nbsp;，推動環保與助人。</p></body></html>"
+        self.assertEqual(mission.extract(page), "人心淨化、社會祥和、天下無災無難 ，推動環保與助人。")
 
     def test_nothing_found(self):
         self.assertIsNone(mission.extract(NOTHING_PAGE))

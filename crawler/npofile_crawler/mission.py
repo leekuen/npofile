@@ -14,6 +14,7 @@ Item 種類：
 from __future__ import annotations
 
 import hashlib
+import html as htmllib
 import logging
 import re
 from collections.abc import Callable, Iterable, Iterator, Mapping
@@ -129,6 +130,8 @@ def _after_heading(head) -> str:
             continue
         if NOISE_RE.search(text):
             break
+        if parts and len(text) < 15 and not re.search(r"[，。；、,.;]", text):
+            break  # 段落後面的短字（「立即參加」按鈕、沒用 h 標籤的小標題）：宗旨段落到此為止
         parts.append(text)
         if sum(len(p) for p in parts) >= 300:
             break
@@ -137,6 +140,14 @@ def _after_heading(head) -> str:
 
 def extract(html: str) -> str | None:
     """一頁裡的宗旨原文；找不到回 None。"""
+    text = _extract(html)
+    if text is None:
+        return None
+    # 有些網站把實體字元多跳脫一次（&amp;nbsp;），解析後還留著「&nbsp」
+    return _clean(htmllib.unescape(text))[:MAX_TEXT] or None
+
+
+def _extract(html: str) -> str | None:
     soup = BeautifulSoup(html, "html.parser")
     meta = soup.find("meta", attrs={"name": re.compile("^description$", re.I)})
     description = _clean(meta.get("content", "")) if meta else ""
