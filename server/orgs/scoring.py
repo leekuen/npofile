@@ -114,6 +114,34 @@ def public_raised(annual, projects, ref: date | None = None) -> dict:
     }
 
 
+def donation_trend(annual, projects, grants, ref: date | None = None) -> list[dict]:
+    """近 5 年受捐款趨勢（LK-33）：每年勸募實募、群眾集資、政府補助各自加總（元），給組織頁折線圖。
+
+    三種錢來源不同、可能重疊（勸募申報可能已含集資），所以只分開列、不相加。
+    勸募與集資的年度歸屬跟 public_raised 同一套；補助要先用 distinct_grants 去重再傳進來。
+    沒有紀錄的年度是 0；今年三種都還是 0（多半是還沒申報）就不列今年，免得圖尾掉到 0。
+    """
+    since = period.since_roc_year(ref)
+    years = list(range(since, since + period.YEARS))
+    rows = {y: {"year": y, "permit": 0, "crowdfunding": 0, "grants": 0} for y in years}
+    for a in annual:
+        if a.year in rows:
+            rows[a.year]["permit"] += a.raised or 0
+    for p in projects:
+        if p.channel == Project.Channel.CROWDFUNDING and period.in_window(p.period_year, ref) and (p.raised or 0) > 0:
+            y = p.period_year if p.period_year is not None else years[-1]
+            if y in rows:
+                rows[y]["crowdfunding"] += p.raised
+    for g in grants:
+        if g.year in rows:
+            rows[g.year]["grants"] += g.amount or 0
+    out = [rows[y] for y in years]
+    last = out[-1]
+    if not (last["permit"] or last["crowdfunding"] or last["grants"]):
+        out.pop()
+    return out
+
+
 def recompute(orgs: QuerySet[Organization] | None = None, chunk: int = 2000) -> int:
     """重算揭露指數與近 5 年公開募款並寫回；回傳有變動的組織數。"""
     qs = (orgs if orgs is not None else Organization.objects.all()).order_by("pk")

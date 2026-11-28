@@ -206,6 +206,13 @@ export interface Grant {
   source_url: string;
 }
 
+export interface DonationTrendRow {
+  year: number;
+  permit: number;
+  crowdfunding: number;
+  grants: number;
+}
+
 /** 主管機關名冊（LK-32）：名稱對到這個組織的那一列；個人姓名與聯絡方式不存 */
 export interface RegistryEntry {
   authority: string;
@@ -247,6 +254,8 @@ export interface OrgDetail extends Omit<OrgSummary, "public_raised_5y"> {
   penalties: Penalty[];
   /** 政府補助（LK-19），近 5 年，金額大的在前 */
   grants: Grant[];
+  /** 近 5 年受捐款趨勢（LK-33）：每年勸募實募、群眾集資、政府補助（元），不相加；今年都是 0 時不列 */
+  donation_trend: DonationTrendRow[];
   court_registrations: CourtRegistration[];
   court_dissolution: CourtDissolution | null;
   /** 主管機關名冊與發票捐贈碼（LK-32）：沒有資料是空陣列 */
