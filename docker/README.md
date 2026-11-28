@@ -87,6 +87,10 @@ docker compose start backend web scheduler
 - **一定要在 repo 資料夾裡執行 `docker compose`**：`updater` 把 repo 掛在跟主機一樣的路徑（`${PWD}`），
   compose 裡的相對路徑才對得上；在別的資料夾用 `-f` 啟動會掛錯地方。
 - 它掛了 `/var/run/docker.sock`，等於能操作這台的 Docker；只拉公開 repo 的 `prod`，不需要任何帳號或 token。
+- **有排程工作在跑就先不更新**（LK-44）：`scheduler` 或 `backend` 裡有 `run-job.sh`（每晚爬蟲、備份、重算）
+  或 `manage.py crawl`、`run_crawl_requests` 在跑時，重建會把它砍掉，所以延後到下一輪再看，log 寫
+  「有新版，但排程工作還在跑，先不更新」。每晚的爬蟲常跑到早上，這段時間推的 `prod` 會等它跑完才上線。
+  最多等 12 小時（`AUTO_UPDATE_MAX_WAIT`，秒），超過就照樣更新。急著上線又不在乎中斷：手動更新（見下）。
 - 看它在做什麼：`docker compose logs -f updater`。
 - **不要在這台上直接改程式檔**（`.env` 與資料夾不算）：本機有改過的檔案或跟 `prod` 分岔時，它會停下來不更新、在 log 裡說原因。
   要還原成 GitHub 上的版本：`git fetch origin && git reset --hard origin/prod`。
@@ -115,6 +119,8 @@ docker compose up -d --build
 **不用下指令也能立即完整爬取**：後台 → 爬蟲來源設定 → 勾選來源 → 動作「排入完整爬取」。scheduler 一分鐘內開始，跑完會清舊資料並重算揭露指數；同一時間只跑一個，排隊中的可以在「完整爬取請求」取消。
 
 失敗通知：`.env` 設 `HEALTHCHECKS_PING_KEY`（healthchecks.io），做法見 `deploy/README.md`〈排程失敗通知〉。
+
+環境部裁處（`moenv_penalties`）：`.env` 設 `MOENV_API_KEY`（到 data.moenv.gov.tw 免費申請），改完 `docker compose up -d` 讓容器吃到。
 
 ## 看紀錄
 

@@ -5,6 +5,8 @@
 2. 列表上的實募金額跟上次檢查時不同 → 重抓（金額變了，清冊多半也更新了）。
 3. 還沒有清冊：活動頁有清冊連結（上次下載失敗），或活動結束未滿 12 個月（或還沒結束）→ 每 7 天再看一次。
 4. 對不到團體的：每 30 天再試一次（團體可能後來才建）。
+5. 備查（LK-43）：還沒讀過活動頁備查狀態的，7 天內沒看過就重抓一次；成果備查期限已過、還沒備查 → 每 7 天再看，
+   結案備查期限已過、還沒備查 → 每 30 天再看；過了期限一年還沒備查就不再追（逾期紀錄已經在了）。
 其餘不再開頁面。活動列表：今年與明年每次都翻（新活動在這裡），過去的年度 7 天翻一次（看實募金額變了沒）。活動要等資料真的寫進資料庫（flush）才記成已檢查，中途停下的下次會重抓。
 """
 
@@ -26,10 +28,12 @@ RECHECK_EVERY = timedelta(days=7)
 WAIT_FOR_LIST = timedelta(days=365)
 RETRY_UNMATCHED = timedelta(days=30)
 RELIST_PAST_YEARS = timedelta(days=7)
+RECHECK_CLOSED_EVERY = timedelta(days=30)
+FOLLOW_FILING_FOR = timedelta(days=365)
 GROUP_SOURCES = ("mohw", "mohw_activities", "mohw_violations")
 UPDATE_FIELDS = (
     "ubn", "end_date", "checked_raised", "donors_raised", "has_donor_link", "has_donor_list", "unmatched_reason",
-    "checked_at",
+    "checked_at", "result_due_on", "result_done", "closed_due_on", "closed_done",
 )
 
 
@@ -44,7 +48,18 @@ def priority(row: ActivityProgress, raised: int | None, now, today: date) -> int
     if not row.has_donor_list and now - row.checked_at >= RECHECK_EVERY:
         if row.has_donor_link or row.end_date is None or today - row.end_date < WAIT_FOR_LIST:
             return 2
+    if _filing_due(row.result_done, row.result_due_on, today) and now - row.checked_at >= RECHECK_EVERY:
+        return 2
+    if row.result_done is not None and _filing_due(row.closed_done, row.closed_due_on, today)             and now - row.checked_at >= RECHECK_CLOSED_EVERY:
+        return 4
     return None
+
+
+def _filing_due(done: bool | None, due: date | None, today: date) -> bool:
+    """備查要不要再看一次：沒讀過狀態（None）要；過了期限還沒備查、而且還沒過期一年要。"""
+    if done is None:
+        return True
+    return not done and due is not None and today >= due and today - due < FOLLOW_FILING_FOR
 
 
 def known_group_ubns() -> dict[str, str]:
@@ -131,10 +146,15 @@ class DbActivityPlan(ActivityPlan):
         row = self.rows[card.aid]
         return not row.has_donor_list or card.raised != row.donors_raised
 
-    def done(self, card: ActivityCard, ubn: str, *, end_date, has_donor_link: bool, donors_fetched: bool) -> None:
+    def done(self, card: ActivityCard, ubn: str, *, end_date, has_donor_link: bool, donors_fetched: bool,
+             filings: dict | None = None) -> None:
         row = self.rows[card.aid]
         row.ubn, row.end_date, row.has_donor_link = ubn, end_date, has_donor_link
         row.checked_raised, row.unmatched_reason, row.checked_at = card.raised, "", timezone.now()
+        if filings is not None:
+            # 活動頁沒有備查段落：記成「沒有期限、沒備查」，之後不再為了備查回頭看
+            row.result_due_on, row.closed_due_on = filings.get("result_due_on"), filings.get("closed_due_on")
+            row.result_done, row.closed_done = filings.get("result_done", False), filings.get("closed_done", False)
         if donors_fetched:
             row.has_donor_list, row.donors_raised = True, card.raised
         self.groups[card.org_name] = ubn

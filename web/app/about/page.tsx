@@ -59,6 +59,21 @@ const SOURCES = [
     what: "勞動局依勞基法公布的處分（處分日期、文號、違反條款、罰鍰），只收非營利組織的，標示為「勞動法令」；負責人姓名不收",
   },
   {
+    name: "勞動部違反勞動法令事業單位（雇主）查詢系統",
+    url: "https://announcement.mol.gov.tw/",
+    what: "全國各縣市勞動局、勞保局、職安署依勞基法、職安法、就服法、勞退條例等公布的處分，只收非營利組織的，標示為「勞動法令」；負責人姓名不收",
+  },
+  {
+    name: "環境部列管事業污染源裁處資料",
+    url: "https://data.gov.tw/dataset/34101",
+    what: "各縣市環保局與環境部對列管事業的裁處（處分日期、裁處書字號、違反法條、罰鍰、違規事實），用統一編號對到站上的組織，標示為「環境保護」；違規人名稱與地址不收",
+  },
+  {
+    name: "行政院公共工程委員會拒絕往來廠商公告",
+    url: "https://data.gov.tw/dataset/5988",
+    what: "機關依政府採購法第 101 條公告停權的廠商（停權期間、公告機關、違反款次、案名），用統一編號對到站上的組織，標示為「政府採購停權」；負責人、身分證、聯絡人與地址不收",
+  },
+  {
     name: "挖貝 WaBay 群眾集資平台",
     url: "https://wabay.tw",
     what: "非營利組織提的集資專案（非政府資料，另外標示，不算進揭露層級與任何加總）",
@@ -143,7 +158,7 @@ async function AboutBody() {
               <tr>
                 <td className="py-2 pr-4 whitespace-nowrap tabular-nums">銀</td>
                 <td className="py-2 pr-4 whitespace-nowrap font-medium">活動可查</td>
-                <td className="py-2">近 5 年有看得到的活動：政府許可的勸募活動、政府補助，或主管機關名冊上的主要業務。有辦勸募的，去年以前募到款的活動都要已向主管機關成果備查（今年的還在期限內，先不算）</td>
+                <td className="py-2">近 5 年有看得到的活動：政府許可的勸募活動、政府補助，或主管機關名冊上的主要業務。有辦勸募的，募到款、而且成果備查期限已過的活動都要已向主管機關成果備查（依公益勸募條例第 18 條，期限是勸募活動期滿後 30 日；還沒到期的先不算，逾期才補交的也算交了）</td>
               </tr>
               <tr>
                 <td className="py-2 pr-4 whitespace-nowrap tabular-nums">金</td>
@@ -153,12 +168,15 @@ async function AboutBody() {
               <tr>
                 <td className="py-2 pr-4 whitespace-nowrap tabular-nums">鑽石</td>
                 <td className="py-2 pr-4 whitespace-nowrap font-medium">長期可查</td>
-                <td className="py-2">連續 3 個年度都有財務報告、最近一年的財報經會計師查核，而且最近兩個年度內有年報或工作／成果報告</td>
+                <td className="py-2">連續 3 個年度都有財務報告，而且最近兩個年度內有年報或工作／成果報告（不看有沒有經會計師查核：公開了財報就算）</td>
               </tr>
             </tbody>
           </table>
         </div>
         <p className="text-ink-600">還沒達到銅級的是「未分級」，多半是只有財政部名冊上的名稱與縣市。已註銷、撤銷或歇業的組織不分層級。群眾集資平台上的專案沒有政府的成果備查，不算勸募活動。</p>
+        <p>
+          組織想知道怎麼升級、或想把揭露徽章貼到官網，請看 <TextLink href="/for-orgs">給非營利組織</TextLink>。
+        </p>
       </Section>
 
       <Section id="categories" title="分類怎麼來">

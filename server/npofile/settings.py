@@ -140,4 +140,6 @@ DONOR_INDIVIDUAL_THRESHOLD = int(os.environ.get("DONOR_INDIVIDUAL_THRESHOLD", "1
 
 # 組織官網財報（LK-17）：設了 API 金鑰才用 Claude 讀報告 PDF 裡的數字（會產生費用）；沒設只收報告清單
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+# 環境部開放資料 API 金鑰（LK-36，crawl moenv_penalties）；不設就不抓環境部裁處
+MOENV_API_KEY = os.environ.get("MOENV_API_KEY", "")
 FINANCIAL_EXTRACT_MODEL = os.environ.get("FINANCIAL_EXTRACT_MODEL", "claude-opus-5-5")

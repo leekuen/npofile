@@ -10,6 +10,16 @@ from crawling.models import CrawlerSource, CrawlRun
 from orgs import period
 
 
+# 「crawl all」排最後的慢來源（依序）：一次要跑一兩個小時以上。其他來源都是幾分鐘內跑完的整份名單，
+# 先跑完它們，晚上被中斷時少掉的只會是這幾個慢的，不會讓後面一整串整晚沒跑到（LK-44）
+SLOW_LAST = ("judicial", "mohw_activities", "swft", "twnpos", "orgsite")
+
+
+def crawl_order(sources):
+    """快的照代號排，慢的照 SLOW_LAST 排在最後。"""
+    return sorted(sources, key=lambda s: (SLOW_LAST.index(s.key) + 1 if s.key in SLOW_LAST else 0, s.key))
+
+
 def recent_success_days(source: CrawlerSource) -> int | None:
     """設了 every_days 的來源（每月檢查的名冊，LK-32）：上次成功距今還不到 every_days 天就回傳隔了幾天，否則 None。"""
     src = SOURCES.get(source.key)
@@ -41,12 +51,16 @@ class Command(BaseCommand):
         if missing:
             raise CommandError(f"不認得的來源：{', '.join(sorted(missing))}")
         failed = False
-        for source in qs:
+        for source in crawl_order(qs):
             if not source.enabled and not force:
                 self.stdout.write(f"略過（已停用）：{source.name}")
                 continue
             if sources == ["all"] and not force and (days := recent_success_days(source)) is not None:
                 self.stdout.write(f"略過（{days} 天內檢查過，每 {SOURCES[source.key].every_days} 天檢查一次）：{source.name}")
+                continue
+            needs = SOURCES[source.key].requires_setting if source.key in SOURCES else ""
+            if sources == ["all"] and needs and not getattr(settings, needs, ""):
+                self.stdout.write(f"略過（沒有設定 {needs}）：{source.name}")
                 continue
             self.stdout.write(f"開始：{source.name}")
             items, client = None, None

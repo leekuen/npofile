@@ -2,13 +2,14 @@ import re
 
 from django.conf import settings
 from django.db.models import OuterRef, Prefetch, Q, Subquery
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.generics import ListAPIView
 from npofile_crawler.donors import identity_key
 from rest_framework.response import Response
 
-from . import category_api, donor_rules, home, period, scoring
+from . import badge, category_api, donor_rules, home, period, scoring
 from .models import AnnualFundraising, CourtRegistration, Donor, FinancialYear, Grant, OrgDocument, Organization, Project
 from .serializers import (
     DonorDetailSerializer,
@@ -73,6 +74,21 @@ def organization_detail(request, ubn):
     )
     org = get_object_or_404(qs, ubn=ubn)
     return Response(OrganizationDetailSerializer(org).data)
+
+
+def organization_badge(request, ubn):
+    """揭露徽章 SVG（LK-42）：查無統編也回一張「未收錄」的圖（404），組織官網不會出現破圖。"""
+    org = Organization.objects.filter(ubn=ubn).only("disclosure_level", "status").first()
+    if org is None:
+        svg, status = badge.render(None, None), 404
+    else:
+        svg, status = badge.render(org.disclosure_level, org.status == Organization.Status.ACTIVE), 200
+    resp = HttpResponse(svg, content_type="image/svg+xml; charset=utf-8", status=status)
+    resp["Cache-Control"] = "public, max-age=21600"
+    resp["X-Content-Type-Options"] = "nosniff"
+    # 別的網站要能用 <img> 嵌入
+    resp["Cross-Origin-Resource-Policy"] = "cross-origin"
+    return resp
 
 
 @api_view(["GET"])

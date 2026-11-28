@@ -79,6 +79,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                       資料說明
                     </Link>
                   </li>
+                  <li>
+                    <Link href="/for-orgs" className="text-ink-700 hover:text-brand-800 hover:underline">
+                      給組織
+                    </Link>
+                  </li>
                 </ul>
               </div>
               <p className="text-xs leading-relaxed text-ink-600">
@@ -86,7 +91,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 <span aria-hidden className="mx-1.5 text-ink-300">
                   |
                 </span>
-                衛生福利部公益勸募管理系統（含捐贈人清冊）、{GRANT_AGENCIES}的補(捐)助季報、臺北市政府勞動局違反勞動基準法事業單位公布總表、財政部非營利事業機關團體資料集、經濟部商工登記公示資料（政府資料開放授權）；挖貝 WaBay 群眾集資專案頁。資料以各來源公告為準。
+                衛生福利部公益勸募管理系統（含捐贈人清冊）、{GRANT_AGENCIES}的補(捐)助季報、臺北市政府勞動局違反勞動基準法事業單位公布總表、勞動部違反勞動法令事業單位查詢系統、環境部列管事業污染源裁處資料、行政院公共工程委員會拒絕往來廠商公告、財政部非營利事業機關團體資料集、經濟部商工登記公示資料（政府資料開放授權）；挖貝 WaBay 群眾集資專案頁。資料以各來源公告為準。
               </p>
             </div>
           </footer>

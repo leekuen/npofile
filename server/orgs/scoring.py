@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from django.db.models import Count, Prefetch, Q, QuerySet
 from django.utils import timezone
@@ -46,6 +46,24 @@ def _check(key: str, label: str, met: bool, hint: str = "") -> dict:
     return {"key": key, "label": label, "met": bool(met), "hint": hint}
 
 
+RESULT_DAYS = timedelta(days=30)  # 公益勸募條例第 18 條：勸募活動期滿之翌日起 30 日內成果備查
+
+
+def result_due(p: Project, ref: date) -> bool:
+    """這個勸募活動的成果備查到期了沒（LK-43）：先看活動頁的法定期限，沒有就用期滿日 + 30 日，
+    都沒有（只抓過團體頁的舊資料）才退回「活動年度早於今年」。"""
+    if p.result_due_on:
+        return p.result_due_on < ref
+    if p.end_date:
+        return p.end_date + RESULT_DAYS < ref
+    return p.period_year is not None and p.period_year < ref.year - 1911
+
+
+def result_filed(p: Project) -> bool:
+    """已成果備查：團體頁列表有備查日期，或活動頁看得到已備查（逾期補交也算交了）。"""
+    return bool(p.result_filed_on or p.result_done)
+
+
 def _has_numbers(f) -> bool:
     return f.total_revenue is not None and f.total_expenses is not None
 
@@ -80,8 +98,8 @@ def levels(org: Organization, *, projects=None, financials=None, documents=None,
     # 第 2 層：活動可查；有辦勸募的，到期的活動要全部成果備查
     permits = [p for p in projects if p.channel == Project.Channel.PERMIT and period.in_window(p.period_year, ref)]
     has_business = any(r.main_business.strip() for r in registries)
-    due = [p for p in permits if (p.raised or 0) > 0 and p.period_year is not None and p.period_year < roc]
-    filed = [p for p in due if p.result_filed_on]
+    due = [p for p in permits if (p.raised or 0) > 0 and result_due(p, ref)]
+    filed = [p for p in due if result_filed(p)]
     layer2 = [
         _check("activity", f"{since} 年以後有看得到的活動（勸募活動、政府補助或主管機關名冊的主要業務）",
                bool(permits) or has_grants or has_business),
@@ -102,12 +120,11 @@ def levels(org: Organization, *, projects=None, financials=None, documents=None,
     consecutive = any(
         all(y - i in years for i in range(CONSECUTIVE_YEARS)) for y in fin_years if y >= recent_from
     )
-    latest = max((f for f in financials if _has_numbers(f)), key=lambda f: f.year, default=None)
+    # 不看會計師查核：衛福部決算不公布查核與否，「敢發出財報就算有提供」（使用者 2026-11-28，LK-45）
     reports = any(d.kind in (OrgDocument.Kind.ANNUAL, OrgDocument.Kind.WORK) and d.year >= recent_from
                   for d in documents)
     layer4 = [
         _check("financial_consecutive", f"連續 {CONSECUTIVE_YEARS} 個年度的財務報告", consecutive),
-        _check("audited", "最近一年財報經會計師查核", bool(latest and latest.audited)),
         _check("report", f"{recent_from} 年以後的年報或工作／成果報告", reports),
     ]
 

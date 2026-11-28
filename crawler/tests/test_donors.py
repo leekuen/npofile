@@ -200,6 +200,22 @@ class FetchActivitiesTests(unittest.TestCase):
         self.assertIn("annual", kinds)
         self.assertEqual(kinds.count("donor_list"), 6)  # 列表上 6 個活動，每個都有清冊
 
+    def test_donor_download_waits_past_site_delay(self):
+        # 網站固定先等約 120 秒才給檔案（LK-40）；逾時要留足餘裕，並且真的傳給清冊那一個請求
+        self.assertGreaterEqual(mohw.DONOR_FILE_TIMEOUT, 180)
+        seen = {}
+        client = self.make_client()
+        original = client.get
+
+        def get(url, **kw):
+            if "downloadDonors" in url:
+                seen["timeout"] = kw.get("timeout")
+            return original(url, **kw)
+
+        client.get = get
+        list(mohw.fetch_activities_for(client, ["10057"]))
+        self.assertEqual(seen["timeout"], mohw.DONOR_FILE_TIMEOUT)
+
     def test_timeout_skips_only_that_list(self):
         import httpx
 
@@ -235,7 +251,7 @@ class FetchByYearTests(unittest.TestCase):
 
     FakeResp = FetchActivitiesTests.FakeResp
 
-    def make_client(self, search=None, log=None):
+    def make_client(self, search=None, log=None, donor_bytes=None):
         test = self
         search = search if search is not None else search_html("10057")
 
@@ -251,10 +267,21 @@ class FetchByYearTests(unittest.TestCase):
                 if "fundactivityDetails" in url:
                     return test.FakeResp(read("activity_with_donors.html"))
                 if "downloadDonors" in url:
-                    return test.FakeResp(content=(FX / "donors_sample.ods").read_bytes())
+                    return test.FakeResp(content=donor_bytes if donor_bytes is not None else (FX / "donors_sample.ods").read_bytes())
                 raise AssertionError(url)
 
         return FakeClient()
+
+    def test_null_files_stop_donor_downloads_for_this_run(self):
+        # 衛福部回「null」（LK-40）：連續 3 份就不再下載，活動頁照抓、不標成有清冊
+        log = []
+        with self.assertLogs("npofile_crawler.mohw", "WARNING") as logs:
+            items = list(mohw.fetch_activities(self.make_client(log=log, donor_bytes=b"null"), since_roc=114, this_roc=114))
+        kinds = [i.kind for i in items]
+        self.assertEqual(kinds.count("donor_list"), 0)
+        self.assertGreaterEqual(kinds.count("project"), 6)  # 6 個活動頁都還在（團體頁也會帶專案）
+        self.assertEqual(sum("downloadDonors" in u for u in log), mohw.MAX_EMPTY_DONOR_FILES)
+        self.assertTrue(any("空檔" in m for m in logs.output))
 
     def test_lists_years_and_fetches_every_card(self):
         log = []
@@ -328,3 +355,43 @@ class FetchActivitiesSinceTests(unittest.TestCase):
         items = list(mohw.fetch_activities_for(client, ["10057"], since_roc=115))
         self.assertEqual([i for i in items if i.kind == "donor_list"], [])
         self.assertEqual(downloads, [])
+
+
+class ActivityFilingTests(unittest.TestCase):
+    """活動頁的成果備查、結案備查：期限、是否已備查、是否逾期（LK-43）。"""
+
+    def parse(self, name):
+        item, _ = mohw.parse_activity(read(name), mohw.ACTIVITY_URL.format(aid="1"), "12345678")
+        return item.data
+
+    def test_filed_on_time(self):
+        d = self.parse("activity_with_donors.html")
+        self.assertEqual(d["result_due_on"], date(2026, 3, 2))  # 期滿 115/01/31 後 30 日
+        self.assertTrue(d["result_done"])
+        self.assertFalse(d["result_late"])
+
+    def test_not_due_yet(self):
+        d = self.parse("activity_not_due.html")
+        self.assertEqual(d["result_due_on"], date(2027, 1, 30))
+        self.assertFalse(d["result_done"])
+        self.assertFalse(d["result_late"])
+        self.assertEqual(d["closed_due_on"], date(2027, 4, 30))
+        self.assertFalse(d["closed_done"])
+
+    def test_overdue_not_filed(self):
+        d = self.parse("activity_overdue.html")
+        self.assertFalse(d["result_done"])
+        self.assertTrue(d["result_late"])
+        self.assertFalse(d["closed_done"])
+        self.assertTrue(d["closed_late"])
+
+    def test_filed_late_counts_as_done(self):
+        d = self.parse("activity_closed_late.html")
+        self.assertTrue(d["closed_done"])
+        self.assertTrue(d["closed_late"])
+        self.assertTrue(d["result_done"])
+
+    def test_page_without_filing_sections(self):
+        from bs4 import BeautifulSoup
+
+        self.assertEqual(mohw.parse_filings(BeautifulSoup("<h3>專戶備查</h3>", "html.parser")), {})

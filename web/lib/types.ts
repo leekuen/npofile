@@ -64,6 +64,13 @@ export interface Project {
   region: string;
   result_filed_on: string | null;
   closed_filed_on: string | null;
+  /** 活動頁的備查狀態（LK-43）：期限是法定期限；done＝已備查（null＝沒讀過活動頁）；late＝活動頁標「逾期備查」 */
+  result_due_on: string | null;
+  result_done: boolean | null;
+  result_late: boolean;
+  closed_due_on: string | null;
+  closed_done: boolean | null;
+  closed_late: boolean;
   description: string;
   source_name: string;
   source_url: string;
@@ -83,8 +90,10 @@ export interface Penalty {
   reason: string;
   source_name: string;
   source_url: string;
-  /** labor＝地方勞動局依勞基法公布的處分；fundraising＝公益勸募裁處 */
-  category: "labor" | "fundraising";
+  /** 類別（LK-36 起存在資料表）：labor 勞動法令、fundraising 公益勸募、environment 環境保護、procurement 政府採購停權 */
+  category: "labor" | "fundraising" | "environment" | "procurement";
+  /** 違反法條（例：廢棄物清理法第27條第11款）；沒有就是空字串 */
+  law: string;
 }
 
 export type DonorKind = "company" | "group" | "individual";
