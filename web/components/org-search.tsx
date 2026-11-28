@@ -3,6 +3,7 @@ import { type ReactNode, Suspense } from "react";
 
 import { formatCompact, formatMoney, formatNumber } from "@/lib/format";
 import { ApiUnavailableError, getFilters, getTaxonomy, listOrgs, type OrgQuery } from "@/lib/server-api";
+import type { OrgSummary } from "@/lib/types";
 
 import { CategoryBrowser, CategoryChip } from "./categories";
 import { FieldPicksSection, HomeDiscover, HomeSectionSkeleton } from "./home-discover";
@@ -218,70 +219,7 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
           換個關鍵字，或移除上面的條件再試一次。
         </EmptyState>
       ) : (
-        <div className="overflow-hidden surface">
-          <div aria-hidden className={`${ROW} hidden border-b border-ink-200 bg-ink-50/70 py-2.5 text-xs font-medium text-ink-600 sm:grid`}>
-            <span className="text-center">層級</span>
-            <span>組織</span>
-            <span className="text-right">近 5 年公開募款</span>
-            <span>近 5 年裁罰</span>
-            <span className="hidden md:block">營運狀態</span>
-            <span />
-          </div>
-          <ul className="divide-y divide-ink-100">
-            {page.results.map((org) => (
-              <li key={org.ubn}>
-                <Link href={`/orgs/${org.ubn}`} className={`group ${ROW} grid py-3.5 transition-colors hover:bg-brand-50/50`}>
-                  <LevelBadge level={org.disclosure_level} />
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold text-brand-900 underline-offset-2 group-hover:underline">{org.name}</p>
-                    <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-600">
-                      <span className="tabular-nums">統編 {org.ubn}</span>
-                      {org.city && <span>{org.city}</span>}
-                      {org.org_type && <span>{org.org_type}</span>}
-                      {org.public_raised_5y > 0 && (
-                        <span className="tabular-nums sm:hidden">近 5 年公開募款 {formatMoney(org.public_raised_5y)}</span>
-                      )}
-                      {org.latest_revenue && (
-                        <span className="tabular-nums">
-                          總收入 {formatCompact(org.latest_revenue.total_revenue)}（{org.latest_revenue.year} 年度）
-                        </span>
-                      )}
-                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 md:hidden">
-                        <StatusBadge status={org.status} label={org.status_label} />
-                        <span className="sm:hidden">
-                          <PenaltyBadge count={org.penalty_count_5y} />
-                        </span>
-                      </span>
-                    </p>
-                    {org.tags.length > 0 && (
-                      <p className="mt-1.5 flex flex-wrap gap-1">
-                        {org.tags.map((t) => (
-                          <CategoryChip key={t.code} tag={t} link={false} />
-                        ))}
-                      </p>
-                    )}
-                  </div>
-                  <span className="hidden text-right font-num text-sm whitespace-nowrap tabular-nums sm:block">
-                    {org.public_raised_5y > 0 ? formatMoney(org.public_raised_5y) : <span className="text-ink-400">—</span>}
-                  </span>
-                  <span className="hidden text-sm sm:block">
-                    {org.penalty_count_5y > 0 ? (
-                      <PenaltyBadge count={org.penalty_count_5y} short />
-                    ) : (
-                      <span className="text-ink-500">無</span>
-                    )}
-                  </span>
-                  <span className="hidden md:block">
-                    <StatusBadge status={org.status} label={org.status_label} />
-                  </span>
-                  <span aria-hidden className="text-ink-400 transition-transform group-hover:translate-x-0.5 group-hover:text-brand-700">
-                    ›
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <OrgRows orgs={page.results} />
       )}
 
       {lastPage > 1 && (
@@ -306,6 +244,76 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
         </nav>
       )}
       </section>
+    </div>
+  );
+}
+
+/** 組織列表的表頭＋每一列（首頁與鑽石級專頁共用，LK-46） */
+export function OrgRows({ orgs }: { orgs: OrgSummary[] }) {
+  return (
+    <div className="overflow-hidden surface">
+      <div aria-hidden className={`${ROW} hidden border-b border-ink-200 bg-ink-50/70 py-2.5 text-xs font-medium text-ink-600 sm:grid`}>
+        <span className="text-center">層級</span>
+        <span>組織</span>
+        <span className="text-right">近 5 年公開募款</span>
+        <span>近 5 年裁罰</span>
+        <span className="hidden md:block">營運狀態</span>
+        <span />
+      </div>
+      <ul className="divide-y divide-ink-100">
+        {orgs.map((org) => (
+          <li key={org.ubn}>
+            <Link href={`/orgs/${org.ubn}`} className={`group ${ROW} grid py-3.5 transition-colors hover:bg-brand-50/50`}>
+              <LevelBadge level={org.disclosure_level} />
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-brand-900 underline-offset-2 group-hover:underline">{org.name}</p>
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-600">
+                  <span className="tabular-nums">統編 {org.ubn}</span>
+                  {org.city && <span>{org.city}</span>}
+                  {org.org_type && <span>{org.org_type}</span>}
+                  {org.public_raised_5y > 0 && (
+                    <span className="tabular-nums sm:hidden">近 5 年公開募款 {formatMoney(org.public_raised_5y)}</span>
+                  )}
+                  {org.latest_revenue && (
+                    <span className="tabular-nums">
+                      總收入 {formatCompact(org.latest_revenue.total_revenue)}（{org.latest_revenue.year} 年度）
+                    </span>
+                  )}
+                  <span className="flex flex-wrap items-center gap-x-2 gap-y-1 md:hidden">
+                    <StatusBadge status={org.status} label={org.status_label} />
+                    <span className="sm:hidden">
+                      <PenaltyBadge count={org.penalty_count_5y} />
+                    </span>
+                  </span>
+                </p>
+                {org.tags.length > 0 && (
+                  <p className="mt-1.5 flex flex-wrap gap-1">
+                    {org.tags.map((t) => (
+                      <CategoryChip key={t.code} tag={t} link={false} />
+                    ))}
+                  </p>
+                )}
+              </div>
+              <span className="hidden text-right font-num text-sm whitespace-nowrap tabular-nums sm:block">
+                {org.public_raised_5y > 0 ? formatMoney(org.public_raised_5y) : <span className="text-ink-400">—</span>}
+              </span>
+              <span className="hidden text-sm sm:block">
+                {org.penalty_count_5y > 0 ? (
+                  <PenaltyBadge count={org.penalty_count_5y} short />
+                ) : (
+                  <span className="text-ink-500">無</span>
+                )}
+              </span>
+              <span className="hidden md:block">
+                <StatusBadge status={org.status} label={org.status_label} />
+              </span>
+              <span aria-hidden className="text-ink-400 transition-transform group-hover:translate-x-0.5 group-hover:text-brand-700">
+                ›
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

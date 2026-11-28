@@ -70,6 +70,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                     </Link>
                   </li>
                   <li>
+                    <Link href="/diamond" className="text-ink-700 hover:text-brand-800 hover:underline">
+                      鑽石級組織
+                    </Link>
+                  </li>
+                  <li>
                     <Link href="/donors" className="text-ink-700 hover:text-brand-800 hover:underline">
                       捐款企業
                     </Link>

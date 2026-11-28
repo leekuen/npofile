@@ -48,13 +48,15 @@ class Organization(models.Model):
     disclosure_level = models.PositiveSmallIntegerField("揭露層級", default=0, db_index=True, editable=False)
     # 近 5 年公開募款（勸募申報＋群眾集資，同一年度不重複算；口徑見 tickets/LK-20），跟揭露層級一起重算
     public_raised_5y = models.BigIntegerField("近 5 年公開募款", default=0, db_index=True, editable=False)
+    # 組織頁上有沒有任一種紀錄（口徑見 scoring.has_data_q / tickets/LK-46）；列表排序用，有資料的排前面
+    has_data = models.BooleanField("有資料", default=False, db_index=True, editable=False)
     created_at = models.DateTimeField("建立時間", auto_now_add=True)
     updated_at = models.DateTimeField("更新時間", auto_now=True)
 
     class Meta:
         verbose_name = "組織"
         verbose_name_plural = "組織"
-        ordering = ["-disclosure_level", "-public_raised_5y", "name"]
+        ordering = ["-has_data", "-disclosure_level", "-public_raised_5y", "name"]
 
     def __str__(self):
         return f"{self.name}（{self.ubn}）"
