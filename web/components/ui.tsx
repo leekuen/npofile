@@ -54,36 +54,47 @@ export function PenaltyBadge({ count, short = false }: { count: number; short?: 
   );
 }
 
-/** 揭露層級的名稱（LK-35；跟後端 orgs/scoring.py 的 LEVEL_NAMES 同一套） */
+/** 揭露層級（LK-35；跟後端 orgs/scoring.py 的 LEVEL_MEDALS／LEVEL_NAMES 同一套）：
+ * 給人看的是獎牌名稱，副標是這一級代表什麼 */
+export const LEVEL_MEDALS = ["未分級", "銅", "銀", "金", "鑽石"] as const;
 export const LEVEL_NAMES = ["資料不足", "身分可查", "活動可查", "財務可查", "長期可查"] as const;
 export const MAX_LEVEL = 4;
 
-export function levelName(level: number) {
-  return LEVEL_NAMES[Math.max(0, Math.min(MAX_LEVEL, level))];
+const MEDAL_STYLES = [
+  "bg-ink-50 text-ink-500 ring-ink-200",
+  "bg-orange-100 text-orange-900 ring-orange-300",
+  "bg-zinc-100 text-zinc-800 ring-zinc-400",
+  "bg-amber-100 text-amber-900 ring-amber-400",
+  "bg-sky-100 text-sky-900 ring-sky-400",
+];
+
+function clampLevel(level: number) {
+  return Math.max(0, Math.min(MAX_LEVEL, level));
 }
 
-/** 揭露層級：四格進度條＋「N／4」，大尺寸再寫名稱。只代表公開了多少，不做好壞評等 */
+export function levelMedal(level: number) {
+  return LEVEL_MEDALS[clampLevel(level)];
+}
+
+export function levelName(level: number) {
+  return LEVEL_NAMES[clampLevel(level)];
+}
+
+/** 揭露層級徽章：獎牌名稱（顏色只是輔助，一定有字）；大尺寸再寫這一級代表什麼。只代表公開了多少，不做好壞評等 */
 export function LevelBadge({ level, size = "sm" }: { level: number; size?: "sm" | "lg" }) {
   const lg = size === "lg";
-  const n = Math.max(0, Math.min(MAX_LEVEL, level));
+  const n = clampLevel(level);
   return (
-    <span
-      className={`inline-flex shrink-0 flex-col ${lg ? "gap-1.5" : "w-12 gap-1"}`}
-      title={`揭露層級 ${n}／${MAX_LEVEL}：${levelName(n)}`}
-    >
-      <span className={`flex ${lg ? "gap-1" : "gap-0.5"}`} aria-hidden>
-        {Array.from({ length: MAX_LEVEL }, (_, i) => (
-          <span
-            key={i}
-            className={`${lg ? "h-2.5 w-10" : "h-1.5 flex-1"} rounded-sm ${i < n ? "bg-brand-600" : "bg-ink-200"}`}
-          />
-        ))}
-      </span>
-      <span className={`font-num tabular-nums leading-none ${lg ? "text-sm text-ink-700" : "text-xs text-ink-700"}`}>
+    <span className={`inline-flex shrink-0 items-center ${lg ? "gap-2" : ""}`} title={`揭露層級：${levelMedal(n)}（${levelName(n)}）`}>
+      <span
+        className={`inline-flex items-center justify-center whitespace-nowrap rounded-full font-semibold ring-1 ${MEDAL_STYLES[n]} ${
+          lg ? "px-3 py-1 text-base" : "min-w-10 px-1.5 py-0.5 text-xs"
+        }`}
+      >
         <span className="sr-only">揭露層級 </span>
-        {n}／{MAX_LEVEL}
-        {lg && <span className="ml-1.5 font-sans font-semibold text-ink-900">{levelName(n)}</span>}
+        {levelMedal(n)}
       </span>
+      {lg && <span className="text-sm text-ink-700">{levelName(n)}</span>}
     </span>
   );
 }

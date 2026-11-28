@@ -269,8 +269,8 @@ function LevelPanel({ org }: { org: OrgDetail }) {
   const oneLine = !lv.active
     ? `${org.status_label}，不分層級`
     : next
-      ? `下一層「${next.name}」還差：${nextMissing.join("、")}`
-      : "四層都達到了";
+      ? `升到「${next.medal}」還差：${nextMissing.join("、")}`
+      : "已經是最高一級";
 
   return (
     <section aria-label="揭露層級" className="rounded-2xl bg-sun-50 p-4 ring-1 ring-sun-100 lg:space-y-4 lg:p-5">
@@ -294,7 +294,7 @@ function LevelPanel({ org }: { org: OrgDetail }) {
                   {reached ? "✓" : "○"}
                 </span>
                 <span className={reached ? "font-medium text-ink-900" : "font-medium text-ink-600"}>
-                  第 {layer.level} 層　{layer.name}
+                  {layer.medal}　{layer.name}
                 </span>
                 <span className="sr-only">{reached ? "已達到" : "未達到"}</span>
               </p>

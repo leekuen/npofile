@@ -15,6 +15,8 @@ from .models import AnnualFundraising, FinancialYear, OrgDocument, Organization,
 
 # 揭露層級（口徑見 tickets/LK-35）：四層依序達成，每一層的條件全部達到才算
 LEVEL_NAMES = {0: "資料不足", 1: "身分可查", 2: "活動可查", 3: "財務可查", 4: "長期可查"}
+# 給人看的等級名稱（使用者 2026-11-28 定案：銅銀金鑽石，最高一級參考台灣綠建築標章的「鑽石級」）
+LEVEL_MEDALS = {0: "未分級", 1: "銅", 2: "銀", 3: "金", 4: "鑽石"}
 MAX_LEVEL = 4
 FINANCIAL_RECENT_YEARS = 2  # 第 3 層：年度 ≥ 今年 − 2
 CONSECUTIVE_YEARS = 3  # 第 4 層：連續 3 個年度
@@ -113,11 +115,12 @@ def levels(org: Organization, *, projects=None, financials=None, documents=None,
     level = 0
     for n, checks in enumerate((layer1, layer2, layer3, layer4), start=1):
         met = all(c["met"] for c in checks)
-        layers.append({"level": n, "name": LEVEL_NAMES[n], "met": met, "checks": checks})
+        layers.append({"level": n, "medal": LEVEL_MEDALS[n], "name": LEVEL_NAMES[n], "met": met, "checks": checks})
         if met and level == n - 1:
             level = n
     return {
         "level": level,
+        "medal": LEVEL_MEDALS[level],
         "name": LEVEL_NAMES[level],
         "max_level": MAX_LEVEL,
         "active": org.status == Organization.Status.ACTIVE,
