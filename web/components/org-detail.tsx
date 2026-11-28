@@ -24,6 +24,7 @@ import {
   ErrorBox,
   PageHeader,
   LevelBadge,
+  LevelProgress,
   order,
   Skeleton,
   SourceNote,
@@ -1401,23 +1402,6 @@ function FilingStatus({ filedOn, done, late, dueOn }: { filedOn: string | null; 
   return <dd className="tabular-nums">尚未備查</dd>;
 }
 
-/** 揭露層級的四格進度（LK-50）：達到的格子依序亮起來；字在徽章上已經寫了，這裡只給眼睛看 */
-function LevelProgress({ level }: { level: number }) {
-  return (
-    <div aria-hidden className="mt-3 grid grid-cols-4 gap-1">
-      {[1, 2, 3, 4].map((n) => (
-        <span key={n} className="h-1.5 overflow-hidden rounded-full bg-sun-100">
-          {n <= level && (
-            <span
-              style={{ animationDelay: `${0.2 + n * 0.15}s` }}
-              className="animate-grow-x block h-full origin-left rounded-full bg-gradient-to-r from-sun-400 to-sun-500"
-            />
-          )}
-        </span>
-      ))}
-    </div>
-  );
-}
 
 /** 達成率：數字＋一條小進度條（滿 100% 換綠色，超過的部分不畫出框） */
 function AchievementRate({ rate }: { rate: number }) {

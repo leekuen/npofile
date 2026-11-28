@@ -2,9 +2,10 @@ import Link from "next/link";
 
 import { formatMoney, formatRocDate } from "@/lib/format";
 import { ApiUnavailableError, getDiscover, getFieldPicks, type OrgQuery } from "@/lib/server-api";
-import type { DiscoverEnding, DiscoverGift, DiscoverPenalty, FieldPickOrg } from "@/lib/types";
+import type { DiscoverEnding, DiscoverGift, DiscoverPenalty } from "@/lib/types";
 
 import { DiscoverTabs } from "./discover-tabs";
+import { PickCard, pickItem, pickRow } from "./pick-card";
 import { levelMedal, Skeleton } from "./ui";
 
 const link = "text-brand-800 underline underline-offset-2 hover:text-brand-950";
@@ -140,31 +141,6 @@ export async function HomeDiscover() {
   );
 }
 
-function PickCard({ o }: { o: FieldPickOrg }) {
-  const c = o.campaign;
-  return (
-    <Link href={`/orgs/${o.ubn}${c ? `?tab=projects#p-${c.project_id}` : ""}`} className={cardLink}>
-      <span>
-        <span className="block font-semibold text-brand-900">{o.name}</span>
-        <span className="text-xs tabular-nums text-ink-600">
-          {o.city ? `${o.city}・` : ""}揭露層級 {levelMedal(o.level)}
-        </span>
-      </span>
-      {c ? (
-        <>
-          <span className="self-start rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-800">募款中</span>
-          <span className="line-clamp-2 text-sm text-ink-800">{c.name}</span>
-          <span className="mt-auto text-sm tabular-nums text-ink-600">
-            預募 {formatMoney(c.target)}・至 {formatRocDate(c.end_date)}
-          </span>
-        </>
-      ) : (
-        <span className="mt-auto text-sm tabular-nums text-ink-600">近 5 年實募 {formatMoney(o.raised_5y)}</span>
-      )}
-    </Link>
-  );
-}
-
 /** 首頁領域區：選了領域或服務對象、沒有關鍵字、在第 1 頁時出現（由 OrgSearch 決定）。 */
 export async function FieldPicksSection({ query }: { query: OrgQuery }) {
   let picks;
@@ -182,10 +158,10 @@ export async function FieldPicksSection({ query }: { query: OrgQuery }) {
       </h2>
       <p className="mt-1 text-sm text-ink-500">名稱看得出相關的排前面。揭露層級只看資料公開了多少，不代表本站背書。</p>
       {picks.orgs.length ? (
-        <ul className={`mt-4 ${cardRow}`}>
+        <ul className={`mt-4 ${pickRow}`}>
           {picks.orgs.map((o) => (
-            <li key={o.ubn} className={cardItem}>
-              <PickCard o={o} />
+            <li key={o.ubn} className={pickItem}>
+              <PickCard o={o} penaltySources={picks.penalty_sources} />
             </li>
           ))}
         </ul>

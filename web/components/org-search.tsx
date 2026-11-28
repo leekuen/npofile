@@ -36,7 +36,7 @@ function href(query: OrgQuery, patch: Partial<OrgQuery>) {
     params.set(k, v);
   }
   const s = params.toString();
-  return s ? `/?${s}` : "/";
+  return s ? `/?${s}` : "/?mode=db"; // 條件全部拿掉仍留在查資料庫，不跳回引導模式（LK-51）
 }
 
 const selectCls =

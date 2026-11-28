@@ -122,7 +122,8 @@ class PicksTests(PickBase):
         self.raised(org)
         self.live(org, "長者送餐計畫", days=3, category="社會福利事業/社會慈善事業")
         categorize()
-        self.assertIsNone(self.picks(field="animal")["orgs"][0]["campaign"])
+        # 跟領域無關的進行中募款：卡片照樣寫「募款中」（LK-52），但有相關的就換成相關的那一筆
+        self.assertEqual(self.picks(field="animal")["orgs"][0]["campaign"]["name"], "長者送餐計畫")
         p = self.live(org, "浪浪醫療計畫", days=20, category="動物保護事業")
         self.assertEqual(self.picks(field="animal")["orgs"][0]["campaign"]["project_id"], p.external_id)
 

@@ -104,6 +104,24 @@ export function LevelBadge({ level, size = "sm" }: { level: number; size?: "sm" 
   );
 }
 
+/** 揭露層級的四格進度（LK-50）：達到的格子依序亮起來；字在徽章上已經寫了，這裡只給眼睛看 */
+export function LevelProgress({ level, className = "mt-3" }: { level: number; className?: string }) {
+  return (
+    <div aria-hidden className={`grid grid-cols-4 gap-1 ${className}`}>
+      {[1, 2, 3, 4].map((n) => (
+        <span key={n} className="h-1.5 overflow-hidden rounded-full bg-sun-100">
+          {n <= level && (
+            <span
+              style={{ animationDelay: `${0.2 + n * 0.15}s` }}
+              className="animate-grow-x block h-full origin-left rounded-full bg-gradient-to-r from-sun-400 to-sun-500"
+            />
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <div className={`surface p-4 sm:p-5 ${className}`}>{children}</div>;
 }

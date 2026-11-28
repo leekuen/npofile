@@ -7,6 +7,7 @@ import type {
   DonorSummaryRow,
   FieldPicks,
   Filters,
+  Guide,
   OrgDetail,
   OrgSummary,
   Page,
@@ -93,6 +94,10 @@ export async function getCategory(code: string) {
 
 export async function getDiscover() {
   return (await get<Discover>("/api/home/discover"))!;
+}
+
+export async function getGuide() {
+  return (await get<Guide>("/api/home/guide"))!;
 }
 
 export async function getFieldPicks(query: OrgQuery) {

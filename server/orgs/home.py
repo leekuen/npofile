@@ -136,9 +136,15 @@ def _latest_project(org: Organization) -> dict | None:
     return {"project_id": p.external_id, "name": p.name, "year": p.period_year}
 
 
+def _any_live(org: Organization, today: date) -> dict | None:
+    p = org.projects.filter(_live(today=today)).order_by("end_date", "id").first()
+    return {"project_id": p.external_id, "name": p.name, "end_date": p.end_date, "target": p.target} if p else None
+
+
 def _pick_card(org: Organization, code: str, today: date) -> dict:
     """推薦卡一張（引導模式與領域區共用，LK-52）：捐款用途、裁罰、經費、揭露層級。"""
-    campaign = _campaign(org, code, today)
+    # 跟這個領域相關的進行中募款優先；沒有就任何一筆進行中的（不然同一個活動在別的領域寫「募款中」、這裡寫「最近一次」）
+    campaign = _campaign(org, code, today) or _any_live(org, today)
     return {
         "ubn": org.ubn, "name": org.name, "city": org.city, "level": org.disclosure_level,
         "raised_5y": org.raised_5y or 0,

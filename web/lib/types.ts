@@ -552,17 +552,43 @@ export interface Discover {
 }
 
 /** 首頁領域區（LK-18） */
+/** 推薦卡一張（引導模式與領域區共用，LK-51／LK-52） */
 export interface FieldPickOrg {
   ubn: string;
   name: string;
   city: string;
   level: number;
   raised_5y: number;
+  /** 跟這個領域相關的進行中募款 */
   campaign: { project_id: string; name: string; end_date: string; target: number } | null;
+  /** 沒有進行中募款時：最近一次公益勸募活動 */
+  latest_project: { project_id: string; name: string; year: number | null } | null;
+  /** 近五年以前（含日期不明）的裁罰筆數；推薦條件已排除近五年有裁罰的 */
+  older_penalties: number;
+  /** 組織理念（LK-54 接上前後端不送這一欄；送了才出現這一行） */
+  mission?: string | null;
+  /** 近期新聞（LK-55 接上前後端不送這一欄；送了才出現這一行） */
+  news?: PickNews[] | null;
+}
+
+export interface PickNews {
+  title: string;
+  url: string;
+  source: string;
+  published_on: string | null;
 }
 
 export interface FieldPicks {
   code: string;
   label: string;
+  /** 「裁罰紀錄」那一行寫的查過的來源（機關） */
+  penalty_sources: string[];
   orgs: FieldPickOrg[];
+}
+
+/** 首頁引導模式（LK-51）：每個公益大類最多三張推薦卡；0 張的大類另列 */
+export interface Guide {
+  penalty_sources: string[];
+  fields: { code: string; label: string; count: number; orgs: FieldPickOrg[] }[];
+  empty: { code: string; label: string }[];
 }
