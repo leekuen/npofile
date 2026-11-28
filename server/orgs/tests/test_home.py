@@ -26,8 +26,8 @@ class Base(TestCase):
         self.today = timezone.localdate()
         self.since = period.since_roc_year()
 
-    def org(self, ubn, name, purposes="", city="臺北市", score=80):
-        return Organization.objects.create(ubn=ubn, name=name, purposes=purposes, city=city, disclosure_score=score)
+    def org(self, ubn, name, purposes="", city="臺北市", level=2):
+        return Organization.objects.create(ubn=ubn, name=name, purposes=purposes, city=city, disclosure_level=level)
 
     def live(self, org, name, days=5, **kw):
         return Project.objects.create(
@@ -37,7 +37,7 @@ class Base(TestCase):
 
 class DiscoverTests(Base):
     def test_ending_campaigns(self):
-        a = self.org("10000001", "甲協會", score=60)
+        a = self.org("10000001", "甲協會", level=1)
         soon = self.live(a, "快截止", days=2)
         self.live(a, "今天截止", days=0)
         self.live(a, "還很久", days=30)
@@ -48,8 +48,8 @@ class DiscoverTests(Base):
         rows = home.ending_campaigns()
         self.assertEqual([r["name"] for r in rows], ["今天截止", "快截止"])
         self.assertEqual(rows[1]["days_left"], 2)
-        a.refresh_from_db()  # 揭露指數在存專案時會自動重算
-        self.assertEqual((rows[1]["project_id"], rows[1]["org_score"]), (soon.external_id, a.disclosure_score))
+        a.refresh_from_db()  # 揭露層級在存專案時會自動重算
+        self.assertEqual((rows[1]["project_id"], rows[1]["org_level"]), (soon.external_id, a.disclosure_level))
 
     def test_latest_penalties(self):
         a = self.org("10000001", "甲協會")
@@ -100,11 +100,11 @@ class PicksTests(Base):
         return home.field_picks(params)
 
     def test_rules_and_order(self):
-        by_name = self.org("10000001", "台南市流浪動物協會", score=70)  # 名稱看得出是動保
-        official = self.org("10000002", "某某基金會", purposes="動物保護事業", score=100)  # 官方勸募用途
-        penalized = self.org("10000003", "高雄市流浪貓協會", score=100)
-        no_record = self.org("10000004", "台北市流浪狗協會", score=100)  # 近 5 年沒有公益勸募紀錄
-        by_project = self.org("10000005", "某某協會", score=100)  # 只有活動名稱看得出動保
+        by_name = self.org("10000001", "台南市流浪動物協會", level=2)  # 名稱看得出是動保
+        official = self.org("10000002", "某某基金會", purposes="動物保護事業", level=2)  # 官方勸募用途
+        penalized = self.org("10000003", "高雄市流浪貓協會", level=2)
+        no_record = self.org("10000004", "台北市流浪狗協會", level=2)  # 近 5 年沒有公益勸募紀錄
+        by_project = self.org("10000005", "某某協會", level=2)  # 只有活動名稱看得出動保
         for o in (by_name, official, penalized, by_project):
             self.raised(o)
         Project.objects.create(organization=by_project, name="流浪動物救援計畫", start_date=date(self.since + 1911, 2, 1))

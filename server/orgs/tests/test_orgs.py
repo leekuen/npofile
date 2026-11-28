@@ -33,46 +33,166 @@ class OrganizationModelTests(TestCase):
         self.assertEqual(Donation(organization=org, donor_name="王小明", amount=1).public_donor_name, "王小明")
 
 
-class ScoringTests(TestCase):
-    def test_empty_org_only_gets_ubn_points(self):
-        org = make_org()
-        self.assertEqual(scoring.breakdown(org)["total"], 5)
+def full_identity(ubn="12345678", **kw):
+    """第 1 層的條件全部有。"""
+    base = dict(org_type="財團法人", registered_address="臺北市", phone="02", purposes="教育事業")
+    base.update(kw)
+    return make_org(ubn, **base)
+
+
+def roc_now():
+    return scoring.today().year - 1911
+
+
+def on_year(roc):
+    """專案的年度依開始日期算（Project.compute_period_year）。"""
+    return date(roc + 1911, 3, 1)
+
+
+class LevelTests(TestCase):
+    """LK-35 揭露層級：四層依序達成，每一層的條件全部達到才算。"""
+
+    def fin(self, org, year, **kw):
+        from orgs.models import FinancialYear
+        kw.setdefault("total_revenue", 100)
+        kw.setdefault("total_expenses", 90)
+        return FinancialYear.objects.create(organization=org, year=year, **kw)
+
+    def doc(self, org, year, kind="annual"):
+        from orgs.models import OrgDocument
+        return OrgDocument.objects.create(organization=org, year=year, kind=kind, title="年報", url="https://a.tw/r.pdf")
+
+    def level(self, org):
         org.refresh_from_db()
-        self.assertEqual(org.disclosure_score, 5)
+        return org.disclosure_level
 
-    def test_full_score(self):
-        org = make_org(
-            org_type="財團法人", registered_address="臺北市", phone="02", website="https://a.tw", purposes="教育事業"
-        )
-        year = scoring.today().year - 1911
-        AnnualFundraising.objects.create(organization=org, year=year - 1, raised=100, target=200)
-        Project.objects.create(organization=org, name="a", raised=10, result_filed_on=date(2025, 1, 1))
-        Project.objects.create(organization=org, name="b", raised=0)
-        b = scoring.breakdown(org)
-        self.assertEqual((b["basic"], b["fundraising"], b["project"], b["result"]), (30, 25, 20, 25))
-        org.refresh_from_db()
-        self.assertEqual(org.disclosure_score, 100)
-
-    def test_result_ratio_and_old_fundraising(self):
+    def test_empty_org_has_no_level(self):
         org = make_org()
-        AnnualFundraising.objects.create(organization=org, year=scoring.today().year - 1911 - 6, raised=100, target=100)
-        Project.objects.create(organization=org, name="a", raised=10, result_filed_on=date(2025, 1, 1))
-        Project.objects.create(organization=org, name="b", raised=10)
-        b = scoring.breakdown(org)
-        self.assertEqual(b["fundraising"], 0)  # 六年前的不算
-        self.assertEqual(b["result"], 12)  # 1/2 × 25 四捨五入（銀行家捨入 12.5→12）
-        self.assertEqual(b["total"], 5 + 0 + 20 + 12)
+        lv = scoring.levels(org)
+        self.assertEqual((lv["level"], lv["name"]), (0, "資料不足"))
+        self.assertEqual(self.level(org), 0)
+        missing = [c["key"] for c in lv["layers"][0]["checks"] if not c["met"]]
+        self.assertEqual(missing, ["org_type", "address", "purpose", "contact"])
 
-    def test_donation_counts_as_fundraising_disclosure(self):
-        org = make_org()
-        Donation.objects.create(organization=org, donor_name="甲", amount=100)
-        self.assertEqual(scoring.breakdown(org)["fundraising"], 25)
+    def test_layer1_needs_every_identity_check(self):
+        org = full_identity()
+        self.assertEqual(self.level(org), 1)
+        for i, field in enumerate(("org_type", "registered_address", "phone", "purposes")):
+            other = full_identity(f"2000000{i}", **{field: ""})
+            self.assertEqual(self.level(other), 0, field)
 
-    def test_penalty_does_not_change_score(self):
-        org = make_org()
-        before = Organization.objects.get(pk=org.pk).disclosure_score
+    def test_website_or_contact_address_also_count(self):
+        org = full_identity(phone="", website="https://a.tw", registered_address="", contact_address="新北市")
+        self.assertEqual(self.level(org), 1)
+
+    def test_registry_purpose_counts_as_purpose(self):
+        from orgs.models import RegistryEntry
+        org = full_identity(purposes="")
+        self.assertEqual(self.level(org), 0)
+        RegistryEntry.objects.create(organization=org, external_id="1", authority="教育部", registry_name=org.name,
+                                     purpose="推廣教育")
+        self.assertEqual(self.level(org), 1)
+
+    def test_not_active_is_level_0(self):
+        org = full_identity(status=Organization.Status.CANCELLED)
+        lv = scoring.levels(org)
+        self.assertEqual(lv["level"], 0)
+        self.assertFalse(lv["active"])
+
+    def test_layer2_activity_and_due_results(self):
+        org = full_identity()
+        p = Project.objects.create(organization=org, name="a", raised=10, start_date=on_year(roc_now() - 1))
+        lv = scoring.levels(org)
+        self.assertEqual(lv["level"], 1)  # 去年募到款的活動還沒成果備查
+        self.assertEqual((lv["results_due"], lv["results_filed"]), (1, 0))
+        p.result_filed_on = date(2026, 1, 1)
+        p.save()
+        self.assertEqual(self.level(org), 2)
+
+    def test_this_year_and_unknown_year_are_not_due(self):
+        org = full_identity()
+        Project.objects.create(organization=org, name="今年", raised=10, start_date=on_year(roc_now()))
+        Project.objects.create(organization=org, name="年度不明", raised=10, )
+        lv = scoring.levels(org)
+        self.assertEqual((lv["level"], lv["results_due"]), (2, 0))
+
+    def test_unfunded_and_old_projects_are_not_due(self):
+        org = full_identity()
+        Project.objects.create(organization=org, name="沒募到", raised=0, start_date=on_year(roc_now() - 1))
+        Project.objects.create(organization=org, name="很久以前", raised=10, start_date=on_year(roc_now() - 6))
+        lv = scoring.levels(org)
+        self.assertEqual((lv["level"], lv["results_due"]), (2, 0))
+
+    def test_crowdfunding_is_not_an_activity(self):
+        org = full_identity()
+        Project.objects.create(organization=org, name="集資", raised=10, channel=Project.Channel.CROWDFUNDING,
+                               start_date=on_year(roc_now() - 1))
+        self.assertEqual(self.level(org), 1)
+
+    def test_grant_or_registry_business_counts_as_activity(self):
+        from orgs.models import Grant, RegistryEntry
+        org = full_identity()
+        Grant.objects.create(organization=org, external_id="g1", year=roc_now() - 1, agency="衛福部",
+                             recipient=org.name, purpose="補助", amount=100)
+        self.assertEqual(self.level(org), 2)
+        other = full_identity("87654321")
+        RegistryEntry.objects.create(organization=other, external_id="2", authority="教育部",
+                                     registry_name=other.name, main_business="辦理講座")
+        self.assertEqual(self.level(other), 2)
+
+    def layer2_org(self, ubn="12345678"):
+        org = full_identity(ubn)
+        Project.objects.create(organization=org, name="今年", raised=10, start_date=on_year(roc_now()))
+        return org
+
+    def test_layer3_needs_recent_financials_with_numbers(self):
+        org = self.layer2_org()
+        self.fin(org, roc_now() - 3)
+        self.assertEqual(self.level(org), 2)  # 太舊
+        f = self.fin(org, roc_now() - 2, total_expenses=None)
+        self.assertEqual(self.level(org), 2)  # 沒有總支出
+        f.total_expenses = 90
+        f.save()
+        self.assertEqual(self.level(org), 3)
+
+    def test_layer4_consecutive_audited_and_report(self):
+        org = self.layer2_org()
+        y = roc_now() - 1
+        self.fin(org, y, audited=True)
+        self.fin(org, y - 1)
+        self.assertEqual(self.level(org), 3)
+        self.fin(org, y - 3)  # 跳過一年，不連續
+        self.doc(org, y, kind="work")
+        self.assertEqual(self.level(org), 3)
+        self.fin(org, y - 2)
+        self.assertEqual(self.level(org), 4)
+
+    def test_layer4_needs_latest_year_audited(self):
+        org = self.layer2_org()
+        y = roc_now() - 1
+        self.fin(org, y, audited=False)
+        self.fin(org, y - 1, audited=True)
+        self.fin(org, y - 2, audited=True)
+        self.doc(org, y)
+        lv = scoring.levels(org)
+        self.assertEqual(lv["level"], 3)
+        self.assertFalse(next(c for c in lv["layers"][3]["checks"] if c["key"] == "audited")["met"])
+
+    def test_layers_must_be_reached_in_order(self):
+        org = make_org()  # 第 1 層沒過
+        y = roc_now() - 1
+        for i in range(3):
+            self.fin(org, y - i, audited=True)
+        self.doc(org, y)
+        lv = scoring.levels(org)
+        self.assertEqual(lv["level"], 0)
+        self.assertTrue(lv["layers"][3]["met"])  # 第 4 層的條件達到了，但前面沒過就不算
+
+    def test_penalty_does_not_change_level(self):
+        org = full_identity()
+        before = self.level(org)
         Penalty.objects.create(organization=org, decided_on=date.today(), content="罰")
-        self.assertEqual(Organization.objects.get(pk=org.pk).disclosure_score, before)
+        self.assertEqual(self.level(org), before)
 
 
 class ApiTests(TestCase):
@@ -101,11 +221,10 @@ class ApiTests(TestCase):
     def test_list_default_order_and_penalty_count(self):
         r = self.client.get("/api/orgs").json()
         self.assertEqual(r["count"], 3)
-        first = r["results"][0]
-        self.assertEqual(first["ubn"], "11111111")  # 有官網、有捐款 → 分數最高
-        self.assertEqual(first["penalty_count_5y"], 1)
-        scores = [o["disclosure_score"] for o in r["results"]]
-        self.assertEqual(scores, sorted(scores, reverse=True))
+        a = next(o for o in r["results"] if o["ubn"] == "11111111")
+        self.assertEqual(a["penalty_count_5y"], 1)
+        levels = [o["disclosure_level"] for o in r["results"]]
+        self.assertEqual(levels, sorted(levels, reverse=True))
 
     def test_search_and_filters(self):
         self.assertEqual([o["ubn"] for o in self.client.get("/api/orgs?q=22222222").json()["results"]], ["22222222"])
@@ -127,7 +246,8 @@ class ApiTests(TestCase):
         names = {d["donor_name"] for d in r["donations"]}
         self.assertIn("匿名", names)
         self.assertNotIn("秘密捐款人", str(r))
-        self.assertEqual(r["score"]["total"], r["disclosure_score"])
+        self.assertEqual(r["levels"]["level"], r["disclosure_level"])
+        self.assertEqual(len(r["levels"]["layers"]), 4)
 
     def test_detail_404(self):
         self.assertEqual(self.client.get("/api/orgs/99999999").status_code, 404)
@@ -234,8 +354,8 @@ class OrgListRaisedOrderingTests(TestCase):
         self.assertEqual([o["public_raised_5y"] for o in r[:3]], [800, 640, 100])
         rest = r[3:]
         self.assertTrue(all(o["public_raised_5y"] == 0 for o in rest))
-        scores = [o["disclosure_score"] for o in rest]
-        self.assertEqual(scores, sorted(scores, reverse=True))
+        levels = [o["disclosure_level"] for o in rest]
+        self.assertEqual(levels, sorted(levels, reverse=True))
 
     def test_detail_has_breakdown(self):
         d = self.client.get("/api/orgs/10000005").json()
@@ -248,9 +368,10 @@ class OrgListRaisedOrderingTests(TestCase):
         self.assertEqual(self.crowd.public_raised_5y, 940)  # 今年勸募申報後，今年的集資就不再加
 
     def test_score_ordering_still_available(self):
-        r = self.client.get("/api/orgs?ordering=score").json()["results"]
-        scores = [o["disclosure_score"] for o in r]
-        self.assertEqual(scores, sorted(scores, reverse=True))
+        for ordering in ("level", "score"):  # score 是舊網址
+            r = self.client.get(f"/api/orgs?ordering={ordering}").json()["results"]
+            levels = [o["disclosure_level"] for o in r]
+            self.assertEqual(levels, sorted(levels, reverse=True))
 
 
 class DonationTrendTests(TestCase):

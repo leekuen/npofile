@@ -28,7 +28,7 @@ function EndingCard({ e }: { e: DiscoverEnding }) {
       <span className="line-clamp-2 font-semibold text-ink-900">{e.name}</span>
       <span className="min-w-0">
         <span className="block truncate text-sm text-brand-900">{e.org_name}</span>
-        <span className="text-xs tabular-nums text-ink-600">揭露指數 {e.org_score}</span>
+        <span className="text-xs tabular-nums text-ink-600">揭露層級 {e.org_level}／4</span>
       </span>
       <span className="mt-auto text-sm tabular-nums text-ink-600">
         預募 {formatMoney(e.target)}・至 {formatRocDate(e.end_date)}
@@ -147,7 +147,7 @@ function PickCard({ o }: { o: FieldPickOrg }) {
       <span>
         <span className="block font-semibold text-brand-900">{o.name}</span>
         <span className="text-xs tabular-nums text-ink-600">
-          {o.city ? `${o.city}・` : ""}揭露指數 {o.score}
+          {o.city ? `${o.city}・` : ""}揭露層級 {o.level}／4
         </span>
       </span>
       {c ? (
@@ -180,7 +180,7 @@ export async function FieldPicksSection({ query }: { query: OrgQuery }) {
       <h2 id="picks-title" className="font-display text-lg font-bold text-balance text-ink-900 sm:text-xl">
         {picks.label}：近 5 年沒有受裁罰、有公益勸募紀錄的組織
       </h2>
-      <p className="mt-1 text-sm text-ink-500">名稱看得出相關的排前面。揭露指數只看資料公開得齊不齊，不代表本站背書。</p>
+      <p className="mt-1 text-sm text-ink-500">名稱看得出相關的排前面。揭露層級只看資料公開了多少，不代表本站背書。</p>
       {picks.orgs.length ? (
         <ul className={`mt-4 ${cardRow}`}>
           {picks.orgs.map((o) => (
