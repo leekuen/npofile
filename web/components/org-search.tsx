@@ -7,7 +7,7 @@ import type { OrgSummary } from "@/lib/types";
 
 import { CategoryBrowser, CategoryChip } from "./categories";
 import { FieldPicksSection, HomeDiscover, HomeSectionSkeleton } from "./home-discover";
-import { EmptyState, ErrorBox, LevelBadge, PenaltyBadge, Skeleton, StatusBadge } from "./ui";
+import { EmptyState, ErrorBox, LevelBadge, order, PenaltyBadge, Skeleton, StatusBadge } from "./ui";
 
 const PAGE_SIZE = 20;
 
@@ -91,19 +91,21 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
         className="surface relative isolate grid gap-6 overflow-hidden p-5 sm:p-8 lg:grid-cols-[minmax(0,1fr)_14rem] lg:items-stretch lg:gap-10 lg:p-10"
       >
         {/* 淡淡的靛藍＋暖黃光暈，只當背景，不放任何資訊 */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60rem_24rem_at_0%_0%,var(--color-brand-50),transparent_60%),radial-gradient(28rem_18rem_at_100%_0%,var(--color-sun-50),transparent_70%)]"
-        />
+        {/* LK-50：兩團光暈慢慢飄（減少動態時靜止） */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+          <div className="hero-glow absolute -top-1/2 -left-1/4 h-[44rem] w-[64rem] max-w-none rounded-full bg-[radial-gradient(closest-side,var(--color-brand-100),transparent)] opacity-80" />
+          <div className="hero-glow-2 absolute -top-40 -right-32 h-[26rem] w-[34rem] max-w-none rounded-full bg-[radial-gradient(closest-side,var(--color-sun-100),transparent)] opacity-90" />
+        </div>
         <div className="min-w-0 space-y-5">
-        <h1 id="search-title" className="font-display max-w-2xl text-3xl leading-tight font-extrabold text-balance text-ink-900 sm:text-[2.5rem]">
-          查一個非營利組織的募款與裁罰紀錄
+        <h1 id="search-title" className="animate-rise font-display max-w-2xl text-3xl leading-tight font-extrabold text-balance text-ink-900 sm:text-[2.5rem]">
+          查一個非營利組織的<Marker>募款</Marker>與<Marker delay={1}>裁罰</Marker>紀錄
         </h1>
         <form
           key={`${query.q}|${query.city}|${query.status}|${query.ordering}|${query.field}|${query.sub}|${query.target}`}
           action="/"
           method="get"
-          className="space-y-3"
+          style={order(1)}
+          className="stagger animate-rise space-y-3"
         >
           {query.field && <input type="hidden" name="field" value={query.field} />}
           {query.sub && <input type="hidden" name="sub" value={query.sub} />}
@@ -250,6 +252,8 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
 
 /** 組織列表的表頭＋每一列（首頁與鑽石級專頁共用，LK-46） */
 export function OrgRows({ orgs }: { orgs: OrgSummary[] }) {
+  // 金額旁的小長條：跟這一頁最多的那個比（只是幫眼睛比大小，數字照寫）
+  const maxRaised = Math.max(0, ...orgs.map((o) => o.public_raised_5y));
   return (
     <div className="overflow-hidden surface">
       <div aria-hidden className={`${ROW} hidden border-b border-ink-200 bg-ink-50/70 py-2.5 text-xs font-medium text-ink-600 sm:grid`}>
@@ -261,8 +265,8 @@ export function OrgRows({ orgs }: { orgs: OrgSummary[] }) {
         <span />
       </div>
       <ul className="divide-y divide-ink-100">
-        {orgs.map((org) => (
-          <li key={org.ubn}>
+        {orgs.map((org, i) => (
+          <li key={org.ubn} style={order(i)} className="stagger animate-rise">
             <Link href={`/orgs/${org.ubn}`} className={`group ${ROW} grid py-3.5 transition-colors hover:bg-brand-50/50`}>
               <LevelBadge level={org.disclosure_level} />
               <div className="min-w-0">
@@ -295,7 +299,19 @@ export function OrgRows({ orgs }: { orgs: OrgSummary[] }) {
                 )}
               </div>
               <span className="hidden text-right font-num text-sm whitespace-nowrap tabular-nums sm:block">
-                {org.public_raised_5y > 0 ? formatMoney(org.public_raised_5y) : <span className="text-ink-400">—</span>}
+                {org.public_raised_5y > 0 ? (
+                  <>
+                    {formatMoney(org.public_raised_5y)}
+                    <span aria-hidden className="mt-1.5 ml-auto block h-1 w-full overflow-hidden rounded-full bg-ink-100">
+                      <span
+                        style={{ width: `${Math.max(2, (org.public_raised_5y / maxRaised) * 100)}%`, animationDelay: `${0.15 + Math.min(i, 10) * 0.06}s` }}
+                        className="animate-grow-x ml-auto block h-full origin-right rounded-full bg-gradient-to-l from-brand-600 to-brand-300"
+                      />
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-ink-400">—</span>
+                )}
               </span>
               <span className="hidden text-sm sm:block">
                 {org.penalty_count_5y > 0 ? (
@@ -338,5 +354,19 @@ export function OrgSearchSkeleton() {
         ))}
       </div>
     </div>
+  );
+}
+
+/** 標題重點字下方的暖黃螢光筆，由左往右畫出來（LK-50） */
+function Marker({ children, delay = 0 }: { children: ReactNode; delay?: number }) {
+  return (
+    <span className="relative inline-block">
+      <span
+        aria-hidden
+        style={{ animationDelay: `${0.35 + delay * 0.2}s` }}
+        className="animate-grow-x absolute inset-x-0 bottom-[0.08em] -z-10 h-[0.38em] origin-left rounded-sm bg-sun-400/45"
+      />
+      {children}
+    </span>
   );
 }

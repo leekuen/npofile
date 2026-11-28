@@ -1,7 +1,12 @@
 import Link from "next/link";
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps, CSSProperties, ReactNode } from "react";
 
 import type { OrgStatus } from "@/lib/types";
+
+/** LK-50：一組東西依序出現時，第 i 個晚一點（搭配 className="stagger animate-rise"） */
+export function order(i: number): CSSProperties {
+  return { "--i": i } as CSSProperties;
+}
 
 /** 全站唯一的文字連結長相：連結色＋底線。外部網址自動開新分頁。 */
 export function TextLink({ href, children, className = "", ...rest }: ComponentProps<typeof Link>) {
@@ -87,7 +92,7 @@ export function LevelBadge({ level, size = "sm" }: { level: number; size?: "sm" 
   return (
     <span className={`inline-flex shrink-0 items-center ${lg ? "gap-2" : ""}`} title={`揭露層級：${levelMedal(n)}（${levelName(n)}）`}>
       <span
-        className={`inline-flex items-center justify-center whitespace-nowrap rounded-full font-semibold ring-1 ${MEDAL_STYLES[n]} ${
+        className={`inline-flex items-center justify-center whitespace-nowrap rounded-full font-semibold ring-1 ${MEDAL_STYLES[n]} ${n >= 3 ? "medal-sheen" : ""} ${
           lg ? "px-3 py-1 text-base" : "min-w-10 px-1.5 py-0.5 text-xs"
         }`}
       >
