@@ -9,7 +9,8 @@ from __future__ import annotations
 import re
 from datetime import date, timedelta
 
-from django.db.models import Exists, F, OuterRef, Q, Subquery, Sum
+from django.core.cache import cache
+from django.db.models import Count, Exists, F, Max, OuterRef, Q, Subquery, Sum
 from django.utils import timezone
 
 from . import category_api, period, scoring, taxonomy
@@ -22,6 +23,14 @@ GIFT_MIN_AMOUNT = 100_000
 GIFT_LIMIT = 6
 PICK_LIMIT = 3
 PICK_SCAN = 3000  # 依揭露層級排好的候選，最多看這麼多個找「名稱看得出相關」的
+GUIDE_CACHE_SECONDS = 6 * 3600
+# 推薦卡「裁罰紀錄」那一行寫的「查過的來源」：受裁罰紀錄的每一種類別各是哪個機關的資料（LK-52）
+PENALTY_SOURCES = {
+    Penalty.Category.FUNDRAISING: "衛福部",
+    Penalty.Category.ENVIRONMENT: "環境部",
+    Penalty.Category.LABOR: "勞動部",
+    Penalty.Category.PROCUREMENT: "工程會",
+}
 
 # 處分理由 → 白話的違規類型（依序比對，第一個中的算；都沒中就不寫，不硬湊）
 PENALTY_KINDS = (
@@ -118,10 +127,36 @@ def _campaign(org: Organization, code: str, today: date) -> dict | None:
     return None
 
 
+def _latest_project(org: Organization) -> dict | None:
+    """沒有進行中募款時，「捐款用途」寫最近一次公益勸募活動（LK-52）。"""
+    p = org.projects.filter(channel=Project.Channel.PERMIT).order_by(
+        F("start_date").desc(nulls_last=True), F("period_year").desc(nulls_last=True), "-id").first()
+    if not p:
+        return None
+    return {"project_id": p.external_id, "name": p.name, "year": p.period_year}
+
+
+def _pick_card(org: Organization, code: str, today: date) -> dict:
+    """推薦卡一張（引導模式與領域區共用，LK-52）：捐款用途、裁罰、經費、揭露層級。"""
+    campaign = _campaign(org, code, today)
+    return {
+        "ubn": org.ubn, "name": org.name, "city": org.city, "level": org.disclosure_level,
+        "raised_5y": org.raised_5y or 0,
+        "campaign": campaign,
+        "latest_project": None if campaign else _latest_project(org),
+        # 推薦條件已排除近五年有裁罰的，這裡只數更早的（含日期不明）
+        "older_penalties": org.penalties.exclude(scoring.penalty_5y_filter()).count(),
+    }
+
+
 def field_picks(params) -> dict | None:
     code = pick_code(params)
     if not code:
         return None
+    return _picks_for(code, params)
+
+
+def _picks_for(code: str, params) -> dict:
     today = timezone.localdate()
     since = period.since_roc_year()
     qs = Organization.objects.all()
@@ -148,8 +183,40 @@ def field_picks(params) -> dict | None:
     return {
         "code": code,
         "label": taxonomy.LABELS[code],
-        "orgs": [{
-            "ubn": o.ubn, "name": o.name, "city": o.city, "level": o.disclosure_level,
-            "raised_5y": o.raised_5y or 0, "campaign": _campaign(o, code, today),
-        } for o in orgs],
+        "penalty_sources": list(PENALTY_SOURCES.values()),
+        "orgs": [_pick_card(o, code, today) for o in orgs],
     }
+
+
+def _data_stamp() -> str:
+    """推薦結果會跟著變的資料摘要：日期（進行中募款每天變）＋層級／實募總和（recompute_scores 改了就變）＋裁罰與專案。
+    快取放在各 worker 自己的記憶體，排程容器碰不到，所以不靠「跑完去清快取」，而是資料一變 key 就跟著變。"""
+    org = Organization.objects.aggregate(level=Sum("disclosure_level"), raised=Sum("public_raised_5y"))
+    pen = Penalty.objects.aggregate(n=Count("id"), last=Max("id"))
+    proj = Project.objects.aggregate(n=Count("id"), last=Max("id"))
+    return ":".join(str(v) for v in (
+        timezone.localdate(), org["level"], org["raised"], pen["n"], pen["last"], proj["n"], proj["last"]))
+
+
+def guide() -> dict:
+    """首頁引導模式（LK-51）：每個公益大類各推薦最多三個；挑法跟領域區同一套（LK-18）。"""
+    key = f"home:guide:{_data_stamp()}"
+    data = cache.get(key)
+    if data is None:
+        data = _build_guide()
+        cache.set(key, data, GUIDE_CACHE_SECONDS)
+    return data
+
+
+def _build_guide() -> dict:
+    counts = category_api.code_counts()
+    fields, empty = [], []
+    for f in taxonomy.FIELDS:
+        if f.code.startswith("other"):
+            continue
+        picks = _picks_for(f.code, {"field": f.code})
+        if picks["orgs"]:
+            fields.append({"code": f.code, "label": f.label, "count": counts.get(f.code, 0), "orgs": picks["orgs"]})
+        else:
+            empty.append({"code": f.code, "label": f.label})
+    return {"penalty_sources": list(PENALTY_SOURCES.values()), "fields": fields, "empty": empty}

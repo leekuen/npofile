@@ -88,7 +88,7 @@ class DiscoverTests(Base):
         self.assertEqual(set(r), {"ending", "penalties", "gifts"})
 
 
-class PicksTests(Base):
+class PickBase(Base):
     def setUp(self):
         super().setUp()
         AnnualFundraising.objects.all().delete()
@@ -99,6 +99,8 @@ class PicksTests(Base):
     def picks(self, **params):
         return home.field_picks(params)
 
+
+class PicksTests(PickBase):
     def test_rules_and_order(self):
         by_name = self.org("10000001", "台南市流浪動物協會", level=2)  # 名稱看得出是動保
         official = self.org("10000002", "某某基金會", purposes="動物保護事業", level=2)  # 官方勸募用途
@@ -148,3 +150,99 @@ class PicksTests(Base):
         self.live(org, "計畫", external_id="555")
         projects = APIClient().get(f"/api/orgs/{org.ubn}").json()["projects"]
         self.assertEqual(projects[0]["external_id"], "555")
+
+
+class PickCardTests(PickBase):
+    """推薦卡的四行資料（LK-52）。"""
+
+    def test_purpose_older_penalties_and_sources(self):
+        org = self.org("10000001", "台南市流浪動物協會")
+        self.raised(org, 5000)
+        Project.objects.create(organization=org, name="舊的結紮計畫", external_id="old", start_date=date(2020, 1, 1))
+        Project.objects.create(organization=org, name="最近的送養計畫", external_id="new", start_date=self.today - timedelta(days=400))
+        Project.objects.create(organization=org, name="集資", external_id="cf", channel=Project.Channel.CROWDFUNDING,
+                               start_date=self.today - timedelta(days=10))
+        Penalty.objects.create(organization=org, decided_on=self.today - timedelta(days=365 * 7))
+        Penalty.objects.create(organization=org, decided_on=None)
+        categorize()
+        r = self.picks(field="animal")
+        card = r["orgs"][0]
+        self.assertIsNone(card["campaign"])
+        self.assertEqual((card["latest_project"]["project_id"], card["latest_project"]["name"]), ("new", "最近的送養計畫"))
+        self.assertEqual(card["older_penalties"], 2)
+        self.assertEqual(card["raised_5y"], 5000)
+        self.assertEqual(r["penalty_sources"], ["衛福部", "環境部", "勞動部", "工程會"])
+
+    def test_live_campaign_wins(self):
+        org = self.org("10000001", "台南市流浪動物協會")
+        self.raised(org)
+        self.live(org, "浪浪醫療計畫", category="動物保護事業")
+        categorize()
+        card = self.picks(field="animal")["orgs"][0]
+        self.assertEqual(card["campaign"]["name"], "浪浪醫療計畫")
+        self.assertIsNone(card["latest_project"])
+        self.assertEqual(card["older_penalties"], 0)
+
+    def test_no_project_at_all(self):
+        org = self.org("10000001", "某某基金會", purposes="動物保護事業")
+        self.raised(org)
+        categorize()
+        card = self.picks(field="animal")["orgs"][0]
+        self.assertIsNone(card["campaign"])
+        self.assertIsNone(card["latest_project"])
+
+
+class GuideTests(PickBase):
+    """首頁引導模式（LK-51）：所有公益大類一次回，0 個的大類另列，結果快取。"""
+
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import cache
+
+        cache.clear()
+
+    def test_fields_and_empty(self):
+        animal = self.org("10000001", "台南市流浪動物協會")
+        edu = self.org("10000002", "某某文教基金會")
+        for o in (animal, edu):
+            self.raised(o)
+        for i in range(4):
+            o = self.org(f"2000000{i}", f"第{i}流浪貓協會")
+            self.raised(o)
+        categorize()
+        r = home.guide()
+        codes = [f["code"] for f in r["fields"]]
+        self.assertIn("animal", codes)
+        self.assertIn("education", codes)
+        self.assertNotIn("other", codes + [e["code"] for e in r["empty"]])
+        animal_row = next(f for f in r["fields"] if f["code"] == "animal")
+        self.assertEqual((animal_row["label"], len(animal_row["orgs"]), animal_row["count"]), ("動物保護", 3, 5))
+        self.assertIn({"code": "international", "label": "國際援助"}, r["empty"])
+        self.assertEqual(len(r["fields"]) + len(r["empty"]), 8)  # 非公益類不列
+
+    def test_cached_until_data_changes(self):
+        org = self.org("10000001", "台南市流浪動物協會", level=2)
+        self.raised(org)
+        categorize()
+        home.guide()
+        with self.assertNumQueries(3):  # 只剩算資料摘要那三支
+            home.guide()
+        Penalty.objects.create(organization=org, decided_on=self.today - timedelta(days=3))  # 新的裁罰 → 不再推薦
+        self.assertNotIn("animal", [f["code"] for f in home.guide()["fields"]])
+
+    def test_recompute_invalidates(self):
+        a = self.org("10000001", "台南市流浪動物協會", level=1)
+        b = self.org("10000002", "台北市流浪動物協會", level=1)
+        for o in (a, b):
+            self.raised(o)
+        categorize()
+        Organization.objects.filter(pk=b.pk).update(disclosure_level=3)  # 像 recompute_scores 用 bulk_update 改層級
+        first = [o["ubn"] for o in next(f for f in home.guide()["fields"] if f["code"] == "animal")["orgs"]]
+        self.assertEqual(first[0], b.ubn)
+        Organization.objects.filter(pk=a.pk).update(disclosure_level=4)
+        again = [o["ubn"] for o in next(f for f in home.guide()["fields"] if f["code"] == "animal")["orgs"]]
+        self.assertEqual(again[0], a.ubn)
+
+    def test_api(self):
+        r = APIClient().get("/api/home/guide").json()
+        self.assertEqual(set(r), {"penalty_sources", "fields", "empty"})

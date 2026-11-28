@@ -167,3 +167,9 @@ def home_discover(request):
 def home_picks(request):
     """首頁領域區：選了領域或服務對象時的組織（LK-18）；沒有可看的分類回 {"picks": null}。"""
     return Response({"picks": home.field_picks(request.query_params)})
+
+
+@api_view(["GET"])
+def home_guide(request):
+    """首頁引導模式：所有公益大類各推薦最多三個組織，一次回（LK-51）。"""
+    return Response(home.guide())
