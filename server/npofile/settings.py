@@ -86,7 +86,8 @@ WSGI_APPLICATION = "npofile.wsgi.application"
 # 正式環境：DATABASE_URL=postgres://user:pass@host:5432/npofile；沒設就用本機 SQLite（開發用）
 DATABASES = {
     "default": dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}", conn_max_age=60
+        # 重用連線前先確認還活著：資料庫重啟（自動更新會重建）後，各 worker 手上的舊連線第一個請求不會 500
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}", conn_max_age=60, conn_health_checks=True
     )
 }
 
