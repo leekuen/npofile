@@ -7,11 +7,11 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from django.db.models import Count, Prefetch, Q, QuerySet
+from django.db.models import Count, Exists, OuterRef, Prefetch, Q, QuerySet
 from django.utils import timezone
 
 from . import period
-from .models import AnnualFundraising, FinancialYear, OrgDocument, Organization, Project
+from .models import AnnualFundraising, Donation, FinancialYear, Grant, OrgDocument, Organization, Penalty, Project
 
 # 揭露層級（口徑見 tickets/LK-35）：四層依序達成，每一層的條件全部達到才算
 LEVEL_NAMES = {0: "資料不足", 1: "身分可查", 2: "活動可查", 3: "財務可查", 4: "長期可查"}
@@ -36,6 +36,21 @@ def five_years_ago(ref: date | None = None) -> date:
 
 def penalty_5y_filter(prefix: str = "") -> Q:
     return Q(**{f"{prefix}decided_on__gte": five_years_ago()})
+
+
+def has_data_q() -> Q:
+    """「有資料」的組織（LK-46，列表排在前面）：組織頁上看得到任一種紀錄——近 5 年的勸募申報、勸募活動或集資、補助、
+    財報、年報文件、捐款，或任何一筆裁罰（裁罰永久保留，不看年度）。只有基本資料（財政部名冊、分類、法人登記）的不算。"""
+    pk = OuterRef("pk")
+    return (
+        Exists(AnnualFundraising.objects.filter(period.annual_q(), organization=pk))
+        | Exists(Project.objects.filter(period.project_q(), organization=pk))
+        | Exists(Grant.objects.filter(period.grant_q(), organization=pk))
+        | Exists(FinancialYear.objects.filter(period.annual_q(), organization=pk))
+        | Exists(OrgDocument.objects.filter(period.annual_q(), organization=pk))
+        | Exists(Donation.objects.filter(period.donation_q(), organization=pk))
+        | Exists(Penalty.objects.filter(organization=pk))
+    )
 
 
 def with_penalty_count(qs: QuerySet[Organization]) -> QuerySet[Organization]:
@@ -205,9 +220,10 @@ def donation_trend(annual, projects, grants, ref: date | None = None) -> list[di
 
 
 def recompute(orgs: QuerySet[Organization] | None = None, chunk: int = 2000) -> int:
-    """重算揭露層級與近 5 年公開募款並寫回；回傳有變動的組織數。"""
+    """重算揭露層級、近 5 年公開募款、有沒有資料並寫回；回傳有變動的組織數。"""
     since = period.since_roc_year()
     qs = (orgs if orgs is not None else Organization.objects.all()).order_by("pk")
+    with_data = set(qs.filter(has_data_q()).values_list("pk", flat=True))
     qs = qs.prefetch_related(
         Prefetch("annual_records", queryset=AnnualFundraising.objects.filter(year__gte=since)),
         Prefetch("projects", queryset=Project.objects.filter(period.project_q())),
@@ -225,9 +241,11 @@ def recompute(orgs: QuerySet[Organization] | None = None, chunk: int = 2000) -> 
             registries=list(org.registry_entries.all()), has_grants=org._grants > 0,
         )["level"]
         raised = public_raised(annual, projects)["total"]
-        if level != org.disclosure_level or raised != org.public_raised_5y:
+        has_data = org.pk in with_data
+        if level != org.disclosure_level or raised != org.public_raised_5y or has_data != org.has_data:
             org.disclosure_level = level
             org.public_raised_5y = raised
+            org.has_data = has_data
             batch.append(org)
         if len(batch) >= chunk:
             changed += _flush(batch)
@@ -238,6 +256,6 @@ def recompute(orgs: QuerySet[Organization] | None = None, chunk: int = 2000) -> 
 def _flush(batch: list[Organization]) -> int:
     n = len(batch)
     if n:
-        Organization.objects.bulk_update(batch, ["disclosure_level", "public_raised_5y"])
+        Organization.objects.bulk_update(batch, ["disclosure_level", "public_raised_5y", "has_data"])
         batch.clear()
     return n

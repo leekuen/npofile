@@ -46,6 +46,8 @@ export interface OrgQuery {
   field?: string;
   sub?: string;
   target?: string;
+  /** 揭露層級 0～4（鑽石級專頁用 4） */
+  level?: string;
   page?: string;
 }
 

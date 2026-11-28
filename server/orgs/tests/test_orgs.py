@@ -12,7 +12,7 @@ from django.test import SimpleTestCase, TestCase
 from rest_framework.test import APIClient
 
 from orgs import period, scoring
-from orgs.models import AnnualFundraising, Donation, Organization, Penalty, Project
+from orgs.models import AnnualFundraising, Donation, Grant, Organization, Penalty, Project
 
 
 def make_org(ubn="12345678", **kw):
@@ -251,7 +251,7 @@ class ApiTests(TestCase):
     def test_stats(self):
         r = self.client.get("/api/stats").json()
         self.assertEqual(
-            r, {"organizations": 3, "with_fundraising": 1, "penalized_5y": 1, "since_roc_year": period.since_roc_year(),
+            r, {"organizations": 3, "with_data": 3, "diamond": 0, "with_fundraising": 1, "penalized_5y": 1, "since_roc_year": period.since_roc_year(),
                 "donor_individual_threshold": settings.DONOR_INDIVIDUAL_THRESHOLD}
         )
 
@@ -461,3 +461,44 @@ class DonationTrendTests(TestCase):
         self.assertEqual(sum(r["permit"] for r in t), d["public_raised"]["permit"])
         self.assertEqual(sum(r["crowdfunding"] for r in t), d["public_raised"]["crowdfunding"])
         self.assertEqual(sum(r["grants"] for r in t), sum(g["amount"] for g in d["grants"]))
+
+
+class HasDataOrderingTests(TestCase):
+    """LK-46：有資料的組織排前面，只有基本資料的照樣搜得到；level 篩揭露層級。"""
+
+    def setUp(self):
+        y = period.since_roc_year()
+        self.bare = make_org("20000001", name="甲協會", website="https://a.tw")  # 只有基本資料，層級可能比較高
+        self.penalty = make_org("20000002", name="乙協會")
+        self.grant = make_org("20000003", name="丙協會")
+        self.old = make_org("20000004", name="丁協會")
+        Penalty.objects.create(organization=self.penalty, decided_on=date(2001, 1, 1), content="很久以前也算")
+        Grant.objects.create(organization=self.grant, external_id="g1", year=y, agency="衛福部", recipient="丙協會", amount=1000)
+        AnnualFundraising.objects.create(organization=self.old, year=y - 1, raised=500)  # 早於近 5 年不算
+        scoring.recompute()
+
+    def test_has_data_flag(self):
+        flags = dict(Organization.objects.values_list("ubn", "has_data"))
+        self.assertEqual(flags, {"20000001": False, "20000002": True, "20000003": True, "20000004": False})
+
+    def test_every_ordering_puts_data_first(self):
+        for ordering in ("raised", "level", "name"):
+            ubns = [o["ubn"] for o in self.client.get(f"/api/orgs?ordering={ordering}").json()["results"]]
+            self.assertEqual(set(ubns[:2]), {"20000002", "20000003"}, ordering)
+            self.assertEqual(len(ubns), 4)
+
+    def test_bare_org_still_searchable(self):
+        r = self.client.get("/api/orgs?q=20000001").json()
+        self.assertEqual([o["ubn"] for o in r["results"]], ["20000001"])
+
+    def test_flag_follows_new_data(self):
+        Penalty.objects.create(organization=self.bare, decided_on=date.today(), content="新裁罰")
+        scoring.recompute(Organization.objects.filter(pk=self.bare.pk))
+        self.bare.refresh_from_db()
+        self.assertTrue(self.bare.has_data)
+
+    def test_level_filter(self):
+        Organization.objects.filter(pk=self.grant.pk).update(disclosure_level=4)
+        r = self.client.get("/api/orgs?level=4").json()
+        self.assertEqual([o["ubn"] for o in r["results"]], ["20000003"])
+        self.assertEqual(self.client.get("/api/stats").json()["diamond"], 1)

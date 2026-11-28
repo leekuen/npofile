@@ -24,6 +24,10 @@ export interface Page<T> {
 
 export interface Stats {
   organizations: number;
+  /** 組織頁上有任一種紀錄（勸募、集資、補助、財報、年報、捐款、裁罰）的組織數（LK-46） */
+  with_data: number;
+  /** 鑽石級（揭露層級 4）組織數（LK-46） */
+  diamond: number;
   with_fundraising: number;
   penalized_5y: number;
   since_roc_year: number;
