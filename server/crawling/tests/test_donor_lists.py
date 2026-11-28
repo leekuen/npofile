@@ -83,7 +83,7 @@ class DonorListImportTests(TestCase):
         self.assertEqual((summary["anonymous_rows"], summary["anonymous_amount"]), (3, 60000))
         self.assertNotIn("receipt_no", str(r))
         self.assertNotIn("A001", str(r))
-        self.assertEqual(Organization.objects.get(ubn=UBN).disclosure_score, 100)
+        self.assertEqual(Organization.objects.get(ubn=UBN).disclosure_level, 2)  # 身分＋勸募活動都齊，沒有財報
 
     def test_donor_ranking_excludes_individuals(self):
         self.import_all()
@@ -99,7 +99,8 @@ class DonorListImportTests(TestCase):
         donor = Donor.objects.get(name="範例科技股份有限公司")
         r = self.api.get(f"/api/donors/{donor.pk}").json()
         self.assertEqual(r["total"], 2000000)
-        self.assertEqual(r["organizations"], [{"ubn": UBN, "name": "社團法人賦格行動音樂關懷協會", "total": 2000000, "count": 2}])
+        orgs = [{k: o[k] for k in ("ubn", "name", "total", "count", "penalty_count")} for o in r["organizations"]]
+        self.assertEqual(orgs, [{"ubn": UBN, "name": "社團法人賦格行動音樂關懷協會", "total": 2000000, "count": 2, "penalty_count": 0}])
         self.assertEqual(len(r["donations"]), 2)
         self.assertNotIn("receipt_no", r["donations"][0])
 

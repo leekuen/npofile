@@ -44,8 +44,9 @@ class Organization(models.Model):
     locked_fields = models.JSONField(
         "手動鎖定欄位", default=list, blank=True, help_text="管理員手動改過的欄位，爬蟲不會覆蓋。"
     )
-    disclosure_score = models.PositiveSmallIntegerField("揭露指數", default=0, db_index=True, editable=False)
-    # 近 5 年公開募款（勸募申報＋群眾集資，同一年度不重複算；口徑見 tickets/LK-20），跟揭露指數一起重算
+    # 揭露層級 0～4（口徑見 tickets/LK-35；取代 LK-03 的 0～100 揭露指數），只由 orgs/scoring.py 算
+    disclosure_level = models.PositiveSmallIntegerField("揭露層級", default=0, db_index=True, editable=False)
+    # 近 5 年公開募款（勸募申報＋群眾集資，同一年度不重複算；口徑見 tickets/LK-20），跟揭露層級一起重算
     public_raised_5y = models.BigIntegerField("近 5 年公開募款", default=0, db_index=True, editable=False)
     created_at = models.DateTimeField("建立時間", auto_now_add=True)
     updated_at = models.DateTimeField("更新時間", auto_now=True)
@@ -53,7 +54,7 @@ class Organization(models.Model):
     class Meta:
         verbose_name = "組織"
         verbose_name_plural = "組織"
-        ordering = ["-disclosure_score", "name"]
+        ordering = ["-disclosure_level", "-public_raised_5y", "name"]
 
     def __str__(self):
         return f"{self.name}（{self.ubn}）"
@@ -273,6 +274,13 @@ class Grant(SourceMixin):
 
 
 class Penalty(SourceMixin):
+    class Category(models.TextChoices):
+        # 前台依這個分開標示（LK-36）；加新類別：這裡加一項、前台 PENALTY_CATEGORY 加標籤（改 choices 不動資料表）
+        FUNDRAISING = "fundraising", "公益勸募"
+        LABOR = "labor", "勞動法令"
+        ENVIRONMENT = "environment", "環境保護"
+        PROCUREMENT = "procurement", "政府採購停權"
+
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="penalties", verbose_name="組織")
     external_id = models.CharField("來源編號", max_length=50, blank=True)
     decided_on = models.DateField("處分日期", null=True, blank=True)
@@ -281,6 +289,9 @@ class Penalty(SourceMixin):
     content = models.TextField("處分內容")
     fine_text = models.CharField("罰鍰", max_length=300, blank=True)
     reason = models.TextField("處分理由", blank=True)
+    category = models.CharField("類別", max_length=20, choices=Category.choices, default=Category.FUNDRAISING,
+                                db_index=True)
+    law = models.CharField("違反法條", max_length=300, blank=True, help_text="例：廢棄物清理法第27條第11款")
 
     class Meta:
         verbose_name = "受裁罰紀錄"

@@ -21,7 +21,7 @@ PENALTY_LIMIT = 5
 GIFT_MIN_AMOUNT = 100_000
 GIFT_LIMIT = 6
 PICK_LIMIT = 3
-PICK_SCAN = 3000  # 依揭露指數排好的候選，最多看這麼多個找「名稱看得出相關」的
+PICK_SCAN = 3000  # 依揭露層級排好的候選，最多看這麼多個找「名稱看得出相關」的
 
 # 處分理由 → 白話的違規類型（依序比對，第一個中的算；都沒中就不寫，不硬湊）
 PENALTY_KINDS = (
@@ -57,7 +57,7 @@ def ending_campaigns(today: date | None = None) -> list[dict]:
     return [{
         "project_id": p.external_id, "name": p.name, "end_date": p.end_date, "target": p.target,
         "days_left": (p.end_date - today).days,
-        "org_ubn": p.organization.ubn, "org_name": p.organization.name, "org_score": p.organization.disclosure_score,
+        "org_ubn": p.organization.ubn, "org_name": p.organization.name, "org_level": p.organization.disclosure_level,
     } for p in qs]
 
 
@@ -136,7 +136,7 @@ def field_picks(params) -> dict | None:
     live = Project.objects.filter(_live(today=today), organization=OuterRef("pk"))
     ranked = (qs.annotate(pen=Exists(penalized), has_live=Exists(live), raised_5y=Subquery(raised))
               .filter(pen=False).filter(Q(has_live=True) | Q(raised_5y__gt=0))
-              .order_by("-disclosure_score", "-has_live", F("raised_5y").desc(nulls_last=True), "name"))
+              .order_by("-disclosure_level", "-has_live", F("raised_5y").desc(nulls_last=True), "name"))
     by_relation: dict[int, list[Organization]] = {0: [], 1: []}
     for org in ranked[:PICK_SCAN]:
         rel = _related(code, org)
@@ -149,7 +149,7 @@ def field_picks(params) -> dict | None:
         "code": code,
         "label": taxonomy.LABELS[code],
         "orgs": [{
-            "ubn": o.ubn, "name": o.name, "city": o.city, "score": o.disclosure_score,
+            "ubn": o.ubn, "name": o.name, "city": o.city, "level": o.disclosure_level,
             "raised_5y": o.raised_5y or 0, "campaign": _campaign(o, code, today),
         } for o in orgs],
     }

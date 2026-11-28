@@ -59,9 +59,24 @@ const SOURCES = [
     what: "勞動局依勞基法公布的處分（處分日期、文號、違反條款、罰鍰），只收非營利組織的，標示為「勞動法令」；負責人姓名不收",
   },
   {
+    name: "勞動部違反勞動法令事業單位（雇主）查詢系統",
+    url: "https://announcement.mol.gov.tw/",
+    what: "全國各縣市勞動局、勞保局、職安署依勞基法、職安法、就服法、勞退條例等公布的處分，只收非營利組織的，標示為「勞動法令」；負責人姓名不收",
+  },
+  {
+    name: "環境部列管事業污染源裁處資料",
+    url: "https://data.gov.tw/dataset/34101",
+    what: "各縣市環保局與環境部對列管事業的裁處（處分日期、裁處書字號、違反法條、罰鍰、違規事實），用統一編號對到站上的組織，標示為「環境保護」；違規人名稱與地址不收",
+  },
+  {
+    name: "行政院公共工程委員會拒絕往來廠商公告",
+    url: "https://data.gov.tw/dataset/5988",
+    what: "機關依政府採購法第 101 條公告停權的廠商（停權期間、公告機關、違反款次、案名），用統一編號對到站上的組織，標示為「政府採購停權」；負責人、身分證、聯絡人與地址不收",
+  },
+  {
     name: "挖貝 WaBay 群眾集資平台",
     url: "https://wabay.tw",
-    what: "非營利組織提的集資專案（非政府資料，另外標示，不算進揭露指數與任何加總）",
+    what: "非營利組織提的集資專案（非政府資料，另外標示，不算進揭露層級與任何加總）",
   },
 ];
 
@@ -120,42 +135,45 @@ async function AboutBody() {
         </p>
       </Section>
 
-      <Section id="score" title="揭露指數怎麼算">
-        <p>揭露指數只看組織把資料公開得齊不齊，滿分 100。它不是好壞評等，也不代表本站背書；受裁罰不扣分，另外標示。</p>
+      <Section id="score" title="揭露層級怎麼算">
+        <p>
+          揭露層級看組織在政府與公開來源上留下了多少看得到的資料，分銅、銀、金、鑽石四級，要依序達到：前一級達到了，下一級才算。
+          每一條都是站上查得到來源的資料，不收組織自己填的內容。層級不是好壞評等，也不代表本站背書；受裁罰不影響層級，另外標示。
+        </p>
         <div className="surface overflow-x-auto px-4 sm:px-5">
           <table className="w-full min-w-[28rem] border-collapse text-sm">
             <thead>
               <tr className="border-b border-ink-200 text-left text-ink-600">
-                <th scope="col" className="py-2 pr-4 font-medium">項目</th>
-                <th scope="col" className="py-2 pr-4 font-medium">怎麼拿分</th>
-                <th scope="col" className="py-2 text-right font-medium">分數</th>
+                <th scope="col" className="py-2 pr-4 font-medium">等級</th>
+                <th scope="col" className="py-2 pr-4 font-medium">代表什麼</th>
+                <th scope="col" className="py-2 font-medium">要有哪些資料（全部都要）</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
               <tr>
-                <td className="py-2 pr-4 whitespace-nowrap">基本資料</td>
-                <td className="py-2 pr-4">統一編號、團體類型、地址、電話、官網、勸募用途，有一項 5 分</td>
-                <td className="py-2 text-right tabular-nums">30</td>
+                <td className="py-2 pr-4 whitespace-nowrap tabular-nums">銅</td>
+                <td className="py-2 pr-4 whitespace-nowrap font-medium">身分可查</td>
+                <td className="py-2">營運中，而且統一編號、團體類型、地址、宗旨（勸募用途或主管機關名冊的成立宗旨）、電話或官網都有</td>
               </tr>
               <tr>
-                <td className="py-2 pr-4 whitespace-nowrap">募款紀錄</td>
-                <td className="py-2 pr-4">近 5 年有實際募到款，或有捐款紀錄</td>
-                <td className="py-2 text-right tabular-nums">25</td>
+                <td className="py-2 pr-4 whitespace-nowrap tabular-nums">銀</td>
+                <td className="py-2 pr-4 whitespace-nowrap font-medium">活動可查</td>
+                <td className="py-2">近 5 年有看得到的活動：政府許可的勸募活動、政府補助，或主管機關名冊上的主要業務。有辦勸募的，去年以前募到款的活動都要已向主管機關成果備查（今年的還在期限內，先不算）</td>
               </tr>
               <tr>
-                <td className="py-2 pr-4 whitespace-nowrap">勸募活動</td>
-                <td className="py-2 pr-4">近 5 年有經政府許可的勸募活動</td>
-                <td className="py-2 text-right tabular-nums">20</td>
+                <td className="py-2 pr-4 whitespace-nowrap tabular-nums">金</td>
+                <td className="py-2 pr-4 whitespace-nowrap font-medium">財務可查</td>
+                <td className="py-2">最近兩個年度內有財務報告，至少看得到總收入與總支出</td>
               </tr>
               <tr>
-                <td className="py-2 pr-4 whitespace-nowrap">成果備查</td>
-                <td className="py-2 pr-4">有募到款的勸募活動中，已向主管機關成果備查的比例 × 25</td>
-                <td className="py-2 text-right tabular-nums">25</td>
+                <td className="py-2 pr-4 whitespace-nowrap tabular-nums">鑽石</td>
+                <td className="py-2 pr-4 whitespace-nowrap font-medium">長期可查</td>
+                <td className="py-2">連續 3 個年度都有財務報告、最近一年的財報經會計師查核，而且最近兩個年度內有年報或工作／成果報告</td>
               </tr>
             </tbody>
           </table>
         </div>
-        <p className="text-ink-600">群眾集資平台上的專案沒有政府的成果備查，不算進揭露指數。</p>
+        <p className="text-ink-600">還沒達到銅級的是「未分級」，多半是只有財政部名冊上的名稱與縣市。已註銷、撤銷或歇業的組織不分層級。群眾集資平台上的專案沒有政府的成果備查，不算勸募活動。</p>
       </Section>
 
       <Section id="categories" title="分類怎麼來">

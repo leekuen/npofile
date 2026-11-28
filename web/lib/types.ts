@@ -7,7 +7,7 @@ export interface OrgSummary {
   city: string;
   status: OrgStatus;
   status_label: string;
-  disclosure_score: number;
+  disclosure_level: number;
   penalty_count_5y: number;
   public_raised_5y: number;
   tags: CategoryTag[];
@@ -83,8 +83,10 @@ export interface Penalty {
   reason: string;
   source_name: string;
   source_url: string;
-  /** labor＝地方勞動局依勞基法公布的處分；fundraising＝公益勸募裁處 */
-  category: "labor" | "fundraising";
+  /** 類別（LK-36 起存在資料表）：labor 勞動法令、fundraising 公益勸募、environment 環境保護、procurement 政府採購停權 */
+  category: "labor" | "fundraising" | "environment" | "procurement";
+  /** 違反法條（例：廢棄物清理法第27條第11款）；沒有就是空字串 */
+  law: string;
 }
 
 export type DonorKind = "company" | "group" | "individual";
@@ -101,22 +103,34 @@ export interface DonationRow {
   source_url: string;
 }
 
-export interface ScoreBreakdown {
-  basic: number;
-  basic_max: number;
-  basic_present: Record<
-    "ubn" | "org_type" | "address" | "phone" | "website" | "purposes",
-    boolean
-  >;
-  fundraising: number;
-  fundraising_max: number;
-  project: number;
-  project_max: number;
-  result: number;
-  result_max: number;
-  result_funded_projects: number;
-  result_filed_projects: number;
-  total: number;
+/** 揭露層級（LK-35）：四層依序達成，每一層的條件全部達到才算 */
+export interface LevelCheck {
+  key: string;
+  label: string;
+  met: boolean;
+  /** 補充說明，例如「已備查 3／4」；沒有是空字串 */
+  hint: string;
+}
+
+export interface LevelLayer {
+  level: number;
+  /** 銅、銀、金、鑽石 */
+  medal: string;
+  name: string;
+  met: boolean;
+  checks: LevelCheck[];
+}
+
+export interface DisclosureLevels {
+  level: number;
+  /** 未分級、銅、銀、金、鑽石 */
+  medal: string;
+  name: string;
+  max_level: number;
+  active: boolean;
+  layers: LevelLayer[];
+  results_due: number;
+  results_filed: number;
 }
 
 /** 一個會計年度的財務摘要（LK-17，參照 Candid Financials）；金額單位元，報告沒列的是 null */
@@ -246,7 +260,7 @@ export interface OrgDetail extends Omit<OrgSummary, "public_raised_5y"> {
   website: string;
   purposes: string;
   source_links: SourceLink[];
-  score: ScoreBreakdown;
+  levels: DisclosureLevels;
   annual_records: Annual[];
   financials: FinancialYear[];
   documents: OrgDocument[];
@@ -321,6 +335,28 @@ export interface DonorSummaryRow {
   total: number;
   org_count: number;
   donation_count: number;
+  /** 近 5 年有捐款的年度數（有日期、不晚於今天的才算；LK-38） */
+  active_year_count: number;
+  last_donated_on: string | null;
+}
+
+export interface DonorYear {
+  /** 民國年 */
+  year: number;
+  total: number;
+  org_count: number;
+  count: number;
+}
+
+export interface DonorOverview {
+  /** 同類（企業或團體）依近 5 年總額的名次，同額同名次 */
+  rank: number;
+  rank_of: number;
+  active_years: number[];
+  first_donated_on: string | null;
+  last_donated_on: string | null;
+  max_donation: number;
+  yearly: DonorYear[];
 }
 
 export interface DonorDetail extends DonorSummaryRow {
@@ -328,7 +364,17 @@ export interface DonorDetail extends DonorSummaryRow {
   representative: string;
   capital: number | null;
   address: string;
-  organizations: { ubn: string; name: string; total: number; count: number }[];
+  organizations: {
+    ubn: string;
+    name: string;
+    total: number;
+    count: number;
+    /** 支持過的民國年度 */
+    years: number[];
+    /** 這個組織全部的裁罰紀錄筆數（不限年份） */
+    penalty_count: number;
+  }[];
+  overview: DonorOverview;
   fields_breakdown: { code: string; label: string; total: number }[];
   donations: {
     id: number;
@@ -377,17 +423,17 @@ export interface CategoryOverview {
   org_count: number;
   raised_5y: number;
   penalized_5y: number;
-  top_score: {
+  top_level: {
     ubn: string;
     name: string;
     city: string;
-    disclosure_score: number;
+    disclosure_level: number;
   }[];
   top_raised: {
     ubn: string;
     name: string;
     city: string;
-    disclosure_score: number;
+    disclosure_level: number;
     raised_5y: number;
   }[];
   top_donors: {
@@ -417,7 +463,7 @@ export interface DiscoverEnding {
   days_left: number;
   org_ubn: string;
   org_name: string;
-  org_score: number;
+  org_level: number;
 }
 
 export interface DiscoverPenalty {
@@ -449,7 +495,7 @@ export interface FieldPickOrg {
   ubn: string;
   name: string;
   city: string;
-  score: number;
+  level: number;
   raised_5y: number;
   campaign: { project_id: string; name: string; end_date: string; target: number } | null;
 }

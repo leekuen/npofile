@@ -1,7 +1,6 @@
 from rest_framework import serializers
 
 from . import category_api, donor_rules, period, scoring
-from npofile_crawler import labor
 
 from .models import (
     AnnualFundraising,
@@ -31,7 +30,7 @@ class OrganizationListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = (
-            "ubn", "name", "org_type", "city", "status", "status_label", "disclosure_score", "penalty_count_5y",
+            "ubn", "name", "org_type", "city", "status", "status_label", "disclosure_level", "penalty_count_5y",
             "public_raised_5y", "tags", "latest_revenue",
         )
 
@@ -87,22 +86,14 @@ class ProjectSerializer(serializers.ModelSerializer):
         )
 
 
-# 勞動局公布的違反勞基法處分（LK-29）跟公益勸募裁處分開標示
-LABOR_SOURCE_NAMES = {spec.source_name for spec in labor.SPECS}
-
-
 class PenaltySerializer(serializers.ModelSerializer):
-    category = serializers.SerializerMethodField()
-
+    # 類別存在資料表（LK-36）：fundraising 公益勸募／labor 勞動法令／environment 環境保護／procurement 政府採購停權
     class Meta:
         model = Penalty
         fields = (
             "id", "decided_on", "authority", "document_no", "content", "fine_text", "reason", "source_name", "source_url",
-            "category",
+            "category", "law",
         )
-
-    def get_category(self, obj) -> str:
-        return "labor" if obj.source_name in LABOR_SOURCE_NAMES else "fundraising"
 
 
 class GrantSerializer(serializers.ModelSerializer):
@@ -189,7 +180,7 @@ class DonationCodeSerializer(serializers.ModelSerializer):
 class OrganizationDetailSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source="get_status_display")
     penalty_count_5y = serializers.IntegerField()
-    score = serializers.SerializerMethodField()
+    levels = serializers.SerializerMethodField()
     public_raised = serializers.SerializerMethodField()
     annual_records = AnnualSerializer(many=True)
     financials = FinancialYearSerializer(many=True)
@@ -213,8 +204,8 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
         model = Organization
         fields = (
             "ubn", "name", "org_type", "representative", "registered_address", "contact_address", "phone",
-            "website", "city", "purposes", "status", "status_label", "source_links", "disclosure_score",
-            "penalty_count_5y", "score", "public_raised", "annual_records", "financials", "documents", "projects",
+            "website", "city", "purposes", "status", "status_label", "source_links", "disclosure_level",
+            "penalty_count_5y", "levels", "public_raised", "annual_records", "financials", "documents", "projects",
             "penalties", "grants", "court_registrations", "court_dissolution", "registries", "donation_codes", "donation_trend", "donations",
             "corporate_donors", "individual_donors", "donor_summary", "since_roc_year", "categories",
             "updated_at",
@@ -230,8 +221,9 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     def get_court_dissolution(self, obj):
         return court_dissolution(list(obj.court_registrations.all()))
 
-    def get_score(self, obj):
-        return scoring.breakdown(obj)
+    def get_levels(self, obj):
+        # 組織頁的補助已預先載入近 5 年那幾筆，直接用，不再查一次
+        return scoring.levels(obj, has_grants=bool(obj.grants.all()))
 
     def get_public_raised(self, obj):
         return scoring.public_raised(list(obj.annual_records.all()), list(obj.projects.all()))
@@ -265,10 +257,14 @@ class DonorListSerializer(serializers.ModelSerializer):
     total = serializers.IntegerField()
     org_count = serializers.IntegerField()
     donation_count = serializers.IntegerField()
+    active_year_count = serializers.IntegerField()
+    last_donated_on = serializers.DateField(allow_null=True)
 
     class Meta:
         model = Donor
-        fields = ("id", "name", "kind", "kind_label", "ubn", "total", "org_count", "donation_count")
+        fields = (
+            "id", "name", "kind", "kind_label", "ubn", "total", "org_count", "donation_count", "active_year_count", "last_donated_on",
+        )
 
 
 class DonorDonationSerializer(serializers.ModelSerializer):
@@ -285,11 +281,17 @@ class DonorDetailSerializer(DonorListSerializer):
     organizations = serializers.SerializerMethodField()
     donations = serializers.SerializerMethodField()
     fields_breakdown = serializers.SerializerMethodField()
+    overview = serializers.SerializerMethodField()
 
     class Meta(DonorListSerializer.Meta):
         fields = DonorListSerializer.Meta.fields + (
             "registered_name", "representative", "capital", "address", "organizations", "donations", "fields_breakdown",
+            "overview",
         )
+
+    def get_overview(self, obj):
+        """捐款概況（LK-38）：同類排名、持續支持年度、最近一次、單筆最大、近 5 年年度趨勢。"""
+        return donor_rules.donor_overview(obj)
 
     def get_fields_breakdown(self, obj):
         return category_api.donor_field_breakdown(obj)

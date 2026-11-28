@@ -48,7 +48,7 @@ class Command(BaseCommand):
         self.stdout.write(f"完整爬取 #{req.pk} 開始：{', '.join(keys)}")
         out = io.StringIO()
         ok = True
-        # 跟每晚的排程一樣：先爬，再清掉近 5 年以外的資料、重算揭露指數
+        # 跟每晚的排程一樣：先爬，再清掉近 5 年以外的資料、重算揭露層級
         for name, args in (("crawl", keys), ("prune_old_records", []), ("recompute_scores", [])):
             out.write(f"==> {name} {' '.join(args)}\n")
             try:

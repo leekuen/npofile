@@ -12,7 +12,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from npofile_crawler import donors as donor_names
-from npofile_crawler import judicial
+from npofile_crawler import judicial, labor
 from npofile_crawler.http import PoliteClient
 from npofile_crawler.items import Item
 from npofile_crawler.sources import SOURCES
@@ -117,10 +117,16 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
                         values["have"] = set(CrawlRecord.objects.filter(source=source).values_list("external_id", flat=True))
                     if "orgs_city" in src.options:
                         values["orgs_city"] = Organization.objects.values_list("ubn", "name", "city").iterator(chunk_size=5000)
+                    if "moenv_api_key" in src.options:
+                        values["moenv_api_key"] = settings.MOENV_API_KEY
+                    if "since_date" in src.options:
+                        values["since_date"] = since_last_success(source)
                     if "listed" in src.options:
                         values["listed"] = [0]
                     if "seen_regs" in src.options:
                         values.update(court_registration_options())
+                    if "labor_docs" in src.options:
+                        values["labor_docs"] = labor_docs(source.key)
                     if source.key == "orgsite":
                         values.update(orgsite_targets.options(source))
                     items = src.fetch(client, limit, **{k: values[k] for k in src.options})
@@ -140,6 +146,9 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
                         run.note = f"到達每次最多 {source.max_minutes} 分鐘的上限先停，下次接著抓"
                         break
                 run.status = CrawlRun.Status.SUCCESS
+                stopped_early = bool(run.note) or (limit is not None and run.fetched >= limit)
+                if "since_date" in values and values.get("listed") is not None and not stopped_early:
+                    run.note = READ_ALL_NOTE  # 這次有讀完（沒被筆數或分鐘上限切斷），下次才只抓新的
                 if values.get("listed") is not None:  # 只抓新的的來源：改看列表有沒有讀到東西
                     run.listed_cards = values["listed"][0]
             except Exception as exc:  # 抓到一半失敗：已抓到的照樣存，錯誤記進執行紀錄
@@ -165,7 +174,29 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
     return run
 
 
-# 不影響揭露指數與分類的資料：存了不用重算
+# 只抓新的來源（環境部裁處，LK-36）：從上次成功的那天再往前推這麼多天，接住晚匯入的舊裁處
+SINCE_LOOKBACK_DAYS = 120
+READ_ALL_NOTE = "已讀完（下次只抓新的）"
+
+
+def since_last_success(source: CrawlerSource):
+    """上次成功抓取的日期往前推 SINCE_LOOKBACK_DAYS 天；從沒成功過回 None（全部回補）。"""
+    last = (source.runs.filter(status=CrawlRun.Status.SUCCESS, note__contains=READ_ALL_NOTE)
+            .order_by("-started_at").first())
+    if last is None:
+        return None
+    return timezone.localtime(last.started_at).date() - timedelta(days=SINCE_LOOKBACK_DAYS)
+
+
+def penalty_category(source_name: str, data: dict) -> str:
+    """裁罰的類別（LK-36）：爬蟲在 data["category"] 寫明的為準；沒寫的，名稱含「勞動」算勞動法令（同 0015 回填），其餘公益勸募。"""
+    category = data.get("category") or ""
+    if category in Penalty.Category.values:
+        return category
+    return Penalty.Category.LABOR if "勞動" in source_name else Penalty.Category.FUNDRAISING
+
+
+# 不影響揭露層級與分類的資料：存了不用重算
 NO_SCORE_KINDS = {"court_reg"}
 
 
@@ -174,6 +205,16 @@ def court_registration_options() -> dict:
     seen = {f"{c}|{n}" for c, n in CourtRegistration.objects.values_list("court", "case_no").iterator(chunk_size=5000)}
     oldest = CourtRegistration.objects.order_by("posted_on").values_list("posted_on", flat=True).first()
     return {"seen_regs": seen, "floor_reached": judicial.backfill_done(oldest)}
+
+
+def labor_docs(key: str) -> set[str]:
+    """別的勞動來源已收過的處分字號（LK-37）：臺北市總表與勞動部全國系統會列到同一張處分，先收到的算數，
+    另一邊不再收（含退回的：管理員已經判過這張不是收錄的組織）。"""
+    others = [k for k in (*(s.key for s in labor.SPECS), labor.MOL_KEY) if k != key]
+    # 讀整份 payload 再取欄位：SQLite 用 payload__document_no 取值會把全是數字的字號（例「1150253854」）讀成整數
+    payloads = (CrawlRecord.objects.filter(source__key__in=others, kind=CrawlRecord.Kind.PENALTY)
+                .values_list("payload", flat=True).iterator(chunk_size=5000))
+    return {str(d) for p in payloads if (d := (p or {}).get("document_no"))}
 
 
 # 已收過的群眾集資專案：長期集資或結束未滿這麼多天的，列表上沒有也要回頭再看（記下結束時的金額）
@@ -192,7 +233,7 @@ def revisit_ids(source: CrawlerSource) -> list[str]:
 
 
 def recompute_ubns(ubns: set[str], chunk: int = 900) -> None:
-    """資料有更新的組織：重算揭露指數、重新分類。SQLite 單一查詢的參數有上限，分批送。"""
+    """資料有更新的組織：重算揭露層級、重新分類。SQLite 單一查詢的參數有上限，分批送。"""
     items = sorted(ubns)
     for i in range(0, len(items), chunk):
         orgs = Organization.objects.filter(ubn__in=items[i : i + chunk])
@@ -255,7 +296,7 @@ def _approved_updates(source: CrawlerSource, saved: list[CrawlRecord]) -> list[C
 @transaction.atomic
 def apply_records(records: list[CrawlRecord], status: str, user=None) -> tuple[int, int]:
     """把紀錄寫進組織資料；回傳（成功筆數, 失敗筆數）。失敗的保持原狀態並寫備註。
-    揭露指數不在這裡逐筆重算：呼叫的人寫完後用 recompute_ubns 一次算。"""
+    揭露層級不在這裡逐筆重算：呼叫的人寫完後用 recompute_ubns 一次算。"""
     with suspend_scoring():
         return _apply_records(records, status, user)
 
@@ -376,6 +417,8 @@ def _apply_child(rec: CrawlRecord, org: Organization, source_name: str) -> None:
             "content": d.get("content", ""),
             "fine_text": (d.get("fine_text") or "")[:300],
             "reason": d.get("reason", ""),
+            "law": (d.get("law") or "")[:300],
+            "category": penalty_category(source_name, d),
         }
         values = {k: v for k, v in values.items() if v not in (None, "")}
         penalty, created = Penalty.objects.get_or_create(

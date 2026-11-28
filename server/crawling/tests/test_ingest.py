@@ -28,8 +28,9 @@ class SourceSeedTests(TestCase):
             dict(CrawlerSource.objects.values_list("key", "auto_approve")),
             {"fia": True, "mohw": True, "mohw_activities": True, "mohw_violations": True, "wabay": False,
              "mohw_grants": True, "esf_grants": True, "k12ea_grants": True, "wda_grants": True, "nidf_grants": True,
-             "oac_grants": True, "tpe_labor": True, "orgsite": False, "judicial": True, "moe_registry": True,
-             "einvoice_codes": True, "swft": True, "twnpos": False},
+             "oac_grants": True, "tpe_labor": True, "mol_labor": True, "orgsite": False, "judicial": True, "moe_registry": True,
+             "einvoice_codes": True, "swft": True, "twnpos": False, "moenv_penalties": True,
+             "pcc_debarment": True},
         )
 
 
@@ -44,7 +45,7 @@ class AutoApproveTests(TestCase):
         self.assertEqual((run.fetched, run.created, run.applied, run.pending), (7, 7, 7, 0))
         self.assertEqual(Organization.objects.count(), 7)
         self.assertEqual(Organization.objects.get(ubn="00510209").status, "cancelled")
-        self.assertEqual(Organization.objects.get(ubn="00099678").disclosure_score, 5)
+        self.assertEqual(Organization.objects.get(ubn="00099678").disclosure_level, 0)  # 財政部名冊只有名稱、縣市：資料不足
 
     def test_mohw_import_writes_all_kinds(self):
         run = run_source(self.mohw, items=mohw_items())
@@ -55,7 +56,7 @@ class AutoApproveTests(TestCase):
         self.assertEqual(org.annual_records.get(year=114).raised, 66358)
         self.assertGreaterEqual(org.projects.count(), 2)
         self.assertEqual(org.source_links[0]["name"], "衛生福利部公益勸募管理系統")
-        self.assertGreater(org.disclosure_score, 5)
+        self.assertGreater(org.disclosure_level, 0)  # 財政部名冊只有名稱、縣市：資料不足
         penalty = Penalty.objects.get()
         self.assertEqual(penalty.external_id, "3319306")
         self.assertTrue(penalty.source_url.endswith("/violationDetails/3319306"))
@@ -86,7 +87,7 @@ class AutoApproveTests(TestCase):
         items = (Item("org", f"{i:08d}", {"name": f"組織{i}", "city": "臺北市", "status": "active"}) for i in range(1200))
         run = run_source(self.fia, items=items)
         self.assertEqual(run.status, CrawlRun.Status.SUCCESS, run.error)
-        self.assertEqual(Organization.objects.filter(disclosure_score=5).count(), 1200)
+        self.assertEqual(Organization.objects.filter(disclosure_level=0).count(), 1200)
 
     def test_failure_is_recorded(self):
         def boom():
@@ -128,7 +129,7 @@ class ManualReviewTests(TestCase):
         self._action("approve", org_ids)
         self.assertEqual(self.client.get("/api/orgs/00570309").status_code, 200)
         self.assertTrue(CrawlRecord.objects.filter(ubn="00570309", status="approved").exists())
-        self.assertGreater(Organization.objects.get(ubn="00570309").disclosure_score, 5)
+        self.assertGreater(Organization.objects.get(ubn="00570309").disclosure_level, 0)  # 財政部名冊只有名稱、縣市：資料不足
 
         other = list(CrawlRecord.objects.filter(status="pending").values_list("pk", flat=True))
         self._action("reject", other)
