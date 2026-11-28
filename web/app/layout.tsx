@@ -79,6 +79,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                       資料說明
                     </Link>
                   </li>
+                  <li>
+                    <Link href="/for-orgs" className="text-ink-700 hover:text-brand-800 hover:underline">
+                      給組織
+                    </Link>
+                  </li>
                 </ul>
               </div>
               <p className="text-xs leading-relaxed text-ink-600">

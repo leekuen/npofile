@@ -330,6 +330,10 @@ function LevelPanel({ org }: { org: OrgDetail }) {
       <p className="hidden text-xs text-ink-500 lg:block">
         層級只代表公開了多少資料，不代表本站背書或評價；受裁罰紀錄不影響層級，另外標示。
       </p>
+      {/* LK-42：給組織承辦人的入口（徽章與升級建議），桌機手機都看得到 */}
+      <p className="mt-2 text-sm lg:mt-0">
+        <TextLink href={`/orgs/${org.ubn}/kit`}>你是這個組織？取得徽章與升級建議</TextLink>
+      </p>
     </section>
   );
 }
