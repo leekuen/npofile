@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from . import category_api, donor_rules, period, scoring
+from . import category_api, company_esg, donor_rules, period, scoring
 
 from .models import (
     AnnualFundraising,
@@ -283,12 +283,39 @@ class DonorDetailSerializer(DonorListSerializer):
     donations = serializers.SerializerMethodField()
     fields_breakdown = serializers.SerializerMethodField()
     overview = serializers.SerializerMethodField()
+    esg = serializers.SerializerMethodField()
 
     class Meta(DonorListSerializer.Meta):
         fields = DonorListSerializer.Meta.fields + (
             "registered_name", "representative", "capital", "address", "organizations", "donations", "fields_breakdown",
-            "overview",
+            "overview", "esg",
         )
+
+    def get_esg(self, obj):
+        """上市櫃公司 ESG（LK-39）：只有對到的企業才有，只給最新一個報告年度；沒填的欄位是 null／空字串。"""
+        if obj.kind != Donor.Kind.COMPANY:
+            return None
+        esg = company_esg.latest_for(obj)
+        if esg is None:
+            return None
+
+        def num(v):
+            return float(v) if v is not None else None
+
+        return {
+            "market": esg.market, "market_label": esg.get_market_display(), "code": esg.code,
+            "name": esg.name, "short_name": esg.short_name, "website": esg.website,
+            "report_year": esg.report_year, "published_on": esg.published_on,
+            "scope1": num(esg.scope1), "scope1_verified": esg.scope1_verified,
+            "scope2": num(esg.scope2), "scope2_verified": esg.scope2_verified,
+            "scope3": num(esg.scope3), "scope3_verified": esg.scope3_verified,
+            "renewable_ratio": num(esg.renewable_ratio), "female_manager_ratio": num(esg.female_manager_ratio),
+            "salary_median": esg.salary_median,
+            "climate_governance": esg.climate_governance, "climate_strategy": esg.climate_strategy,
+            "climate_actions": esg.climate_actions, "transition_plan": esg.transition_plan,
+            "climate_targets": esg.climate_targets,
+            "source_name": esg.source_name, "source_url": esg.source_url,
+        }
 
     def get_overview(self, obj):
         """捐款概況（LK-38）：同類排名、持續支持年度、最近一次、單筆最大、近 5 年年度趨勢。"""

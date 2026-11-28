@@ -19,6 +19,8 @@ if [ "${RUN_CLASSIFY:-0}" = "1" ]; then
   as_app /app/deploy/run-job.sh classify python manage.py classify_orgs &
   # 揭露指數與近 5 年公開募款（LK-20）換版後先算一次，首頁排序不用等每天 05:30 的排程
   as_app /app/deploy/run-job.sh scores python manage.py recompute_scores &
+  # 上市櫃公司 ESG（LK-39）：資料表還是空的就先抓一次，不用等週日的排程；有資料就馬上結束
+  as_app /app/deploy/run-job.sh esg python manage.py sync_esg --if-empty &
 fi
 
 exec setpriv --reuid=app --regid=app --init-groups "$@"
