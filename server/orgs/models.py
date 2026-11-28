@@ -291,6 +291,9 @@ class AnnualDonorList(models.Model):
     small_individual_amount = models.BigIntegerField("小額個人金額", default=0)
     anonymous_rows = models.PositiveIntegerField("匿名筆數", default=0)
     anonymous_amount = models.BigIntegerField("匿名金額", default=0)
+    # 政府機關與政府基金不算捐款人（站上「政府補助」分頁另外收），只記數字
+    government_rows = models.PositiveIntegerField("政府機關筆數", default=0)
+    government_amount = models.BigIntegerField("政府機關金額", default=0)
     threshold = models.BigIntegerField("個人顯示門檻", default=0)
     unmatched = models.JSONField(
         "對不上組織的受捐者", default=list, blank=True, help_text="支付清冊上名稱對不上站上組織的團體／企業（只在後台看）。"

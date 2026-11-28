@@ -643,7 +643,7 @@ def _apply_annual_donor_list(rec: CrawlRecord, org: Organization, source_name: s
             "scanned": bool(d.get("scanned")), "source_name": source_name,
             **{k: summary.get(k, 0) for k in (
                 "total_rows", "total_amount", "small_individual_count", "small_individual_amount",
-                "anonymous_rows", "anonymous_amount", "threshold",
+                "anonymous_rows", "anonymous_amount", "government_rows", "government_amount", "threshold",
             )},
         },
     )

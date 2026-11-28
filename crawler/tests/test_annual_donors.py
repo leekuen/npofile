@@ -63,13 +63,13 @@ class PdfRowTests(unittest.TestCase):
     def test_real_text_pdf(self):
         parsed = ad.parse("x.pdf", (FX / "annual_list_pts_114.pdf").read_bytes())
         self.assertEqual((parsed.format, parsed.scanned, len(parsed.rows)), ("pdf", False, 9))
+        self.assertEqual(parsed.heading_direction, ad.RECEIVE)  # 「114年接受政府補(捐)助名單清冊」
+        self.assertEqual(parsed.rows[0].amount, 900000000)  # 逗點的框比字低，也要接回同一列
         result = ad.summarize(ad.RECEIVE, parsed.rows)
-        totals = {}
-        for r in result["rows"]:
-            totals[(r["name"], r["kind"])] = totals.get((r["name"], r["kind"]), 0) + r["amount"]
-        self.assertEqual(totals[("文化部", "group")], 900000000 + 586273307 + 778525244 + 1131856332)
-        self.assertEqual(totals[("客家委員會", "group")], 594929286)
-        self.assertEqual(result["summary"]["small_individual_count"], 0)
+        # 全部是政府機關：不算捐款人，只記筆數與金額
+        self.assertEqual(result["rows"], [])
+        s = result["summary"]
+        self.assertEqual((s["government_rows"], s["government_amount"]), (9, 4079697790))
 
     def test_scanned_pdf(self):
         self.assertTrue(ad.parse_pdf(b"%PDF-1.4 not really").scanned)
@@ -112,6 +112,19 @@ TABLE = [
 ]
 
 
+class HeadingTests(unittest.TestCase):
+    def test_heading_beats_link_and_ignores_law_note(self):
+        rows, heading = ad.rows_from_table([
+            ["財團法人範例基金會"],
+            ["依據財團法人法第25條規定，應主動公開接受補助、捐贈名單名冊及支付獎助、捐贈名單清冊"],
+            ["113年度支付獎助、捐贈名單清冊"],
+            ["編號", "單位名稱", "補助金額"],
+            ["1", "社團法人範例協會", "50,000"],
+        ])
+        self.assertEqual(heading, ad.PAY)
+        self.assertEqual([(r.name, r.amount) for r in rows], [("社團法人範例協會", 50000)])
+
+
 class TableFormatTests(unittest.TestCase):
     def check(self, parsed, fmt):
         self.assertEqual(parsed.format, fmt)
@@ -136,19 +149,37 @@ class TableFormatTests(unittest.TestCase):
 class SummarizeTests(unittest.TestCase):
     def test_receive_threshold_per_list(self):
         rows = [ad.RawRow(n, a) for n, a in [("陳大華", 60000), ("陳 大華", 50000), ("王小明", 500), ("善心人士", 100),
-                                              ("文化部捐贈", 9000), ("原民會", 1000)]]
+                                              ("範例科技股份有限公司", 9000)]]
         result = ad.summarize(ad.RECEIVE, rows)
         self.assertEqual(sorted((r["name"], r["kind"]) for r in result["rows"]),
-                         sorted([("陳大華", "individual"), ("陳 大華", "individual"), ("文化部", "group"),
-                                 ("原民會", "group")]))
+                         sorted([("陳大華", "individual"), ("陳 大華", "individual"), ("範例科技股份有限公司", "company")]))
         s = result["summary"]
-        self.assertEqual((s["small_individual_count"], s["anonymous_rows"], s["total_rows"]), (1, 1, 6))
+        self.assertEqual((s["small_individual_count"], s["anonymous_rows"], s["total_rows"]), (1, 1, 5))
+
+    def test_government_not_donors(self):
+        gov = ["衛福部", "文化部捐贈", "原民會", "台北市政府", "吉安鄉公所", "南投縣政府衛生局", "社會及家庭署",
+               "客家委員會", "有線廣播電視事業發展基金", "行政院"]
+        not_gov = ["財團法人範例基金會", "社團法人範例協會", "範例股份有限公司", "台北扶輪社", "範例商行門市部",
+                   "台北醫學大學附設醫院", "範例同濟會"]
+        for n in gov:
+            self.assertEqual(ad.kind_of(ad.clean_name(n)), ad.GOVERNMENT, n)
+        for n in not_gov:
+            self.assertNotEqual(ad.kind_of(ad.clean_name(n)), ad.GOVERNMENT, n)
+        result = ad.summarize(ad.RECEIVE, [ad.RawRow("衛福部", 30000), ad.RawRow("範例科技股份有限公司", 1000)])
+        self.assertEqual([r["name"] for r in result["rows"]], ["範例科技股份有限公司"])
+        self.assertEqual((result["summary"]["government_rows"], result["summary"]["government_amount"]), (1, 30000))
+
+    def test_masked_names_are_anonymous(self):
+        for n in ("華○工業有限公司", "陳Ｏ朝", "林〇儀", "王*明", "李O華"):
+            self.assertEqual(ad.kind_of(ad.clean_name(n)), "anonymous", n)
+        self.assertEqual(ad.kind_of("OSIM股份有限公司"), "company")  # 英文名裡的 O 不是遮字
 
     def test_pay_drops_individual_recipients(self):
         rows = [ad.RawRow("林〇儀喪葬補助費", 20000), ad.RawRow("社團法人範例協會", 500000), ad.RawRow("王大明", 200000)]
         result = ad.summarize(ad.PAY, rows)
         self.assertEqual([r["name"] for r in result["rows"]], ["社團法人範例協會"])
-        self.assertEqual(result["summary"]["small_individual_count"], 2)
+        s = result["summary"]
+        self.assertEqual((s["small_individual_count"], s["anonymous_rows"]), (1, 1))  # 「林〇儀」被遮名：當匿名
 
 
 DISCLOSURE = """<html><body>
@@ -202,6 +233,8 @@ class OrgSiteListTests(unittest.TestCase):
         self.assertEqual((x["year"], x["direction"], x["format"]), (113, "receive", "xlsx"))
         self.assertEqual([r["name"] for r in x["rows"]], ["範例科技股份有限公司"])
         self.assertEqual(lists["donor-list-112"].data["format"], "html")
+        # 連結寫「支付」、檔案裡的標題是「接受…清冊」：以檔案為準（萬海的連結與檔案就不一致）
+        self.assertEqual(lists["113年創世支付獎助捐贈名單清冊.pdf"].data["direction"], "receive")
         self.assertEqual({i.kind for i in items} - {"annual_list"}, {"document"})
 
 
