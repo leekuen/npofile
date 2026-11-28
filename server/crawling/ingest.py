@@ -75,9 +75,21 @@ def ensure_sources() -> None:
         )
 
 
+INTERRUPTED_ERROR = "沒有正常結束：程式被中斷（多半是 container 重啟或自動更新），這一次抓到的照樣保留，下次重新抓"
+
+
+def close_interrupted_runs(source: CrawlerSource) -> int:
+    """同一個來源又要開始跑時，上一次還是「執行中」的就是被中斷、不會再結束了：標成失敗（LK-44）。
+    同一個來源不會同時跑兩份（排程一次跑一輪、後台完整爬取一次一個），所以不用怕標錯正在跑的。"""
+    return CrawlRun.objects.filter(source=source, status=CrawlRun.Status.RUNNING).update(
+        status=CrawlRun.Status.FAILED, finished_at=timezone.now(), error=INTERRUPTED_ERROR
+    )
+
+
 def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[Item] | None = None,
                min_interval: float = 1.0, client=None) -> CrawlRun:
     """client：測試可塞假的；不給就照來源設定開一個每秒最多一個請求的。"""
+    close_interrupted_runs(source)
     run = CrawlRun.objects.create(source=source)
     limit = limit if limit is not None else (source.max_items or None)
     deadline = time.monotonic() + source.max_minutes * 60 if source.max_minutes else None

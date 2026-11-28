@@ -36,8 +36,9 @@ test-server: ## 後端測試（組織、爬蟲匯入與審核、捐款人與留�
 lint-web: ## 前台型別檢查與 lint
 	cd web && npx tsc --noEmit && npm run lint
 
-test-deploy: ## 排程外殼與資料庫備份腳本的測試（假的通知服務與 pg_dump，不連網）
+test-deploy: ## 排程外殼、資料庫備份、自動更新腳本的測試（假的通知服務與 pg_dump，不連網）
 	bash deploy/jobs-test.sh
+	bash docker/auto-update-test.sh
 
 build-web: ## 前台正式建置（會抓 Next.js 的預先算繪錯誤）
 	cd web && npm run build
