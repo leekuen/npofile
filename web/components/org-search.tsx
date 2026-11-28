@@ -1,10 +1,11 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { type ReactNode, Suspense } from "react";
 
-import { formatMoney, formatNumber } from "@/lib/format";
+import { formatCompact, formatMoney, formatNumber } from "@/lib/format";
 import { ApiUnavailableError, getFilters, getTaxonomy, listOrgs, type OrgQuery } from "@/lib/server-api";
 
 import { CategoryBrowser, CategoryChip } from "./categories";
+import { FieldPicksSection, HomeDiscover, HomeSectionSkeleton } from "./home-discover";
 import { EmptyState, ErrorBox, PenaltyBadge, ScoreBadge, Skeleton, StatusBadge } from "./ui";
 
 const PAGE_SIZE = 20;
@@ -78,6 +79,9 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
 
   const current = Number(query.page) || 1;
   const lastPage = Math.max(1, Math.ceil(page.count / PAGE_SIZE));
+  // 探索區：什麼條件都沒有、在第 1 頁（改排序不算條件）；領域區：選了領域或服務對象、沒有關鍵字、在第 1 頁（LK-18）
+  const showDiscover = current === 1 && !query.q && !query.city && !query.status && !query.field && !query.sub && !query.target;
+  const showPicks = current === 1 && !query.q && Boolean(query.field || query.sub || query.target);
 
   return (
     <div className="space-y-8">
@@ -170,6 +174,17 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
         {stats}
       </section>
 
+      {showDiscover && (
+        <Suspense fallback={<HomeSectionSkeleton />}>
+          <HomeDiscover />
+        </Suspense>
+      )}
+      {showPicks && (
+        <Suspense key={`${query.field}|${query.sub}|${query.target}|${query.city}|${query.status}`} fallback={<HomeSectionSkeleton />}>
+          <FieldPicksSection query={query} />
+        </Suspense>
+      )}
+
       <section aria-labelledby="org-list-title" className="space-y-4">
       <h2 id="org-list-title" className="sr-only">
         組織列表
@@ -220,6 +235,11 @@ export async function OrgSearch({ searchParams, stats }: { searchParams: Promise
                       {org.org_type && <span>{org.org_type}</span>}
                       {org.public_raised_5y > 0 && (
                         <span className="tabular-nums sm:hidden">近 5 年公開募款 {formatMoney(org.public_raised_5y)}</span>
+                      )}
+                      {org.latest_revenue && (
+                        <span className="tabular-nums">
+                          總收入 {formatCompact(org.latest_revenue.total_revenue)}（{org.latest_revenue.year} 年度）
+                        </span>
                       )}
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 md:hidden">
                         <StatusBadge status={org.status} label={org.status_label} />

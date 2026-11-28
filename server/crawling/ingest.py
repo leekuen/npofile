@@ -24,15 +24,16 @@ from orgs.models import (
     Donation,
     Donor,
     DonorListSummary,
-    FinancialReport,
+    FinancialYear,
     Grant,
+    OrgDocument,
     Organization,
     Penalty,
     Project,
 )
 from orgs.signals import suspend_scoring
 
-from . import progress
+from . import orgsite_targets, progress
 from .models import CrawlerSource, CrawlRecord, CrawlRun
 from .progress import DbActivityPlan
 
@@ -40,7 +41,7 @@ log = logging.getLogger(__name__)
 
 BATCH = 500
 STORE_EVERY = 60  # 秒
-KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4, "grant": 5, "financial": 6}
+KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4, "grant": 5, "document": 6, "financial": 7}
 PROJECT_FIELDS = (
     "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
     "result_filed_on", "closed_filed_on", "description", "channel", "monthly_raised", "backers",
@@ -54,7 +55,7 @@ def record_source_name(source: CrawlerSource) -> str:
 
 
 # 新建來源時的「每次最多跑幾分鐘」：勸募活動與捐贈人清冊每晚接著抓，不讓一次跑整晚（已存在的來源照後台設定）
-DEFAULT_MINUTES = {"mohw_activities": 120, "twnpos": 120}
+DEFAULT_MINUTES = {"mohw_activities": 120, "twnpos": 120}  # 自律聯盟財報要影像辨識，很慢（LK-25）
 
 
 def ensure_sources() -> None:
@@ -104,11 +105,10 @@ def run_source(source: CrawlerSource, limit: int | None = None, items: Iterable[
                         values["revisit"] = revisit_ids(source)
                     if "orgs" in src.options:  # 名稱對統編的名冊（約十萬筆，逐筆讀，不一次載入物件）
                         values["orgs"] = Organization.objects.values_list("ubn", "name").iterator(chunk_size=5000)
-                    if "have" in src.options:  # 已收過的財報不再下載（決算備查後不會變）
-                        values["have"] = set(
-                            FinancialReport.objects.filter(source_name=record_source_name(source))
-                            .values_list("external_id", flat=True)
-                        )
+                    if "have" in src.options:  # 已經收過的財報（決算、會員財報備查後不會再變），不再下載
+                        values["have"] = set(CrawlRecord.objects.filter(source=source).values_list("external_id", flat=True))
+                    if source.key == "orgsite":
+                        values.update(orgsite_targets.options(source))
                     items = src.fetch(client, limit, **{k: values[k] for k in src.options})
                 org_ubns = None
                 if source.key in SOURCES and SOURCES[source.key].known_orgs_only:
@@ -192,10 +192,13 @@ def _store_batch(source: CrawlerSource, run: CrawlRun, batch: list[Item], known:
     saved = list(CrawlRecord.objects.filter(source=source, run=run, content_hash__in=[r.content_hash for r in fresh]))
     run.created += len(saved)
     if source.auto_approve:
-        ok, failed = apply_records(saved, CrawlRecord.Status.AUTO)
+        # 統編空白＝名稱對不上組織（LK-29 勞動局處分）：不上架，留在審核清單等管理員指定組織或退回
+        matched = [r for r in saved if r.ubn]
+        ok, failed = apply_records(matched, CrawlRecord.Status.AUTO)
         run.applied += ok
         run.failed += failed
-        touched.update(r.ubn for r in saved)
+        run.pending += len(saved) - len(matched)
+        touched.update(r.ubn for r in matched)
     else:
         updates = _approved_updates(source, saved)
         if updates:
@@ -233,6 +236,11 @@ def apply_records(records: list[CrawlRecord], status: str, user=None) -> tuple[i
 def _apply_records(records: list[CrawlRecord], status: str, user) -> tuple[int, int]:
     records = sorted(records, key=lambda r: KIND_ORDER[r.kind])
     sources = {r.source_id: r.source for r in records}
+    # 對不上組織、管理員在「對應組織」指定了的：用指定的組織的統編上架
+    assigned = Organization.objects.in_bulk({r.organization_id for r in records if not r.ubn and r.organization_id})
+    for rec in records:
+        if not rec.ubn and rec.organization_id in assigned:
+            rec.ubn = assigned[rec.organization_id].ubn
     orgs = _apply_org_records([r for r in records if r.kind == "org"], sources)
     for ubn, org in Organization.objects.in_bulk(
         {r.ubn for r in records} - set(orgs), field_name="ubn"
@@ -242,8 +250,11 @@ def _apply_records(records: list[CrawlRecord], status: str, user) -> tuple[int, 
     now = timezone.now()
     ok = failed = 0
     for rec in records:
-        org = orgs.get(rec.ubn)
-        if org is None:
+        org = orgs.get(rec.ubn) if rec.ubn else None
+        if not rec.ubn:
+            rec.review_note = "名稱對不上組織：先在「對應組織」指定是哪個組織再核准；不是收錄的組織就退回"
+            failed += 1
+        elif org is None:
             rec.review_note = "找不到這個統一編號的組織，請先核准該組織的基本資料"
             failed += 1
         else:
@@ -254,7 +265,7 @@ def _apply_records(records: list[CrawlRecord], status: str, user) -> tuple[int, 
             rec.reviewed_at = now
             rec.reviewed_by = user
             ok += 1
-    CrawlRecord.objects.bulk_update(records, ["organization", "status", "reviewed_at", "reviewed_by", "review_note"])
+    CrawlRecord.objects.bulk_update(records, ["ubn", "organization", "status", "reviewed_at", "reviewed_by", "review_note"])
     return ok, failed
 
 
@@ -351,18 +362,54 @@ def _apply_child(rec: CrawlRecord, org: Organization, source_name: str) -> None:
                 "amount": d.get("amount") or 0,
             },
         )
-    elif rec.kind == "financial":
-        FinancialReport.objects.update_or_create(
-            source_name=source_name, external_id=rec.external_id,
-            defaults={
-                "organization": org, "source_url": rec.source_url, "year": d["year"],
-                "donation_income": d.get("donation"), "income_total": d.get("income_total"),
-                "statement": (d.get("statement") or "")[:50], "filer_name": (d.get("filer_name") or "")[:200],
-                "parse_method": (d.get("method") or "")[:20],
-            },
-        )
     elif rec.kind == "donor_list":
         _apply_donor_list(rec, org, source_name)
+    elif rec.kind == "document":
+        OrgDocument.objects.update_or_create(
+            organization=org, url=d["url"][:1000],
+            defaults={"year": d["year"], "kind": d["doc_kind"], "title": (d.get("title") or "")[:200],
+                      "found_on": (d.get("found_on") or "")[:1000], "source_name": source_name},
+        )
+    elif rec.kind == "financial":
+        _apply_financial(rec, org, source_name)
+
+
+FINANCIAL_FIELDS = (
+    "total_revenue", "contributions", "government_grants", "program_service_revenue", "investment_income",
+    "other_revenue", "total_expenses", "program_expenses", "admin_expenses", "fundraising_expenses",
+    "surplus", "total_assets", "total_liabilities", "net_assets", "audited",
+)
+
+
+# 同一年有多個來源時誰的數字優先（LK-25）：政府公開決算 > 讀報告（AI／文字）> 影像辨識；
+# 沒有任何數字的（只有報告連結）不算數，誰都可以蓋過
+METHOD_RANK = {"official": 3, "ai": 2, "text": 2, "manual": 2, "ocr": 1}
+
+
+def _has_numbers(values) -> bool:
+    return any(values.get(f) is not None for f in FINANCIAL_FIELDS)
+
+
+def _apply_financial(rec: CrawlRecord, org: Organization, source_name: str) -> None:
+    """同一年整列取代；管理員改過（locked）的那一年不動；可信度較低的來源不蓋過較高的。"""
+    d = rec.payload
+    existing = FinancialYear.objects.filter(organization=org, year=d["year"]).first()
+    if existing and existing.locked:
+        rec.review_note = "這一年的財務數字管理員改過，沒有覆蓋"
+        return
+    method = d.get("method") if d.get("method") in FinancialYear.Method.values else FinancialYear.Method.MANUAL
+    if existing:
+        have = METHOD_RANK.get(existing.method, 0) if _has_numbers(vars(existing)) else 0
+        new = METHOD_RANK.get(method, 0) if _has_numbers(d) else 0
+        if new < have:
+            rec.review_note = f"這一年已有{existing.get_method_display()}的數字（{existing.source_name}），沒有覆蓋"
+            return
+    values = {f: d.get(f) for f in FINANCIAL_FIELDS}
+    values.update(
+        document_url=(d.get("document_url") or "")[:1000], document_title=(d.get("document_title") or "")[:200],
+        method=method, notes=(d.get("notes") or "")[:300], source_name=source_name,
+    )
+    FinancialYear.objects.update_or_create(organization=org, year=d["year"], defaults=values)
 
 
 def _apply_donor_list(rec: CrawlRecord, org: Organization, source_name: str) -> None:

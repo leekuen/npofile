@@ -110,11 +110,13 @@ class FetchTests(unittest.TestCase):
         items = list(twnpos.fetch(client, since_roc=111, orgs=self.ORGS))
         self.assertEqual([(i.ubn, i.external_id) for i in items], [("10000587", "F0587-114"), ("10000364", "A0364-114")])
         a0364 = items[1]
-        self.assertEqual(a0364.data["donation"], 3_984_905)
-        self.assertEqual(a0364.data["method"], "文字")
+        self.assertEqual(a0364.data["contributions"], 3_984_905)
+        self.assertEqual(a0364.data["total_revenue"], 7_910_950)
+        self.assertEqual(a0364.data["method"], "text")
+        self.assertEqual(a0364.data["document_url"], "https://drive.google.com/file/d/FILE114/view")
         self.assertEqual(a0364.source_url, "https://drive.google.com/file/d/FILE114/view")
         # 新希望的檔案下載回來不是 PDF：照樣記一筆（留報告連結），數字留空
-        self.assertIsNone(items[0].data["donation"])
+        self.assertIsNone(items[0].data["contributions"])
         self.assertFalse(any("M3" in u for u, _ in client.urls))  # 對不到的會員不看會員頁
 
     def test_known_reports_not_downloaded(self):

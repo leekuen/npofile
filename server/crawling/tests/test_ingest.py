@@ -26,7 +26,9 @@ class SourceSeedTests(TestCase):
     def test_sources_seeded_after_migrate(self):
         self.assertEqual(
             dict(CrawlerSource.objects.values_list("key", "auto_approve")),
-            {"fia": True, "mohw": True, "mohw_activities": True, "mohw_violations": True, "wabay": False, "mohw_grants": True, "swft": True, "twnpos": False},
+            {"fia": True, "mohw": True, "mohw_activities": True, "mohw_violations": True, "wabay": False,
+             "mohw_grants": True, "esf_grants": True, "k12ea_grants": True, "wda_grants": True, "nidf_grants": True,
+             "oac_grants": True, "tpe_labor": True, "orgsite": False, "swft": True, "twnpos": False},
         )
 
 

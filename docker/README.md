@@ -108,8 +108,11 @@ docker compose up -d --build
 | 02:00 | 備份資料庫到 `BACKUP_DIR_HOST`，留 14 天（`BACKUP_KEEP_DAYS`） |
 | 02:30 | 爬所有啟用中的來源 |
 | 05:30 | 清掉近 5 年以外的資料、重算揭露指數 |
+| 每分鐘 | 看有沒有後台按的「排入完整爬取」，有就在背景跑完（紀錄在 `crawl-requests.log`；進度看後台「完整爬取請求」） |
 
 手動跑一次：`docker compose exec -u app scheduler /app/deploy/run-job.sh backup /app/deploy/backup-db.sh`
+
+**不用下指令也能立即完整爬取**：後台 → 爬蟲來源設定 → 勾選來源 → 動作「排入完整爬取」。scheduler 一分鐘內開始，跑完會清舊資料並重算揭露指數；同一時間只跑一個，排隊中的可以在「完整爬取請求」取消。
 
 失敗通知：`.env` 設 `HEALTHCHECKS_PING_KEY`（healthchecks.io），做法見 `deploy/README.md`〈排程失敗通知〉。
 

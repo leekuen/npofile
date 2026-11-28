@@ -14,14 +14,23 @@ FX = Path(__file__).parent / "fixtures"
 
 
 class ParseSettlementTests(unittest.TestCase):
-    def test_reads_donation_and_total_for_both_years(self):
+    def test_reads_statement_and_balance_sheet_for_both_years(self):
         r = swft.parse_settlement((FX / "swft_settlement_A0001_114.pdf").read_bytes())
-        self.assertEqual(r[114], {"donation": 691_692_839, "income_total": 925_529_528})
-        self.assertEqual(r[113], {"donation": 466_227_543, "income_total": 667_373_978})
+        self.assertEqual(r[114], {
+            "total_revenue": 925_529_528, "contributions": 691_692_839, "program_service_revenue": 19_578_538,
+            "total_expenses": 829_500_161, "program_expenses": 612_722_001, "admin_expenses": 145_301_494,
+            "surplus": 96_029_367,
+            # 資產負債表左右兩半各有 114、113 兩欄
+            "total_assets": 1_347_134_412, "total_liabilities": 358_286_313, "net_assets": 988_848_099,
+        })
+        self.assertEqual(r[113]["contributions"], 466_227_543)
+        self.assertEqual(r[113]["net_assets"], 892_453_902)
 
-    def test_zero_donation_is_zero_not_missing(self):
+    def test_zero_is_zero_not_missing_and_deficit_is_negative(self):
         r = swft.parse_settlement((FX / "swft_settlement_A0016_114.pdf").read_bytes())
-        self.assertEqual(r[114], {"donation": 0, "income_total": 1_912_111})
+        self.assertEqual(r[114]["contributions"], 0)
+        self.assertEqual(r[114]["total_revenue"], 1_912_111)
+        self.assertEqual(r[114]["surplus"], -1_366_429)
 
     def test_not_a_settlement_pdf(self):
         self.assertEqual(swft.parse_settlement(b"%PDF-1.4\n%%EOF"), {})
@@ -82,14 +91,16 @@ class FetchTests(unittest.TestCase):
         first = items[0]
         self.assertEqual(first.kind, "financial")
         self.assertEqual(first.data["year"], 114)
-        self.assertEqual(first.data["donation"], 691_692_839)
+        self.assertEqual(first.data["contributions"], 691_692_839)
+        self.assertEqual(first.data["method"], "official")
+        self.assertEqual(first.data["document_title"], "財團法人基督教芥菜種會 114 年度決算總表")
         self.assertEqual(first.data["filer_no"], "A0001")
         json.dumps(first.payload())  # 能存成 JSON
 
     def test_year_not_in_its_own_pdf_is_left_empty(self):
         # 假的 113 年度也回 114 年度的 PDF：113 年那欄是前一年，只取「自己年度」那欄就對得上
         _, items = self.run_fetch()
-        self.assertEqual(items[1].data["donation"], 466_227_543)
+        self.assertEqual(items[1].data["contributions"], 466_227_543)
 
     def test_skips_known_reports_and_unmatched_names(self):
         client, items = self.run_fetch(have={"A0001-114", "A0001-113"})

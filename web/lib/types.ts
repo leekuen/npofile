@@ -11,6 +11,8 @@ export interface OrgSummary {
   penalty_count_5y: number;
   public_raised_5y: number;
   tags: CategoryTag[];
+  /** 近 5 年內有總收入的最近一年（LK-17）；列表 API 才有，沒有財務數字是 null */
+  latest_revenue?: { year: number; total_revenue: number } | null;
 }
 
 export interface Page<T> {
@@ -50,6 +52,8 @@ export interface Annual {
 
 export interface Project {
   id: number;
+  /** 來源上的編號（衛福部活動編號）：首頁的卡片連到 `?tab=projects#p-<這個>`（LK-18） */
+  external_id: string;
   name: string;
   category: string;
   start_date: string | null;
@@ -79,6 +83,8 @@ export interface Penalty {
   reason: string;
   source_name: string;
   source_url: string;
+  /** labor＝地方勞動局依勞基法公布的處分；fundraising＝公益勸募裁處 */
+  category: "labor" | "fundraising";
 }
 
 export type DonorKind = "company" | "group" | "individual";
@@ -113,6 +119,40 @@ export interface ScoreBreakdown {
   total: number;
 }
 
+/** 一個會計年度的財務摘要（LK-17，參照 Candid Financials）；金額單位元，報告沒列的是 null */
+export interface FinancialYear {
+  year: number;
+  total_revenue: number | null;
+  contributions: number | null;
+  government_grants: number | null;
+  program_service_revenue: number | null;
+  investment_income: number | null;
+  other_revenue: number | null;
+  total_expenses: number | null;
+  program_expenses: number | null;
+  admin_expenses: number | null;
+  fundraising_expenses: number | null;
+  surplus: number | null;
+  total_assets: number | null;
+  total_liabilities: number | null;
+  net_assets: number | null;
+  program_expense_ratio: number | null;
+  audited: boolean | null;
+  method: "ai" | "manual" | "official" | "text" | "ocr";
+  document_url: string;
+  document_title: string;
+}
+
+export interface OrgDocument {
+  id: number;
+  year: number;
+  kind: "financial" | "annual" | "work";
+  kind_label: string;
+  title: string;
+  url: string;
+  found_on: string;
+}
+
 /** 近 5 年公開募款（LK-20）：勸募申報＋群眾集資；勸募已申報的年度不再加當年集資 */
 export interface PublicRaised {
   total: number;
@@ -137,22 +177,8 @@ export interface Grant {
   source_url: string;
 }
 
-/** 組織年度財報（LK-25）：送主管機關備查後公開的決算；捐贈收入已含勸募與群眾集資 */
-export interface FinancialReport {
-  id: number;
-  year: number;
-  donation_income: number | null;
-  income_total: number | null;
-  statement: string;
-  parse_method: string;
-  filer_name: string;
-  source_name: string;
-  source_url: string;
-}
-
 export interface OrgDetail extends Omit<OrgSummary, "public_raised_5y"> {
   public_raised: PublicRaised;
-  financial_reports: FinancialReport[];
   representative: string;
   registered_address: string;
   contact_address: string;
@@ -162,6 +188,8 @@ export interface OrgDetail extends Omit<OrgSummary, "public_raised_5y"> {
   source_links: SourceLink[];
   score: ScoreBreakdown;
   annual_records: Annual[];
+  financials: FinancialYear[];
+  documents: OrgDocument[];
   projects: Project[];
   penalties: Penalty[];
   /** 政府補助（LK-19），近 5 年，金額大的在前 */
@@ -311,4 +339,56 @@ export interface CategoryOverview {
     org_name: string;
   }[];
   penalty_total: number;
+}
+
+/** 首頁探索區（LK-18） */
+export interface DiscoverEnding {
+  project_id: string;
+  name: string;
+  end_date: string;
+  target: number;
+  days_left: number;
+  org_ubn: string;
+  org_name: string;
+  org_score: number;
+}
+
+export interface DiscoverPenalty {
+  decided_on: string;
+  /** 白話的違規類型；歸不進去是空字串 */
+  kind: string;
+  fine_text: string;
+  org_ubn: string;
+  org_name: string;
+}
+
+export interface DiscoverGift {
+  donated_on: string;
+  amount: number;
+  donor_id: number;
+  donor_name: string;
+  org_ubn: string;
+  org_name: string;
+}
+
+export interface Discover {
+  ending: DiscoverEnding[];
+  penalties: DiscoverPenalty[];
+  gifts: DiscoverGift[];
+}
+
+/** 首頁領域區（LK-18） */
+export interface FieldPickOrg {
+  ubn: string;
+  name: string;
+  city: string;
+  score: number;
+  raised_5y: number;
+  campaign: { project_id: string; name: string; end_date: string; target: number } | null;
+}
+
+export interface FieldPicks {
+  code: string;
+  label: string;
+  orgs: FieldPickOrg[];
 }

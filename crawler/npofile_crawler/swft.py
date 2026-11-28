@@ -8,8 +8,8 @@
 - `GET  /api/main/foundBasic/found/getDetail/{foundUUID}/{西元年}`：該年度的預算、決算資料
 - `POST /api/main/foundSettlement/settlementReport/print/FF0100`：把決算資料印成「年度決算總表」PDF
 
-決算總表是網站用財團法人填報的資料統一產生的，每家版面相同；從裡面的「收支餘絀表」讀
-「捐贈收入」「收入合計」（當年度與前一年度兩欄，只取當年度那欄，前一年度看前一年自己的表）。
+決算總表是網站用財團法人填報的資料統一產生的，每家版面相同；從裡面的「收支餘絀表」與「資產負債表」讀
+收入、支出、餘絀與資產負債（當年度與前一年度兩欄，只取當年度那欄，前一年度看前一年自己的表）。
 PDF 只有名稱、沒有統編；名稱對組織用呼叫端給的名冊，跟補助（grants）同一套比對。
 """
 
@@ -124,44 +124,71 @@ def _words(page) -> list[tuple[float, float, float, str]]:
     return out
 
 
-def parse_settlement(pdf: bytes) -> dict[int, dict[str, int]]:
-    """決算總表 PDF → {民國年度: {"donation": 捐贈收入, "income_total": 收入合計}}。
+# 決算總表的科目 → 年度財務（tickets/LK-17〈數字口徑〉）的欄位；表上其他科目（補助、委辦、利息…）
+# 跟年度財務的欄位意思不完全一樣，不硬塞
+STATEMENT_FIELDS = {
+    "收入合計": "total_revenue", "捐贈收入": "contributions", "服務收入": "program_service_revenue",
+    "支出合計": "total_expenses", "業務支出": "program_expenses", "行政管理支出": "admin_expenses",
+    "本期餘絀": "surplus",
+}
+BALANCE_FIELDS = {"資產總計": "total_assets", "負債合計": "total_liabilities", "淨值合計": "net_assets"}
+BALANCE_YEAR_RE = re.compile(r"^(\d{2,3})年12月31日$")
 
-    只看本會的「收支餘絀表」（附屬作業組織另有一張，不算）；讀不到的項目就不放，不猜。
-    檔案壞掉或不是 PDF 回空的（那一年就只記「有決算、讀不到數字」，不中斷整批）。"""
+
+def parse_settlement(pdf: bytes) -> dict[int, dict[str, int]]:
+    """決算總表 PDF → {民國年度: {年度財務欄位: 金額}}（當年度與前一年度兩欄都讀）。
+
+    收支餘絀表只看本會的（附屬作業組織另有一張，不算）；資產負債表讀資產、負債、淨值合計。
+    讀不到的項目就不放，不猜；檔案壞掉或不是 PDF 回空的（那一年就只記「有決算、讀不到數字」，不中斷整批）。"""
     try:
         return _parse_settlement(pdf)
     except (PDFSyntaxError, PSException, ValueError, KeyError):
         return {}
 
 
+def _mid(w) -> float:
+    return (w[1] + w[2]) / 2
+
+
+def _read_columns(ws, headers: list[tuple[int, float]], fields: dict[str, str], result: dict) -> None:
+    """每個科目取同一行、對準年度欄標題的金額。資產負債表左右兩半各有一組年度欄：用科目右邊最近的那一組。"""
+    n_years = len({y for y, _ in headers})
+    for label, key in fields.items():
+        lab = next((w for w in ws if w[3] == label), None)
+        if lab is None:
+            continue
+        cols = sorted((x, y) for y, x in headers if x > lab[2])[:n_years]
+        nums = [w for w in ws if MONEY_RE.match(w[3]) and abs(w[0] - lab[0]) <= 3 and w[1] > lab[2]]
+        for x, y in cols:
+            if not nums:
+                break
+            n = min(nums, key=lambda w: abs(_mid(w) - x))
+            if abs(_mid(n) - x) < 120:
+                result.setdefault(y, {})[key] = int(n[3].replace(",", ""))
+
+
 def _parse_settlement(pdf: bytes) -> dict[int, dict[str, int]]:
+    result: dict[int, dict[str, int]] = {}
+    statement = balance = False
     for page in extract_pages(io.BytesIO(pdf)):
         ws = _words(page)
-        texts = [w[3] for w in ws]
-        # 附屬作業組織那張表的標題列是「某某基金會 附屬作業組織」（單獨一個詞）；本會的表只有「附屬作業組織收入」這種科目
-        if "收支餘絀表" not in texts or "捐贈收入" not in texts or "附屬作業組織" in texts:
-            continue
-        mid = lambda w: (w[1] + w[2]) / 2  # noqa: E731
-        years = [(int(m.group(1)), w) for w in ws if (m := YEAR_RE.match(w[3]))]
-        amounts = [w for w in ws if w[3].startswith("金額")]
-        if not years or not amounts:
-            continue
-        cols = {y: mid(min(amounts, key=lambda a: abs(mid(a) - mid(yw)))) for y, yw in years}
-        result: dict[int, dict[str, int]] = {}
-        for label, key in (("捐贈收入", "donation"), ("收入合計", "income_total")):
-            lab = next((w for w in ws if w[3] == label), None)
-            if lab is None:
+        texts = set(w[3] for w in ws)
+        if not statement and "收支餘絀表" in texts and "捐贈收入" in texts:
+            # 附屬作業組織那張表的標題列是「某某基金會 附屬作業組織」（單獨一個詞）；本會的表只有「附屬作業組織收入」這種科目
+            if "附屬作業組織" in texts:
                 continue
-            nums = [w for w in ws if MONEY_RE.match(w[3]) and abs(w[0] - lab[0]) <= 3]
-            for y, x in cols.items():
-                if not nums:
-                    continue
-                n = min(nums, key=lambda w: abs(mid(w) - x))
-                if abs(mid(n) - x) < 140:
-                    result.setdefault(y, {})[key] = int(n[3].replace(",", ""))
-        return result
-    return {}
+            headers = [(int(m.group(1)), _mid(w)) for w in ws if (m := YEAR_RE.match(w[3]))]
+            if headers:
+                _read_columns(ws, headers, STATEMENT_FIELDS, result)
+                statement = True
+        elif not balance and "資產總計" in texts and any(t.endswith("資產負債表") for t in texts):
+            headers = [(int(m.group(1)), _mid(w)) for w in ws if (m := BALANCE_YEAR_RE.match(w[3]))]
+            if headers:
+                _read_columns(ws, headers, BALANCE_FIELDS, result)
+                balance = True
+        if statement and balance:
+            break
+    return result
 
 
 # ── 抓取 ───────────────────────────────────────────────────────────────────
@@ -207,9 +234,12 @@ def fetch(client: PoliteClient, limit: int | None = None, since_roc: int | None 
                 source_url=SITE_URL,
                 data={
                     "year": roc,
-                    "donation": values.get("donation"),
-                    "income_total": values.get("income_total"),
-                    "statement": "決算總表",
+                    **values,
+                    # 決算總表是網站即時產生的 PDF（要送查詢才拿得到），沒有固定網址：連到查詢網，查名稱就看得到
+                    "document_url": SITE_URL,
+                    "document_title": f"{f.name} {roc} 年度決算總表",
+                    "method": "official",
+                    "notes": "",
                     "filer_name": f.name,
                     "filer_no": f.no,
                 },

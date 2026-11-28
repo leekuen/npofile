@@ -60,7 +60,9 @@ class CrawlRecord(models.Model):
         PROJECT = "project", "捐款專案"
         PENALTY = "penalty", "受裁罰紀錄"
         GRANT = "grant", "政府補助"
-        FINANCIAL = "financial", "財報"
+        DONOR_LIST = "donor_list", "捐贈人清冊"
+        DOCUMENT = "document", "官網報告文件"
+        FINANCIAL = "financial", "年度財務"
 
     class Status(models.TextChoices):
         PENDING = "pending", "待審核"
@@ -122,3 +124,48 @@ class ActivityProgress(models.Model):
 
     def __str__(self):
         return f"{self.activity_id} {self.name}"
+
+
+class CrawlRequest(models.Model):
+    """後台按「排入完整爬取」留下的請求；排程每分鐘跑一次 run_crawl_requests 把它做完（LK-26）。"""
+
+    class Status(models.TextChoices):
+        QUEUED = "queued", "排隊中"
+        RUNNING = "running", "執行中"
+        DONE = "done", "完成"
+        FAILED = "failed", "失敗"
+        CANCELED = "canceled", "已取消"
+
+    sources = models.ManyToManyField(CrawlerSource, related_name="requests", verbose_name="來源")
+    status = models.CharField("狀態", max_length=10, choices=Status.choices, default=Status.QUEUED, db_index=True)
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="誰按的"
+    )
+    requested_at = models.DateTimeField("按下時間", auto_now_add=True)
+    started_at = models.DateTimeField("開始時間", null=True, blank=True)
+    finished_at = models.DateTimeField("結束時間", null=True, blank=True)
+    output = models.TextField("執行紀錄", blank=True)
+
+    class Meta:
+        verbose_name = "完整爬取請求"
+        verbose_name_plural = "完整爬取請求"
+        ordering = ["-requested_at"]
+
+    def __str__(self):
+        return f"完整爬取 #{self.pk}"
+
+
+class OrgSiteCheck(models.Model):
+    """組織官網最近一次被爬的時間（LK-17）：每次從最久沒爬（或從沒爬過）的組織開始。"""
+
+    ubn = models.CharField("統一編號", max_length=8, unique=True)
+    website = models.URLField("官網", max_length=500, blank=True)
+    checked_at = models.DateTimeField("最近爬取", db_index=True)
+
+    class Meta:
+        verbose_name = "組織官網爬取進度"
+        verbose_name_plural = "組織官網爬取進度"
+        ordering = ["-checked_at"]
+
+    def __str__(self):
+        return f"{self.ubn} {self.checked_at:%Y-%m-%d}"

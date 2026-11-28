@@ -221,10 +221,13 @@ def fetch(client: PoliteClient, limit: int | None = None, since_roc: int | None 
                 source_url=rf.view_url,
                 data={
                     "year": rf.year,
-                    "donation": values["donation"],
-                    "income_total": values["income_total"],
-                    "statement": "自律聯盟會員財務報告",
-                    "method": values["method"],
+                    "contributions": values["donation"],
+                    "total_revenue": values["income_total"],
+                    "document_url": rf.view_url,
+                    "document_title": f"{m.name} {rf.year} 年度財務報告（自律聯盟）",
+                    # 年度財務的「怎麼來的」：讀 PDF 文字＝text、影像辨識＝ocr、都讀不到就只留報告連結
+                    "method": {"文字": "text", "影像辨識": "ocr"}.get(values["method"], "text"),
+                    "notes": "掃描檔用影像辨識讀出，可能有誤" if values["method"] == "影像辨識" else "",
                     "filer_name": m.name,
                     "filer_no": m.no,
                 },

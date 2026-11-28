@@ -1,7 +1,9 @@
 from rest_framework import serializers
 
 from . import category_api, donor_rules, period, scoring
-from .models import AnnualFundraising, Donation, Donor, FinancialReport, Grant, Organization, Penalty, Project
+from npofile_crawler import labor
+
+from .models import AnnualFundraising, Donation, Donor, FinancialYear, Grant, OrgDocument, Organization, Penalty, Project
 
 RECENT_DONATIONS = 50
 DONOR_DETAIL_DONATIONS = 200
@@ -11,13 +13,18 @@ class OrganizationListSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source="get_status_display")
     penalty_count_5y = serializers.IntegerField()
     tags = serializers.SerializerMethodField()
+    latest_revenue = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
         fields = (
             "ubn", "name", "org_type", "city", "status", "status_label", "disclosure_score", "penalty_count_5y",
-            "public_raised_5y", "tags",
+            "public_raised_5y", "tags", "latest_revenue",
         )
+
+    def get_latest_revenue(self, obj):
+        year = getattr(obj, "fin_year", None)
+        return {"year": year, "total_revenue": obj.fin_revenue} if year is not None else None
 
     def get_tags(self, obj):
         return category_api.short_tags(obj)
@@ -36,22 +43,53 @@ class AnnualSerializer(serializers.ModelSerializer):
         return round(obj.raised * 100 / obj.target, 1)
 
 
+class FinancialYearSerializer(serializers.ModelSerializer):
+    program_expense_ratio = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = FinancialYear
+        fields = (
+            "year", "total_revenue", "contributions", "government_grants", "program_service_revenue",
+            "investment_income", "other_revenue", "total_expenses", "program_expenses", "admin_expenses",
+            "fundraising_expenses", "surplus", "total_assets", "total_liabilities", "net_assets",
+            "program_expense_ratio", "audited", "method", "document_url", "document_title",
+        )
+
+
+class OrgDocumentSerializer(serializers.ModelSerializer):
+    kind_label = serializers.CharField(source="get_kind_display")
+
+    class Meta:
+        model = OrgDocument
+        fields = ("id", "year", "kind", "kind_label", "title", "url", "found_on")
+
+
 class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = (
-            "id", "name", "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
+            "id", "external_id", "name", "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
             "result_filed_on", "closed_filed_on", "description", "source_name", "source_url",
             "channel", "monthly_raised", "backers",
         )
 
 
+# 勞動局公布的違反勞基法處分（LK-29）跟公益勸募裁處分開標示
+LABOR_SOURCE_NAMES = {spec.source_name for spec in labor.SPECS}
+
+
 class PenaltySerializer(serializers.ModelSerializer):
+    category = serializers.SerializerMethodField()
+
     class Meta:
         model = Penalty
         fields = (
             "id", "decided_on", "authority", "document_no", "content", "fine_text", "reason", "source_name", "source_url",
+            "category",
         )
+
+    def get_category(self, obj) -> str:
+        return "labor" if obj.source_name in LABOR_SOURCE_NAMES else "fundraising"
 
 
 class GrantSerializer(serializers.ModelSerializer):
@@ -63,28 +101,18 @@ class GrantSerializer(serializers.ModelSerializer):
         )
 
 
-class FinancialReportSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = FinancialReport
-        fields = (
-            "id", "year", "donation_income", "income_total", "statement", "parse_method", "filer_name",
-            "source_name", "source_url",
-        )
-
-
-# 同一年兩個來源都有時，只顯示一份：衛福部（主管機關公開、會計師查核）優先於自律聯盟會員自行上傳
-FINANCIAL_PRIORITY = ("衛生福利部", "台灣公益團體自律聯盟")
-
-
-def preferred_reports(reports) -> list:
-    def rank(r):
-        return next((i for i, p in enumerate(FINANCIAL_PRIORITY) if r.source_name.startswith(p)), len(FINANCIAL_PRIORITY))
-
-    best: dict[int, object] = {}
-    for r in reports:
-        if r.year not in best or rank(r) < rank(best[r.year]):
-            best[r.year] = r
-    return [best[y] for y in sorted(best, reverse=True)]
+def distinct_grants(grants):
+    """同一筆補助被兩個部會的表都列出來（例：勞發署跟就業安定基金，LK-30 條件確認）時只留一筆：
+    名稱＋事項＋核准日＋金額（同一年度）全同、而且來自不同來源的，留先出現的那個來源。
+    同一個來源裡全同的兩行是真的兩筆（例：分兩次核定），不合併。"""
+    first_source: dict[tuple, str] = {}
+    kept = []
+    for g in grants:
+        key = (g.year, "".join(g.recipient.split()).replace("臺", "台"), "".join(g.purpose.split()), g.approved_on, g.amount)
+        src = first_source.setdefault(key, g.source_name)
+        if src == g.source_name:
+            kept.append(g)
+    return kept
 
 
 class DonationSerializer(serializers.ModelSerializer):
@@ -109,10 +137,11 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     score = serializers.SerializerMethodField()
     public_raised = serializers.SerializerMethodField()
     annual_records = AnnualSerializer(many=True)
+    financials = FinancialYearSerializer(many=True)
+    documents = OrgDocumentSerializer(many=True)
     projects = ProjectSerializer(many=True)
     penalties = PenaltySerializer(many=True)
-    grants = GrantSerializer(many=True)
-    financial_reports = serializers.SerializerMethodField()
+    grants = serializers.SerializerMethodField()
     donations = serializers.SerializerMethodField()
     corporate_donors = serializers.SerializerMethodField()
     individual_donors = serializers.SerializerMethodField()
@@ -125,16 +154,17 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
         fields = (
             "ubn", "name", "org_type", "representative", "registered_address", "contact_address", "phone",
             "website", "city", "purposes", "status", "status_label", "source_links", "disclosure_score",
-            "penalty_count_5y", "score", "public_raised", "annual_records", "projects", "penalties", "grants", "financial_reports", "donations",
+            "penalty_count_5y", "score", "public_raised", "annual_records", "financials", "documents", "projects",
+            "penalties", "grants", "donations",
             "corporate_donors", "individual_donors", "donor_summary", "since_roc_year", "categories",
             "updated_at",
         )
 
+    def get_grants(self, obj):
+        return GrantSerializer(distinct_grants(obj.grants.all()), many=True).data
+
     def get_score(self, obj):
         return scoring.breakdown(obj)
-
-    def get_financial_reports(self, obj):
-        return FinancialReportSerializer(preferred_reports(obj.financial_reports.all()), many=True).data
 
     def get_public_raised(self, obj):
         return scoring.public_raised(list(obj.annual_records.all()), list(obj.projects.all()))

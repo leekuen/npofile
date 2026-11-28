@@ -4,10 +4,13 @@ import type { ReactNode } from "react";
 
 import { formatMoney, formatNumber, formatRocDate } from "@/lib/format";
 import { ApiUnavailableError, getOrg } from "@/lib/server-api";
+import { GRANT_AGENCIES } from "@/lib/sources";
 import type { Grant, OrgDetail, Project, ScoreBreakdown } from "@/lib/types";
 
 import { OrgCategoryTags } from "./categories";
 import { Comments } from "./comments";
+import { FinancialChart } from "./financial-chart";
+import { HashHighlight } from "./hash-highlight";
 import {
   Card,
   EmptyState,
@@ -22,6 +25,7 @@ import {
 // 基本資料改放右側欄（LK-11），分頁只留資料；舊連結 ?tab=basic 會落到預設分頁
 const TABS = [
   { key: "donations", label: "募款與捐款人" },
+  { key: "finance", label: "財務與年報" },
   { key: "projects", label: "捐款專案" },
   { key: "grants", label: "政府補助" },
   { key: "penalties", label: "受裁罰紀錄" },
@@ -60,6 +64,7 @@ export async function OrgDetailView({
   // 只有裁罰需要一眼看到筆數；其他分頁的數字不會改變點不點進去
   const counts: Record<TabKey, number | null> = {
     donations: null,
+    finance: null,
     projects: null,
     grants: null,
     penalties: org.penalties.length || null,
@@ -94,6 +99,7 @@ export async function OrgDetailView({
 
         <aside className="space-y-4 lg:sticky lg:top-6 lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <ScorePanel score={org.score} />
+          <FinanceSummaryCard org={org} />
           <ContactCard org={org} />
         </aside>
 
@@ -140,6 +146,7 @@ export async function OrgDetailView({
                 : `近 5 年（民國 ${org.since_roc_year} 年起）`}
             </p>
             {tab === "donations" && <DonationsTab org={org} />}
+            {tab === "finance" && <FinanceTab org={org} />}
             {tab === "projects" && <ProjectsTab org={org} />}
             {tab === "grants" && <GrantsTab grants={org.grants} />}
             {tab === "penalties" && <PenaltiesTab org={org} />}
@@ -326,6 +333,38 @@ function ScorePanel({ score }: { score: ScoreBreakdown }) {
   );
 }
 
+/** 右欄財務摘要（LK-17，參照 Candid 組織頁的 Financials 卡）：最近一年三個數字＋連到財務分頁；沒有數字就不出 */
+function FinanceSummaryCard({ org }: { org: OrgDetail }) {
+  const latest = [...org.financials].sort((a, b) => b.year - a.year)[0];
+  if (!latest) return null;
+  const rows = [
+    { label: "總收入", value: latest.total_revenue },
+    { label: "總支出", value: latest.total_expenses },
+    { label: "年底總資產", value: latest.total_assets },
+  ];
+  return (
+    <section aria-labelledby="finance-summary-title" className="rounded-2xl border border-ink-200 bg-white p-4 lg:p-5">
+      <h2 id="finance-summary-title" className="font-display text-lg font-bold text-ink-900">
+        財務摘要
+      </h2>
+      <p className="mt-0.5 text-xs text-ink-600">民國 {latest.year} 年度</p>
+      <dl className="mt-3 space-y-2 text-sm">
+        {rows.map((r) => (
+          <div key={r.label} className="flex items-baseline justify-between gap-3">
+            <dt className="text-ink-700">{r.label}</dt>
+            <dd className="font-num font-semibold tabular-nums text-ink-900">{formatMoney(r.value)}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-3 border-t border-ink-100 pt-3 text-sm">
+        <TextLink href={`/orgs/${org.ubn}?tab=finance`} scroll={false}>
+          看更多財務資料
+        </TextLink>
+      </p>
+    </section>
+  );
+}
+
 const NA = <span className="text-ink-500">未收錄</span>;
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -434,62 +473,6 @@ function fundedYears(org: OrgDetail) {
   return org.annual_records.filter((a) => a.raised > 0 || a.target > 0);
 }
 
-/** 組織財報（LK-25）：主管機關公開的年度決算或自律聯盟會員財務報告，捐贈收入已含勸募與群眾集資 */
-function FinancialReportsSection({ reports }: { reports: OrgDetail["financial_reports"] }) {
-  const ocr = reports.some((r) => r.parse_method === "影像辨識");
-  const sources = [...new Map(reports.map((r) => [r.source_name, r])).values()];
-  return (
-    <section>
-      <SectionTitle>組織財報</SectionTitle>
-      <Card className="overflow-x-auto p-0 sm:p-0">
-        <table className="w-full text-sm">
-          <thead className="bg-ink-50 text-ink-700">
-            <tr>
-              <th scope="col" className="px-2 py-2 text-left font-medium whitespace-nowrap sm:px-3">年度（民國）</th>
-              <th scope="col" className="px-2 py-2 text-right font-medium whitespace-nowrap sm:px-3">捐贈收入</th>
-              <th scope="col" className="hidden px-2 py-2 text-right font-medium whitespace-nowrap sm:table-cell sm:px-3">收入合計</th>
-              <th scope="col" className="px-2 py-2 text-right font-medium whitespace-nowrap sm:px-3">捐贈占收入</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-ink-100 font-num tabular-nums">
-            {reports.map((r) => (
-              <tr key={r.id}>
-                <td className="px-2 py-2 sm:px-3">
-                  {r.source_url ? (
-                    <TextLink href={r.source_url}>
-                      {r.year}
-                      <span className="sr-only"> 年度原始報告</span>
-                    </TextLink>
-                  ) : (
-                    r.year
-                  )}
-                </td>
-                <td className="px-2 py-2 text-right whitespace-nowrap sm:px-3">
-                  {formatMoney(r.donation_income)}
-                  {r.parse_method === "影像辨識" && r.donation_income != null && (
-                    <span className="ml-0.5 text-ink-500" title="由掃描檔影像辨識">＊</span>
-                  )}
-                </td>
-                <td className="hidden px-2 py-2 text-right whitespace-nowrap sm:table-cell sm:px-3">{formatMoney(r.income_total)}</td>
-                <td className="px-2 py-2 text-right sm:px-3">
-                  {r.donation_income != null && r.income_total ? `${((r.donation_income / r.income_total) * 100).toFixed(1)}%` : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="space-y-1 border-t border-ink-100 px-3 py-2 text-xs text-ink-600">
-          <p>財報的捐贈收入包含勸募與群眾集資，不跟上面的近 5 年公開募款相加。點年度看原始報告。</p>
-          {ocr && <p>＊由掃描的財務報告影像辨識，可能有誤，請以原始報告為準。</p>}
-          {sources.map((r) => (
-            <p key={r.source_name}>來源：{r.source_name}（{r.statement}）</p>
-          ))}
-        </div>
-      </Card>
-    </section>
-  );
-}
-
 function DonationsTab({ org }: { org: OrgDetail }) {
   const years = fundedYears(org);
   const maxRaised = Math.max(0, ...years.map((a) => a.raised));
@@ -525,7 +508,6 @@ function DonationsTab({ org }: { org: OrgDetail }) {
           </Card>
         </section>
       )}
-      {org.financial_reports.length > 0 && <FinancialReportsSection reports={org.financial_reports} />}
       <section>
         <SectionTitle>年度募款</SectionTitle>
         {years.length === 0 ? (
@@ -798,6 +780,113 @@ function DonorRankings({ org }: { org: OrgDetail }) {
   );
 }
 
+const FIN_COLUMNS = [
+  { key: "total_revenue", label: "總收入" },
+  { key: "contributions", label: "捐款收入" },
+  { key: "government_grants", label: "政府補助" },
+  { key: "total_expenses", label: "總支出" },
+  { key: "program_expense_ratio", label: "業務支出占比" },
+  { key: "net_assets", label: "年底淨資產" },
+] as const;
+
+/** 財務與年報（LK-17）：組織官網公開的報告，數字經管理員審核後才上架 */
+function FinanceTab({ org }: { org: OrgDetail }) {
+  const years = [...org.financials].sort((a, b) => b.year - a.year);
+  const docYears = [...new Set(org.documents.map((d) => d.year))].sort((a, b) => b - a);
+
+  if (years.length === 0 && org.documents.length === 0) {
+    return (
+      <EmptyState title="還沒有收錄到這個組織官網公開的財務報告">
+        {org.website ? "我們會定期到組織官網找年報與財務報告。" : "這個組織沒有登記官網，目前無法自動收錄。"}
+      </EmptyState>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <section>
+        <SectionTitle>收入、支出與淨資產</SectionTitle>
+        {years.length === 0 ? (
+          <EmptyState title="報告裡的數字還沒整理上架">下方可以先看組織公開的原始報告。</EmptyState>
+        ) : (
+          <div className="space-y-3">
+            {years.length >= 2 && (
+              <Card>
+                <FinancialChart
+                  rows={years.map((f) => ({ year: f.year, revenue: f.total_revenue, expenses: f.total_expenses, netAssets: f.net_assets }))}
+                />
+              </Card>
+            )}
+            <Card className="overflow-x-auto p-0! sm:p-0!">
+              <table className="w-full text-sm">
+                <thead className="bg-ink-50 text-ink-700">
+                  <tr>
+                    <th scope="col" className="sticky left-0 bg-ink-50 px-2.5 py-2 text-left font-medium whitespace-nowrap">年度</th>
+                    {FIN_COLUMNS.map((c) => (
+                      <th key={c.key} scope="col" className="px-2.5 py-2 text-right font-medium whitespace-nowrap">{c.label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ink-100 tabular-nums">
+                  {years.map((f) => (
+                    <tr key={f.year}>
+                      <td className="sticky left-0 bg-white px-2.5 py-2 whitespace-nowrap">
+                        {f.year}
+                        {f.document_url && (
+                          <span className="block text-xs">
+                            <TextLink href={f.document_url}>原始報告</TextLink>
+                          </span>
+                        )}
+                        {f.method === "ocr" && <span className="mt-0.5 inline-block rounded bg-sun-100 px-1.5 text-xs text-ink-700">影像辨識</span>}
+                      </td>
+                      {FIN_COLUMNS.map((c) => {
+                        const v = f[c.key];
+                        return (
+                          <td key={c.key} className="px-2.5 py-2 text-right align-top whitespace-nowrap">
+                            {v === null ? "—" : c.key === "program_expense_ratio" ? `${v}%` : formatNumber(v)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+            <p className="text-xs text-ink-600">金額單位：元。業務支出占比＝業務（服務）支出 ÷ 總支出。報告沒有列的項目顯示「—」。
+              {years.some((f) => f.method === "ocr") && "標「影像辨識」的年度是從掃描檔讀出的數字，可能有誤，請以原始報告為準。"}
+            </p>
+          </div>
+        )}
+      </section>
+
+      {org.documents.length > 0 && (
+        <section>
+          <SectionTitle>官網公開的報告</SectionTitle>
+          <Card className="p-0 sm:p-0">
+            <ul className="divide-y divide-ink-100">
+              {docYears.map((y) => (
+                <li key={y} className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:gap-4">
+                  <span className="w-16 shrink-0 font-semibold tabular-nums text-ink-700">{y} 年</span>
+                  <ul className="min-w-0 flex-1 space-y-1">
+                    {org.documents
+                      .filter((d) => d.year === y)
+                      .map((d) => (
+                        <li key={d.id} className="flex flex-wrap items-baseline gap-x-2 break-words">
+                          <span className="rounded bg-ink-100 px-1.5 text-xs text-ink-700">{d.kind_label}</span>
+                          <TextLink href={d.url}>{d.title}</TextLink>
+                        </li>
+                      ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </section>
+      )}
+    </div>
+  );
+}
+
 function ProjectsTab({ org }: { org: OrgDetail }) {
   if (org.projects.length === 0) {
     return (
@@ -808,8 +897,13 @@ function ProjectsTab({ org }: { org: OrgDetail }) {
   }
   return (
     <ul className="space-y-3">
+      <HashHighlight />
       {org.projects.map((p) => (
-        <li key={p.id}>
+        <li
+          key={p.id}
+          id={p.external_id ? `p-${p.external_id}` : undefined}
+          className="scroll-mt-24 rounded-2xl data-highlight:ring-2 data-highlight:ring-brand-600 data-highlight:ring-offset-2"
+        >
           {p.channel === "crowdfunding" ? (
             <CrowdfundingCard p={p} />
           ) : (
@@ -939,7 +1033,7 @@ function GrantsTab({ grants }: { grants: Grant[] }) {
   if (grants.length === 0) {
     return (
       <EmptyState title="近 5 年沒有收錄到政府補助">
-        目前收錄衛生福利部（含社會及家庭署等所屬機關）公開的補助名單；名單上的名稱要跟組織登記名稱相同才對得到。
+        目前收錄{GRANT_AGENCIES}公開的補助名單；名單上的名稱要跟組織登記名稱相同才對得到。
       </EmptyState>
     );
   }
@@ -990,12 +1084,22 @@ function GrantsTab({ grants }: { grants: Grant[] }) {
           </section>
         );
       })}
-      <p>
-        <SourceNote name={grants[0].source_name} url={grants[0].source_url} />
-      </p>
+      <ul className="space-y-1">
+        {[
+          ...new Map(
+            grants.map((g) => [g.source_name, g.source_url]),
+          ).entries(),
+        ].map(([name, url]) => (
+          <li key={name}>
+            <SourceNote name={name} url={url} />
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
+
+const PENALTY_CATEGORY = { labor: "勞動法令", fundraising: "公益勸募" } as const;
 
 function PenaltiesTab({ org }: { org: OrgDetail }) {
   if (org.penalties.length === 0) {
@@ -1010,8 +1114,13 @@ function PenaltiesTab({ org }: { org: OrgDetail }) {
       {org.penalties.map((p) => (
         <li key={p.id}>
           <Card className="border-l-4 border-l-red-600">
-            <p className="text-sm font-semibold tabular-nums text-red-900">
-              處分日期 {formatRocDate(p.decided_on)}
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="inline-flex items-center rounded-full bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-800 ring-1 ring-inset ring-ink-500/30">
+                {PENALTY_CATEGORY[p.category]}
+              </span>
+              <span className="text-sm font-semibold tabular-nums text-red-900">
+                處分日期 {formatRocDate(p.decided_on)}
+              </span>
             </p>
             <p className="mt-2 break-words text-ink-900">{p.content}</p>
             {p.fine_text && (

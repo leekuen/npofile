@@ -166,7 +166,7 @@ class AdminAccessTests(TestCase):
             "registered_address": "", "contact_address": "", "phone": "", "website": "", "city": "", "purposes": "",
             "source_links": "[]", "locked_fields": "[]",
         }
-        for prefix in ("categories", "annual_records", "donations", "projects", "penalties"):
+        for prefix in ("categories", "annual_records", "financials", "documents", "donations", "projects", "penalties"):
             data.update({f"{prefix}-TOTAL_FORMS": "0", f"{prefix}-INITIAL_FORMS": "0"})
         # locked_fields 欄位原值也是 []，沒被改動 → 由 save_model 自動補上被改的欄位
         r = self.client.post(f"/admin/orgs/organization/{org.pk}/change/", data)

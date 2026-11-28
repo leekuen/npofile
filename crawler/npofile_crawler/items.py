@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import date
 
-KINDS = ("org", "annual", "project", "penalty", "donor_list", "grant", "financial")
+KINDS = ("org", "annual", "project", "penalty", "donor_list", "grant", "document", "financial")
 
 
 @dataclass

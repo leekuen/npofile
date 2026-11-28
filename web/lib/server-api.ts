@@ -3,7 +3,9 @@ import "server-only";
 import type {
   CategoryOverview,
   DonorDetail,
+  Discover,
   DonorSummaryRow,
+  FieldPicks,
   Filters,
   OrgDetail,
   OrgSummary,
@@ -85,4 +87,14 @@ export async function getTaxonomy() {
 export async function getCategory(code: string) {
   if (!/^[a-z.]+$/.test(code)) return null;
   return get<CategoryOverview>(`/api/categories/${code}`);
+}
+
+export async function getDiscover() {
+  return (await get<Discover>("/api/home/discover"))!;
+}
+
+export async function getFieldPicks(query: OrgQuery) {
+  const params = new URLSearchParams();
+  for (const k of ["field", "sub", "target", "city", "status"] as const) if (query[k]) params.set(k, query[k]!);
+  return (await get<{ picks: FieldPicks | null }>(`/api/home/picks?${params}`))?.picks ?? null;
 }
