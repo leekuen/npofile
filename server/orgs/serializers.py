@@ -266,10 +266,14 @@ class DonorListSerializer(serializers.ModelSerializer):
     total = serializers.IntegerField()
     org_count = serializers.IntegerField()
     donation_count = serializers.IntegerField()
+    active_year_count = serializers.IntegerField()
+    last_donated_on = serializers.DateField(allow_null=True)
 
     class Meta:
         model = Donor
-        fields = ("id", "name", "kind", "kind_label", "ubn", "total", "org_count", "donation_count")
+        fields = (
+            "id", "name", "kind", "kind_label", "ubn", "total", "org_count", "donation_count", "active_year_count", "last_donated_on",
+        )
 
 
 class DonorDonationSerializer(serializers.ModelSerializer):
@@ -286,11 +290,17 @@ class DonorDetailSerializer(DonorListSerializer):
     organizations = serializers.SerializerMethodField()
     donations = serializers.SerializerMethodField()
     fields_breakdown = serializers.SerializerMethodField()
+    overview = serializers.SerializerMethodField()
 
     class Meta(DonorListSerializer.Meta):
         fields = DonorListSerializer.Meta.fields + (
             "registered_name", "representative", "capital", "address", "organizations", "donations", "fields_breakdown",
+            "overview",
         )
+
+    def get_overview(self, obj):
+        """捐款概況（LK-38）：同類排名、持續支持年度、最近一次、單筆最大、近 5 年年度趨勢。"""
+        return donor_rules.donor_overview(obj)
 
     def get_fields_breakdown(self, obj):
         return category_api.donor_field_breakdown(obj)

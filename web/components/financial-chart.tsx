@@ -51,12 +51,15 @@ export function TrendChart<K extends string>({
   series,
   label,
   partialYear,
+  tooltipExtra,
 }: {
   rows: TrendRow<K>[];
   series: (TrendSeries<K> & { styleIndex?: number })[];
   label: string;
   /** 還沒過完的年度（今年）：軸上寫「至今」，免得最後一年看起來是掉下來 */
   partialYear?: number;
+  /** 提示框金額下方多一行補充（例：捐給幾個組織、幾筆） */
+  tooltipExtra?: (year: number) => string;
 }) {
   const SERIES = series.map((s, i) => ({ ...s, ...STYLES[s.styleIndex ?? i] }));
   type SeriesKey = K;
@@ -207,8 +210,33 @@ export function TrendChart<K extends string>({
               </div>
             ))}
           </dl>
+          {tooltipExtra && <p className="mt-1 text-ink-600">{tooltipExtra(hovered.year)}</p>}
         </div>
       )}
     </figure>
+  );
+}
+
+/** 捐款企業頁的近 5 年捐款趨勢（LK-38）：一條線、每年總額，提示框另寫捐給幾個組織、幾筆。
+ *  放在這支 client 檔裡，因為提示框補充是函式，不能從 server component 傳過來。 */
+export function DonorTrendChart({
+  yearly,
+  partialYear,
+}: {
+  yearly: { year: number; total: number; org_count: number; count: number }[];
+  partialYear: number;
+}) {
+  const byYear = new Map(yearly.map((r) => [r.year, r]));
+  return (
+    <TrendChart
+      rows={yearly.map((r) => ({ year: r.year, total: r.total }))}
+      series={[{ key: "total", label: "捐款總額" }]}
+      label={`近 ${yearly.length} 年每年捐款總額折線圖：${yearly.map((r) => `${r.year} 年 ${formatMoney(r.total)}`).join("、")}`}
+      partialYear={partialYear}
+      tooltipExtra={(y) => {
+        const r = byYear.get(y);
+        return r ? `捐給 ${r.org_count} 個組織，共 ${r.count} 筆` : "";
+      }}
+    />
   );
 }
