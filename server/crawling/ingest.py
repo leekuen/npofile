@@ -24,6 +24,7 @@ from orgs.models import (
     CRAWLABLE_FIELDS,
     AnnualDonorList,
     AnnualFundraising,
+    CompanyESG,
     Donation,
     DonationCode,
     Donor,
@@ -48,7 +49,7 @@ log = logging.getLogger(__name__)
 BATCH = 500
 STORE_EVERY = 60  # 秒
 KIND_ORDER = {"org": 0, "annual": 1, "project": 2, "penalty": 3, "donor_list": 4, "grant": 5, "document": 6, "financial": 7,
-              "court_reg": 8, "registry": 9, "einvoice": 10, "annual_list": 11}
+              "court_reg": 8, "registry": 9, "einvoice": 10, "annual_list": 11, "gift": 12}
 PROJECT_FIELDS = (
     "category", "start_date", "end_date", "target", "raised", "permit_no", "region",
     "result_filed_on", "closed_filed_on", "description", "channel", "monthly_raised", "backers",
@@ -469,6 +470,52 @@ def _apply_child(rec: CrawlRecord, org: Organization, source_name: str) -> None:
         _apply_financial(rec, org, source_name)
     elif rec.kind == "annual_list":
         _apply_annual_donor_list(rec, org, source_name)
+    elif rec.kind == "gift":
+        _apply_gift(rec, org, source_name)
+
+
+def _gift_donor(d: dict) -> Donor:
+    """企業捐贈公告的捐款者（LK-49）：重大訊息用公司代號對上市櫃公司全名與統編（LK-39 的公司資料），
+    代子公司公告的用子公司名稱；保險業用捐贈情形表那家公司的名稱與統編。都建成企業捐款人。"""
+    name, ubn = d.get("donor_name") or "", d.get("donor_ubn") or ""
+    if d.get("company_code") and not d.get("subsidiary"):
+        company = (CompanyESG.objects.filter(code=d["company_code"]).order_by("-report_year")
+                   .values_list("name", "ubn").first())
+        if company:
+            name, ubn = company[0] or name, company[1] or ubn
+    if ubn:  # 同一家公司在別的清冊用過別的寫法：統編對得到就用那一位
+        same = Donor.objects.filter(ubn=ubn, kind=Donor.Kind.COMPANY).order_by("id").first()
+        if same:
+            return same
+    donor = _donors_for([{"name": name, "kind": Donor.Kind.COMPANY}])[donor_names.identity_key(name)[:200]]
+    if ubn and not donor.ubn:
+        donor.ubn = ubn
+        donor.save(update_fields=["ubn"])
+    return donor
+
+
+def _apply_gift(rec: CrawlRecord, org: Organization, source_name: str) -> None:
+    """一則企業捐贈公告＝一筆捐款（LK-49）。同捐款者、同受捐組織、同日期、同金額已經有一筆（別的來源先收到、
+    或同一則換了寫法重發）就不再建；金額讀不出確定數字的存 0、原文進 amount_note，不算進加總（口徑見 tickets/LK-49）。"""
+    d = rec.payload
+    donor = _gift_donor(d)
+    on = _date(d.get("donated_on"))
+    amount = d.get("amount") or 0
+    note = "" if d.get("amount") else (d.get("amount_text") or "未列金額")[:100]
+    key = f"{donor.id}|{org.id}|{on.isoformat() if on else ''}|{amount or note}"[:60]
+    values = {
+        "donor": donor, "donor_name": donor.name[:200], "amount": amount, "amount_note": note, "donated_on": on,
+        "purpose": (d.get("purpose") or "")[:200], "source_name": source_name, "source_url": rec.source_url,
+    }
+    existing = Donation.objects.filter(organization=org, external_id=key).first()
+    if existing is None:
+        Donation.objects.create(organization=org, external_id=key, **values)
+    elif existing.source_name == source_name:
+        for k, v in values.items():
+            setattr(existing, k, v)
+        existing.save()
+    else:
+        rec.review_note = f"同一筆捐款已經從「{existing.source_name}」收過，沒有重複記"
 
 
 def _apply_registry(rec: CrawlRecord, org: Organization | None, source_name: str) -> None:

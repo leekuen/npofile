@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
-from . import environment, fia, grants, judicial, labor, mohw, orgsite, procurement, registries, swft, twnpos, violations, wabay
+from . import corporate_gifts, environment, fia, grants, judicial, labor, mohw, orgsite, procurement, registries, swft, twnpos, violations, wabay
 from .http import PoliteClient
 from .items import Item
 
@@ -110,6 +110,18 @@ SOURCES = {
                "法人名稱跟組織名稱完全相同且唯一才連（同名的用法院所在縣市挑），對不到的記下不顯示、後台可手動指定；"
                "董事、監察人姓名不存；不改財政部名冊的營運狀態。第一次會回補全部，之後每天只抓新的；「每次最多抓幾筆」算的是公告筆數",
                options=("orgs_city", "seen_regs", "floor_reached", "listed")),
+        # LK-49：企業依法公開的捐贈（受贈者對不到組織、捐給政黨的進審核清單，只在後台）
+        Source("mops_donations", corporate_gifts.MOPS_SOURCE_NAME, corporate_gifts.MOPS_PAGE, True, corporate_gifts.fetch_mops,
+               "政府公開資料：上市櫃公司在公開資訊觀測站發布的捐贈重大訊息（董事會通過對關係人的捐贈、對非關係人的重大捐贈），"
+               "逐日讀當天全部公司的重大訊息、挑出捐贈公告；第一次回補近 5 年，之後每天只讀上次讀完以來的幾個月。"
+               "受贈對象名稱跟組織完全相同且唯一才上架，對不到的進審核清單等管理員指定組織；金額寫成範圍的照原文顯示、不算進加總。"
+               "查太快會被擋，每天間隔約 5 秒；「每次最多抓幾筆」算的是天數",
+               options=("since_roc", "orgs", "since_date", "listed")),
+        Source("insurer_donations", corporate_gifts.INS_SOURCE_NAME, corporate_gifts.INS_INDEX, True, corporate_gifts.fetch_insurers,
+               "政府公開資料：保險業公開資訊觀測站上每家壽險、產險公司依資訊公開管理辦法公開的「對政黨、利害關係人及公益團體所為之捐贈情形」，"
+               "近 5 年逐筆（受贈團體、日期、金額）；公司清單每次從該站下拉選單讀。受贈團體對不到組織的、捐給政黨的進審核清單，前台不出現；"
+               "「每次最多抓幾筆」算的是公司數",
+               options=("since_roc", "orgs")),
         Source("orgsite", "組織官網（年報與財務報告）", "", False, orgsite.fetch,
                "組織自己官網公開的近 5 年財務報告、年報、工作／成果報告；設了 Claude Code 權杖（CLAUDE_CODE_OAUTH_TOKEN，走訂閱）或 ANTHROPIC_API_KEY 才會讀出報告裡的數字，讀出的數字一律先待審核"
                "（會產生 API 費用）。「每次最多抓幾筆」算的是組織數",

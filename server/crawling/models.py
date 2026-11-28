@@ -67,6 +67,7 @@ class CrawlRecord(models.Model):
         REGISTRY = "registry", "主管機關名冊"
         EINVOICE = "einvoice", "發票捐贈碼"
         ANNUAL_LIST = "annual_list", "年度捐贈名單清冊"
+        GIFT = "gift", "企業捐贈公告"
 
     class Status(models.TextChoices):
         PENDING = "pending", "待審核"

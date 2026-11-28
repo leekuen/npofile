@@ -11,8 +11,9 @@ from orgs import period
 
 
 # 「crawl all」排最後的慢來源（依序）：一次要跑一兩個小時以上。其他來源都是幾分鐘內跑完的整份名單，
-# 先跑完它們，晚上被中斷時少掉的只會是這幾個慢的，不會讓後面一整串整晚沒跑到（LK-44）
-SLOW_LAST = ("judicial", "mohw_activities", "swft", "twnpos", "orgsite")
+# 先跑完它們，晚上被中斷時少掉的只會是這幾個慢的，不會讓後面一整串整晚沒跑到（LK-44）。
+# mops_donations 第一次回補近 5 年要兩個多小時，之後每晚約十分鐘（LK-49）
+SLOW_LAST = ("mops_donations", "judicial", "mohw_activities", "swft", "twnpos", "orgsite")
 
 
 def crawl_order(sources):
