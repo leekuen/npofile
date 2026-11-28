@@ -4,10 +4,10 @@ import type { ReactNode } from "react";
 
 import { formatCompact, formatMoney, formatNumber, formatRocDate } from "@/lib/format";
 import { ApiUnavailableError, getDonor } from "@/lib/server-api";
-import type { DonorDetail } from "@/lib/types";
+import type { CompanyEsg, DonorDetail } from "@/lib/types";
 
 import { DonorTrendChart } from "./financial-chart";
-import { Card, ErrorBox, PageHeader, Skeleton, TextLink } from "./ui";
+import { Card, ErrorBox, PageHeader, Skeleton, SourceNote, TextLink } from "./ui";
 
 export async function DonorDetailView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -59,6 +59,8 @@ export async function DonorDetailView({ params }: { params: Promise<{ id: string
       )}
 
       {donor.fields_breakdown.length > 0 && <FieldBreakdown rows={donor.fields_breakdown} />}
+
+      {donor.esg && <EsgSection esg={donor.esg} />}
 
       {donor.ubn && (
         <section>
@@ -216,6 +218,118 @@ function Overview({ donor }: { donor: DonorDetail }) {
         以上依衛福部公益勸募活動公開的捐贈人清冊計算，只涵蓋近 5 年、透過公益勸募活動的捐款，不是這家{donor.kind_label}全部的捐款。
       </p>
     </section>
+  );
+}
+
+const ESG_TEXTS: { key: keyof CompanyEsg; label: string }[] = [
+  { key: "climate_targets", label: "氣候目標與進度" },
+  { key: "transition_plan", label: "轉型計畫" },
+  { key: "climate_actions", label: "因應極端氣候與轉型的行動" },
+  { key: "climate_strategy", label: "氣候風險與機會對業務、策略的影響" },
+  { key: "climate_governance", label: "董事會怎麼監督氣候議題" },
+];
+const EXCERPT = 120;
+
+function formatTons(v: number): string {
+  return `${new Intl.NumberFormat("zh-TW", { maximumFractionDigits: v >= 100 ? 0 : 1 }).format(v)} 噸`;
+}
+
+function formatPct(v: number): string {
+  return `${new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 2 }).format(v)}%`;
+}
+
+/** 上市櫃公司 ESG（LK-39）：公司自己申報的承諾與數字，照原文、不改寫；沒填的不顯示。 */
+function EsgSection({ esg }: { esg: CompanyEsg }) {
+  const texts = ESG_TEXTS.filter((t) => (esg[t.key] as string).trim());
+  const verified = (s: string) => (s === "是" ? "已取得驗證" : s === "否" ? "未取得驗證" : s);
+  const emissions =
+    esg.scope1 != null || esg.scope2 != null
+      ? {
+          value: formatTons((esg.scope1 ?? 0) + (esg.scope2 ?? 0)),
+          note: [
+            esg.scope1 == null ? "只有範疇二" : esg.scope2 == null ? "只有範疇一" : "範疇一＋二",
+            esg.scope1_verified && `範疇一${verified(esg.scope1_verified)}`,
+          ]
+            .filter(Boolean)
+            .join("・"),
+        }
+      : null;
+  const stats = [
+    emissions && { label: "溫室氣體排放", value: emissions.value, note: emissions.note },
+    esg.renewable_ratio != null && { label: "再生能源使用率", value: formatPct(esg.renewable_ratio) },
+    esg.female_manager_ratio != null && { label: "女性主管占比", value: formatPct(esg.female_manager_ratio) },
+    esg.salary_median != null && {
+      label: "非主管員工薪資中位數",
+      value: `${formatNumber(esg.salary_median)} 千元`,
+      note: "全時員工、每人一年",
+    },
+  ].filter(Boolean) as { label: string; value: string; note?: string }[];
+  if (!texts.length && !stats.length) return null;
+
+  return (
+    <section aria-labelledby="donor-esg">
+      <h2 id="donor-esg" className="mb-1 font-display text-xl font-bold text-ink-900">
+        永續承諾與揭露（ESG）
+      </h2>
+      <p className="mb-3 text-sm text-ink-600">
+        {esg.short_name || esg.name}・{esg.market_label} {esg.code}・{esg.report_year} 年度申報
+      </p>
+      <div className="space-y-3">
+        {stats.length > 0 && (
+          <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {stats.map((s) => (
+              <Card key={s.label} className="min-w-0">
+                <dt className="text-sm text-ink-600">{s.label}</dt>
+                <dd className="mt-1 font-num text-xl font-bold tabular-nums text-ink-900">{s.value}</dd>
+                {s.note && <dd className="mt-0.5 break-words text-xs text-ink-600">{s.note}</dd>}
+              </Card>
+            ))}
+          </dl>
+        )}
+        {texts.length > 0 && (
+          <Card className="p-0 sm:p-0">
+            <div className="divide-y divide-ink-100">
+              {texts.map((t) => (
+                <EsgText key={t.key} label={t.label} text={(esg[t.key] as string).trim()} />
+              ))}
+            </div>
+          </Card>
+        )}
+      </div>
+      <p className="mt-2 text-xs text-ink-600">
+        以上為公司自行向主管機關申報的內容，本站未查證。
+        <SourceNote name={esg.source_name} url={esg.source_url} />
+        {esg.website && (
+          <>
+            {"　"}
+            <TextLink href={esg.website} target="_blank" rel="noopener noreferrer">
+              公司網站
+            </TextLink>
+          </>
+        )}
+      </p>
+    </section>
+  );
+}
+
+function EsgText({ label, text }: { label: string; text: string }) {
+  const long = text.length > EXCERPT;
+  return (
+    <div className="px-4 py-3">
+      <h3 className="text-sm font-semibold text-ink-900">{label}</h3>
+      {long ? (
+        <details className="group/esg mt-1 text-sm text-ink-800">
+          <summary className="cursor-pointer list-none">
+            <span className="whitespace-pre-line break-words group-open/esg:hidden">{text.slice(0, EXCERPT)}…</span>
+            <span className="ml-1 text-brand-800 underline underline-offset-2 group-open/esg:hidden">看全文</span>
+            <span className="hidden text-brand-800 underline underline-offset-2 group-open/esg:inline">收起</span>
+          </summary>
+          <p className="mt-1 whitespace-pre-line break-words">{text}</p>
+        </details>
+      ) : (
+        <p className="mt-1 whitespace-pre-line break-words text-sm text-ink-800">{text}</p>
+      )}
+    </div>
   );
 }
 

@@ -2,11 +2,12 @@ from django import forms
 from django.contrib import admin, messages
 from django.db.models import Count, Sum
 
-from . import taxonomy
+from . import company_esg, taxonomy
 
 from .models import (
     CRAWLABLE_FIELDS,
     AnnualFundraising,
+    CompanyESG,
     CourtRegistration,
     Donation,
     DonationCode,
@@ -399,3 +400,24 @@ class CourtRegistrationAdmin(admin.ModelAdmin):
 
         n = rematch(queryset)
         self.message_user(request, f"重新比對完成：{n} 筆的組織有變動。內頁還沒讀過的，下次排程會用 match_court_registrations 補抓。", messages.SUCCESS)
+
+
+@admin.register(CompanyESG)
+class CompanyESGAdmin(admin.ModelAdmin):
+    """LK-39：公司自己申報的內容，管理員不能改；對錯捐款人時用「解除對應」。"""
+
+    list_display = ("short_name", "market", "code", "report_year", "ubn", "donor", "link_blocked", "fetched_at")
+    list_filter = ("market", "report_year", "link_blocked")
+    search_fields = ("name", "short_name", "code", "ubn", "donor__name")
+    actions = ["unlink"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False  # 唯讀：只能看、只能用「解除對應」
+
+    @admin.action(description="解除對應（這家公司每個年度都不再自動對到捐款人）", permissions=["view"])
+    def unlink(self, request, queryset):
+        n = company_esg.unlink(queryset)
+        self.message_user(request, f"已解除 {n} 筆對應", messages.SUCCESS)
