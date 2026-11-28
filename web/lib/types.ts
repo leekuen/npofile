@@ -333,6 +333,28 @@ export interface DonorSummaryRow {
   total: number;
   org_count: number;
   donation_count: number;
+  /** 近 5 年有捐款的年度數（有日期、不晚於今天的才算；LK-38） */
+  active_year_count: number;
+  last_donated_on: string | null;
+}
+
+export interface DonorYear {
+  /** 民國年 */
+  year: number;
+  total: number;
+  org_count: number;
+  count: number;
+}
+
+export interface DonorOverview {
+  /** 同類（企業或團體）依近 5 年總額的名次，同額同名次 */
+  rank: number;
+  rank_of: number;
+  active_years: number[];
+  first_donated_on: string | null;
+  last_donated_on: string | null;
+  max_donation: number;
+  yearly: DonorYear[];
 }
 
 export interface DonorDetail extends DonorSummaryRow {
@@ -340,7 +362,17 @@ export interface DonorDetail extends DonorSummaryRow {
   representative: string;
   capital: number | null;
   address: string;
-  organizations: { ubn: string; name: string; total: number; count: number }[];
+  organizations: {
+    ubn: string;
+    name: string;
+    total: number;
+    count: number;
+    /** 支持過的民國年度 */
+    years: number[];
+    /** 這個組織全部的裁罰紀錄筆數（不限年份） */
+    penalty_count: number;
+  }[];
+  overview: DonorOverview;
   fields_breakdown: { code: string; label: string; total: number }[];
   donations: {
     id: number;

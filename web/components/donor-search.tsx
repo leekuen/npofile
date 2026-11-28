@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { formatMoney, formatNumber } from "@/lib/format";
+import { formatMoney, formatNumber, formatRocMonth } from "@/lib/format";
 import { ApiUnavailableError, listDonors, type DonorQuery } from "@/lib/server-api";
 
 import { Card, EmptyState, ErrorBox, Skeleton } from "./ui";
@@ -113,6 +113,8 @@ export async function DonorSearch({ searchParams }: { searchParams: Promise<Sear
                     <span className="rounded bg-ink-100 px-1.5 text-ink-700">{d.kind_label}</span>
                     {d.ubn && <span className="tabular-nums">統編 {d.ubn}</span>}
                     <span>捐給 {formatNumber(d.org_count)} 個組織</span>
+                    {d.active_year_count > 0 && <span>支持 {d.active_year_count} 年</span>}
+                    {d.last_donated_on && <span className="tabular-nums">最近 {formatRocMonth(d.last_donated_on)}</span>}
                   </p>
                 </div>
                 <span className="shrink-0 text-right font-semibold tabular-nums text-ink-900">{formatMoney(d.total)}</span>
