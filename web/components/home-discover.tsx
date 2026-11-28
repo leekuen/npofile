@@ -8,12 +8,12 @@ import { DiscoverTabs } from "./discover-tabs";
 import { levelMedal, Skeleton } from "./ui";
 
 const link = "text-brand-800 underline underline-offset-2 hover:text-brand-950";
-const box = "surface p-4 sm:p-6";
+const box = "surface animate-rise p-4 sm:p-6 [animation-delay:0.25s]";
 /** 卡片一排：手機橫滑（露出下一張的邊，看得出可以滑），寬螢幕三欄 */
 const cardRow = "-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0";
 const cardItem = "w-[78%] shrink-0 snap-start sm:w-auto";
 const cardLink =
-  "flex h-full flex-col gap-2 rounded-xl border border-ink-200 p-4 hover:border-brand-600 hover:bg-ink-50";
+  "flex h-full flex-col gap-2 rounded-xl border border-ink-200 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:border-brand-400 hover:shadow-[var(--shadow-card-hover)] motion-reduce:hover:translate-y-0";
 
 function Empty({ children }: { children: string }) {
   return <p className="py-2 text-sm text-ink-600">{children}</p>;

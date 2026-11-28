@@ -15,6 +15,7 @@ import type {
 
 import { OrgCategoryTags } from "./categories";
 import { Comments } from "./comments";
+import { CountUp } from "./count-up";
 import { FinancialChart, TrendChart } from "./financial-chart";
 import { HashHighlight } from "./hash-highlight";
 import {
@@ -23,6 +24,7 @@ import {
   ErrorBox,
   PageHeader,
   LevelBadge,
+  order,
   Skeleton,
   SourceNote,
   StatusBadge,
@@ -164,7 +166,7 @@ export async function OrgDetailView({
               })}
             </ul>
           </nav>
-          <div className="pt-5">
+          <div key={tab} className="animate-rise pt-5">
             <p className="mb-4 text-sm text-ink-600">
               {tab === "penalties"
                 ? "所有年度"
@@ -199,7 +201,7 @@ function OrgSummary({ org }: { org: OrgDetail }) {
     {
       tab: "donations",
       label: "近 5 年公開募款",
-      value: raised > 0 ? formatMoney(raised) : "沒有紀錄",
+      value: raised > 0 ? <CountUp value={raised} format="money" /> : "沒有紀錄",
       tone: "surface text-ink-900",
       icon: null,
     },
@@ -215,17 +217,19 @@ function OrgSummary({ org }: { org: OrgDetail }) {
     {
       tab: "grants",
       label: "政府補助",
-      value: org.grants.length
-        ? formatMoney(org.grants.reduce((sum, g) => sum + g.amount, 0))
-        : "沒有紀錄",
+      value: org.grants.length ? (
+        <CountUp value={org.grants.reduce((sum, g) => sum + g.amount, 0)} format="money" />
+      ) : (
+        "沒有紀錄"
+      ),
       tone: "surface text-ink-900",
       icon: null,
     },
   ];
   return (
     <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {items.map((it) => (
-        <li key={it.tab}>
+      {items.map((it, i) => (
+        <li key={it.tab} style={order(i)} className="stagger animate-rise">
           <Link
             href={
               it.tab === DEFAULT_TAB
@@ -233,7 +237,7 @@ function OrgSummary({ org }: { org: OrgDetail }) {
                 : `/orgs/${org.ubn}?tab=${it.tab}`
             }
             scroll={false}
-            className={`flex h-full flex-col rounded-2xl px-3 py-2.5 transition-shadow hover:shadow-[var(--shadow-card-hover)] sm:px-4 sm:py-3 ${it.tone}`}
+            className={`flex h-full flex-col rounded-2xl px-3 py-2.5 transition duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-card-hover)] motion-reduce:hover:translate-y-0 sm:px-4 sm:py-3 ${it.tone}`}
           >
             <span className="text-xs text-ink-600">{it.label}</span>
             <span className="mt-1 flex items-center gap-x-1.5 font-num text-sm font-semibold whitespace-nowrap tabular-nums sm:text-base">
@@ -278,6 +282,7 @@ function LevelPanel({ org }: { org: OrgDetail }) {
         <div className="mt-2">
           <LevelBadge level={lv.level} size="lg" />
         </div>
+        {lv.active && <LevelProgress level={lv.level} />}
         <p className="mt-2 text-sm text-ink-800 lg:hidden">{oneLine}</p>
       </div>
       <ol className={`hidden space-y-3 text-sm ${lv.active ? "lg:block" : ""}`}>
@@ -341,22 +346,36 @@ function LevelPanel({ org }: { org: OrgDetail }) {
 function FinanceSummaryCard({ org }: { org: OrgDetail }) {
   const latest = [...org.financials].sort((a, b) => b.year - a.year)[0];
   if (!latest) return null;
+  // 顏色跟財務折線圖同一套（收入藍、支出橘、資產綠）
   const rows = [
-    { label: "總收入", value: latest.total_revenue },
-    { label: "總支出", value: latest.total_expenses },
-    { label: "年底總資產", value: latest.total_assets },
+    { label: "總收入", value: latest.total_revenue, color: "bg-[#4150b6]" },
+    { label: "總支出", value: latest.total_expenses, color: "bg-[#c2610f]" },
+    { label: "年底總資產", value: latest.total_assets, color: "bg-[#0f8a6c]" },
   ];
+  const maxV = Math.max(0, ...rows.map((r) => r.value ?? 0));
   return (
     <section aria-labelledby="finance-summary-title" className="surface p-4 lg:p-5">
       <h2 id="finance-summary-title" className="font-display text-lg font-bold text-ink-900">
         財務摘要
       </h2>
       <p className="mt-0.5 text-xs text-ink-600">民國 {latest.year} 年度</p>
-      <dl className="mt-3 space-y-2 text-sm">
-        {rows.map((r) => (
-          <div key={r.label} className="flex items-baseline justify-between gap-3">
-            <dt className="text-ink-700">{r.label}</dt>
-            <dd className="font-num font-semibold tabular-nums text-ink-900">{formatMoney(r.value)}</dd>
+      <dl className="mt-3 space-y-3 text-sm">
+        {rows.map((r, i) => (
+          <div key={r.label}>
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-ink-700">{r.label}</dt>
+              <dd className="font-num font-semibold tabular-nums text-ink-900">
+                {r.value === null ? formatMoney(r.value) : <CountUp value={r.value} format="money" />}
+              </dd>
+            </div>
+            {maxV > 0 && r.value !== null && r.value > 0 && (
+              <div aria-hidden className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink-100">
+                <div
+                  style={{ width: `${(r.value / maxV) * 100}%`, animationDelay: `${0.2 + i * 0.12}s` }}
+                  className={`animate-grow-x h-full origin-left rounded-full ${r.color}`}
+                />
+              </div>
+            )}
           </div>
         ))}
       </dl>
@@ -719,17 +738,18 @@ function DonationsTab({ org }: { org: OrgDetail }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-100 tabular-nums">
-                {years.map((a) => (
-                  <tr key={`${a.year}-${a.source_name}`}>
+                {years.map((a, i) => (
+                  <tr key={`${a.year}-${a.source_name}`} className="transition-colors hover:bg-brand-50/40">
                     <td className="px-2 py-2 sm:px-3">{a.year}</td>
                     <td
                       className="hidden px-2 py-2 sm:px-3 sm:table-cell"
                       aria-hidden
                     >
                       <div
-                        className="h-3 rounded-sm bg-brand-600"
+                        className="animate-grow-x h-3 origin-left rounded-r-md bg-gradient-to-r from-brand-400 to-brand-700"
                         style={{
                           width: `${maxRaised ? (a.raised / maxRaised) * 100 : 0}%`,
+                          animationDelay: `${0.1 + i * 0.08}s`,
                         }}
                       />
                     </td>
@@ -740,9 +760,7 @@ function DonationsTab({ org }: { org: OrgDetail }) {
                       {formatMoney(a.target)}
                     </td>
                     <td className="px-2 py-2 sm:px-3 text-right">
-                      {a.achievement_rate === null
-                        ? "—"
-                        : `${a.achievement_rate}%`}
+                      {a.achievement_rate === null ? "—" : <AchievementRate rate={a.achievement_rate} />}
                     </td>
                   </tr>
                 ))}
@@ -1361,4 +1379,38 @@ function FilingStatus({ filedOn, done, late, dueOn }: { filedOn: string | null; 
     );
   }
   return <dd className="tabular-nums">尚未備查</dd>;
+}
+
+/** 揭露層級的四格進度（LK-50）：達到的格子依序亮起來；字在徽章上已經寫了，這裡只給眼睛看 */
+function LevelProgress({ level }: { level: number }) {
+  return (
+    <div aria-hidden className="mt-3 grid grid-cols-4 gap-1">
+      {[1, 2, 3, 4].map((n) => (
+        <span key={n} className="h-1.5 overflow-hidden rounded-full bg-sun-100">
+          {n <= level && (
+            <span
+              style={{ animationDelay: `${0.2 + n * 0.15}s` }}
+              className="animate-grow-x block h-full origin-left rounded-full bg-gradient-to-r from-sun-400 to-sun-500"
+            />
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** 達成率：數字＋一條小進度條（滿 100% 換綠色，超過的部分不畫出框） */
+function AchievementRate({ rate }: { rate: number }) {
+  const full = rate >= 100;
+  return (
+    <span className="inline-flex items-center justify-end gap-2">
+      <span aria-hidden className="hidden h-1.5 w-12 overflow-hidden rounded-full bg-ink-100 sm:block">
+        <span
+          style={{ width: `${Math.min(100, rate)}%` }}
+          className={`animate-grow-x block h-full origin-left rounded-full ${full ? "bg-emerald-600" : "bg-brand-500"}`}
+        />
+      </span>
+      <span className={full ? "font-semibold text-emerald-800" : ""}>{rate}%</span>
+    </span>
+  );
 }
