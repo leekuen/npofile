@@ -83,5 +83,5 @@ setup; (cd "$work/app" && git pull -q --ff-only); echo 123 >"$AUTO_UPDATE_STATE"
 check "已是最新：什麼都不做、清掉等待紀錄" '[ ! -s "$work/docker.log" ] && [ ! -e "$AUTO_UPDATE_STATE" ]'
 
 echo
-echo "auto-update-test：通過 $pass、失敗 $fail"
+echo "auto-update-test：通過 ${pass}、失敗 ${fail}"
 [ "$fail" -eq 0 ]
