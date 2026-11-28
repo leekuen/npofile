@@ -1,9 +1,9 @@
 import Link from "next/link";
 
-import { formatNumber } from "@/lib/format";
 import { ApiUnavailableError, getStats } from "@/lib/server-api";
 
-import { ErrorBox, Skeleton } from "./ui";
+import { CountUp } from "./count-up";
+import { ErrorBox, order, Skeleton } from "./ui";
 
 // 第一格是「有紀錄可查」的組織，不是名冊上的全部（LK-46）；鑽石級那格連到專頁
 const ITEMS = [
@@ -25,8 +25,8 @@ export async function StatsCards() {
   }
   return (
     <dl className="grid grid-cols-3 gap-3 border-t border-ink-200/70 pt-5 lg:grid-cols-1 lg:content-center lg:gap-0 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8">
-      {ITEMS.map(({ key, label, href }) => (
-        <div key={key} className="flex flex-col-reverse justify-end gap-0.5 lg:border-b lg:border-ink-200/70 lg:py-4 lg:first:pt-0 lg:last:border-b-0 lg:last:pb-0">
+      {ITEMS.map(({ key, label, href }, i) => (
+        <div key={key} style={order(i + 2)} className="stagger animate-rise flex flex-col-reverse justify-end gap-0.5 lg:border-b lg:border-ink-200/70 lg:py-4 lg:first:pt-0 lg:last:border-b-0 lg:last:pb-0">
           <dt className="text-xs text-balance text-ink-600 lg:text-sm">
             {href ? (
               <Link href={href} className="text-brand-800 underline underline-offset-2 hover:text-brand-900">
@@ -37,7 +37,7 @@ export async function StatsCards() {
             )}
           </dt>
           <dd className={`font-num text-xl font-bold tabular-nums sm:text-2xl lg:text-[1.75rem] lg:leading-tight ${key === "penalized_5y" ? "text-red-700" : "text-ink-900"}`}>
-            {formatNumber(stats[key])}
+            <CountUp value={stats[key]} />
           </dd>
         </div>
       ))}

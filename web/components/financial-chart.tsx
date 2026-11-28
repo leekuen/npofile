@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { formatCompact, formatMoney } from "@/lib/format";
 
@@ -65,6 +65,7 @@ export function TrendChart<K extends string>({
   type SeriesKey = K;
   const val = (r: TrendRow<K>, k: K): number | null => r[k] as number | null;
   const [hover, setHover] = useState<number | null>(null);
+  const uid = useId().replace(/:/g, "");
   // 依實際寬度畫，不用 viewBox 整張縮放：手機上字才不會縮到看不見
   const ref = useRef<HTMLElement>(null);
   const [W, setW] = useState(640);
@@ -125,6 +126,25 @@ export function TrendChart<K extends string>({
         aria-label={label}
         onMouseLeave={() => setHover(null)}
       >
+        {/* LK-50：線由左往右畫出來（用裁切框長出來，虛線樣式不受影響）；第一條線下方加很淡的漸層面積 */}
+        <defs>
+          <clipPath id={`${uid}-reveal`}>
+            <rect
+              x={0}
+              y={0}
+              width={W}
+              height={H}
+              className="animate-grow-x"
+              style={{ transformBox: "fill-box", transformOrigin: "left", animationDuration: "1.4s" }}
+            />
+          </clipPath>
+          {SERIES.map((s) => (
+            <linearGradient key={s.key} id={`${uid}-area-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={s.color} stopOpacity="0.2" />
+              <stop offset="100%" stopColor={s.color} stopOpacity="0" />
+            </linearGradient>
+          ))}
+        </defs>
         {ticks.map((t) => (
           <g key={t}>
             <line x1={PAD.left} x2={W - PAD.right} y1={y(t)} y2={y(t)} stroke="#e1e4f0" strokeWidth="1" />
@@ -139,7 +159,7 @@ export function TrendChart<K extends string>({
           </text>
         ))}
         {hover !== null && <line x1={x(hover)} x2={x(hover)} y1={PAD.top} y2={PAD.top + plotH} stroke="#9ca2bf" strokeWidth="1" />}
-        {SERIES.map((s) => {
+        {SERIES.map((s, si) => {
           // 某一年沒有數字就斷線，不拿前後年硬連
           const segments: string[] = [];
           let cur: string[] = [];
@@ -152,14 +172,37 @@ export function TrendChart<K extends string>({
           });
           if (cur.length) segments.push(cur.join(" "));
           const end = ends.find((e) => e?.key === s.key);
+          const base = y(Math.max(minV, 0));
+          const withArea = si === 0;
           return (
-            <g key={s.key}>
+            <g key={s.key} clipPath={`url(#${uid}-reveal)`}>
+              {withArea &&
+                segments.map((d) => {
+                  const xs = [...d.matchAll(/[ML]([\d.]+),/g)].map((m) => m[1]);
+                  return (
+                    <path
+                      key={`area-${d}`}
+                      d={`${d} L${xs[xs.length - 1]},${base} L${xs[0]},${base} Z`}
+                      fill={`url(#${uid}-area-${s.key})`}
+                    />
+                  );
+                })}
               {segments.map((d) => (
                 <path key={d} d={d} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.dash} />
               ))}
               {data.map((r, i) =>
                 val(r, s.key) === null ? null : (
-                  <circle key={r.year} cx={x(i)} cy={y(val(r, s.key) as number)} r={hover === i ? 5 : 4} fill={s.color} stroke={SURFACE} strokeWidth="2" />
+                  <circle
+                    key={r.year}
+                    cx={x(i)}
+                    cy={y(val(r, s.key) as number)}
+                    r={hover === i ? 5.5 : 4}
+                    fill={s.color}
+                    stroke={SURFACE}
+                    strokeWidth="2"
+                    className="animate-pop transition-[r] duration-150"
+                    style={{ transformBox: "fill-box", transformOrigin: "center", animationDelay: `${0.25 + (i / Math.max(1, data.length - 1)) * 1.1}s` }}
+                  />
                 ),
               )}
               {end && showEnd(s.key) && (
